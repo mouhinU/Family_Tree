@@ -1,0 +1,1121 @@
+/* ========== 全局（古典族谱主题） ========== */
+:root {
+    --paper: #f0e8d2;          /* 宣纸底 */
+    --paper-card: #faf5e6;     /* 卡片纸 */
+    --ink: #2b2622;            /* 墨色 */
+    --ink-light: #6b6156;      /* 淡墨 */
+    --ink-faint: #8a7f6a;      /* 枯墨 */
+    --cinnabar: #a63a2b;       /* 朱砂 */
+    --cinnabar-dark: #8b2f1f;  /* 深朱砂 */
+    --gold: #8a6d3b;           /* 赭金 */
+    --border: #d8cba8;         /* 纸边 */
+    --font-kai: "Kaiti SC", "STKaiti", "KaiTi", "BiauKai", "Noto Serif SC", "Songti SC", "SimSun", serif;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: var(--font-kai);
+    background: var(--paper);
+    color: var(--ink);
+}
+
+/* ========== 登录页 ========== */
+.login-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background:
+        radial-gradient(circle at 15% 20%, rgba(166, 58, 43, 0.08) 0%, transparent 45%),
+        radial-gradient(circle at 85% 80%, rgba(138, 109, 59, 0.10) 0%, transparent 45%),
+        var(--paper);
+}
+
+.login-container {
+    width: 100%;
+    max-width: 400px;
+    padding: 20px;
+}
+
+.login-card {
+    background: var(--paper-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 40px 32px;
+    box-shadow: 0 20px 60px rgba(43, 38, 34, 0.18);
+}
+
+.login-title {
+    text-align: center;
+    font-size: 30px;
+    letter-spacing: 6px;
+    color: var(--ink);
+    margin-bottom: 4px;
+}
+
+.login-subtitle {
+    text-align: center;
+    font-size: 14px;
+    color: var(--ink-faint);
+    margin-bottom: 30px;
+}
+
+.login-tabs {
+    display: flex;
+    margin-bottom: 24px;
+    border-bottom: 2px solid var(--border);
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    background: none;
+    font-size: 16px;
+    font-family: var(--font-kai);
+    cursor: pointer;
+    color: var(--ink-faint);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.3s;
+}
+
+.tab-btn.active {
+    color: var(--cinnabar);
+    border-bottom-color: var(--cinnabar);
+}
+
+.form-group {
+    margin-bottom: 18px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 14px;
+    color: var(--ink-light);
+    margin-bottom: 6px;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: #fffdf6;
+    font-size: 15px;
+    font-family: var(--font-kai);
+    color: var(--ink);
+    transition: border-color 0.3s;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: var(--cinnabar);
+    box-shadow: 0 0 0 3px rgba(166, 58, 43, 0.12);
+}
+
+.btn-primary {
+    width: 100%;
+    padding: 12px;
+    background: var(--cinnabar);
+    color: #f7f1e0;
+    border: none;
+    border-radius: 4px;
+    font-size: 17px;
+    font-family: var(--font-kai);
+    letter-spacing: 4px;
+    cursor: pointer;
+    transition: background 0.3s;
+}
+
+.btn-primary:hover {
+    background: var(--cinnabar-dark);
+}
+
+.message {
+    margin-top: 16px;
+    text-align: center;
+    font-size: 14px;
+}
+
+.message.error {
+    color: var(--cinnabar);
+}
+
+.message.success {
+    color: #3a6b4f;
+}
+
+/* ========== 主页面 ========== */
+.app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px;
+    background: var(--ink);
+    box-shadow: 0 2px 10px rgba(43, 38, 34, 0.3);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+}
+
+.app-header h1 {
+    font-size: 22px;
+    letter-spacing: 5px;
+    color: #f0e8d2;
+    font-weight: 600;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-actions .nickname {
+    font-size: 15px;
+    color: #d8cba8;
+    letter-spacing: 2px;
+}
+
+.btn-sm {
+    padding: 6px 14px;
+    border: 1px solid #55493c;
+    border-radius: 4px;
+    background: transparent;
+    color: #d8cba8;
+    cursor: pointer;
+    font-size: 14px;
+    font-family: var(--font-kai);
+    letter-spacing: 1px;
+    transition: all 0.2s;
+}
+
+.btn-sm:hover {
+    border-color: var(--cinnabar);
+    color: #f0e8d2;
+    background: rgba(166, 58, 43, 0.25);
+}
+
+.btn-sm.primary {
+    background: var(--cinnabar);
+    color: #f7f1e0;
+    border-color: var(--cinnabar);
+}
+
+.btn-sm.primary:hover {
+    background: var(--cinnabar-dark);
+}
+
+.btn-sm.danger {
+    color: #d98c7c;
+    border-color: #7a4437;
+}
+
+.btn-sm.danger:hover {
+    background: var(--cinnabar);
+    color: #f7f1e0;
+}
+
+/* ========== 工具栏 ========== */
+.toolbar {
+    position: fixed;
+    top: 60px;
+    left: 0;
+    right: 0;
+    padding: 10px 24px;
+    background: #ece2c8;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 99;
+    transition: transform 0.3s ease;
+}
+
+/* 工具栏收起态：整体上移藏入页眉之后（页眉 z-index:100 > 工具栏 99，页眉不透明遮挡） */
+.toolbar.collapsed {
+    transform: translateY(-100%);
+}
+
+/* 下拉把手：挂在工具栏底边中央，收起后仍露出页眉下方，点击可还原 */
+.toolbar-handle {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 18px;
+    padding: 0;
+    margin-top: -1px;
+    background: #ece2c8;
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    color: var(--ink-light);
+    cursor: pointer;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.toolbar-handle:hover {
+    color: var(--cinnabar);
+    background: #f3ead2;
+}
+
+/* 把手箭头：默认朝上（可收起），收起后旋转 180° 朝下（可展开） */
+.handle-caret {
+    font-size: 12px;
+    line-height: 1;
+    transition: transform 0.3s;
+}
+
+.toolbar.collapsed .handle-caret {
+    transform: rotate(180deg);
+}
+
+/* 工具栏收起时，族谱画布上移填补空出的区域 */
+.tree-container {
+    transition: top 0.3s ease;
+}
+
+body.toolbar-hidden .tree-container {
+    top: 60px;
+}
+
+.toolbar .hint {
+    font-size: 13px;
+    color: var(--ink-faint);
+    margin-left: auto;
+}
+
+/* ========== 只看健在开关 ========== */
+.living-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: var(--ink-light);
+    cursor: pointer;
+    user-select: none;
+    padding: 3px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: #fffdf6;
+    transition: all 0.2s;
+}
+
+.living-toggle:hover {
+    border-color: var(--cinnabar);
+    color: var(--cinnabar);
+}
+
+.living-toggle input {
+    accent-color: var(--cinnabar);
+    cursor: pointer;
+}
+
+.living-toggle input:checked + span {
+    color: var(--cinnabar);
+    font-weight: 600;
+}
+
+/* ========== 布局方向选择器 ========== */
+.layout-select {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: var(--ink-light);
+    cursor: pointer;
+    user-select: none;
+    padding: 3px 12px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: #fffdf6;
+    transition: all 0.2s;
+}
+
+.layout-select:hover {
+    border-color: var(--cinnabar);
+    color: var(--cinnabar);
+}
+
+.layout-select select {
+    font-family: var(--font-kai);
+    font-size: 14px;
+    color: var(--ink);
+    background: transparent;
+    border: none;
+    outline: none;
+    cursor: pointer;
+}
+
+.layout-select:hover select {
+    color: var(--cinnabar);
+}
+
+/* ========== 颜色图例（可折叠，默认隐藏） ========== */
+.legend {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--ink-light);
+}
+
+/* 图例折叠开关：始终可见，点击展开 / 收起图例项 */
+.legend-toggle {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-weight: 600;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    transition: color 0.2s;
+}
+
+.legend-toggle:hover {
+    color: var(--cinnabar);
+}
+
+/* 箭头：默认朝下，展开后旋转 180° 朝上 */
+.legend-caret {
+    display: inline-block;
+    font-size: 11px;
+    font-style: normal;
+    transition: transform 0.2s;
+}
+
+.legend.open .legend-caret {
+    transform: rotate(180deg);
+}
+
+/* 图例项容器：默认隐藏（不占位），展开后横向排列 */
+.legend-items {
+    display: none;
+    align-items: center;
+    gap: 12px;
+}
+
+.legend.open .legend-items {
+    display: flex;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid rgba(43, 38, 34, 0.2);
+}
+
+/* ========== SVG 画布 ========== */
+.tree-container {
+    position: fixed;
+    top: 108px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+    background:
+        radial-gradient(circle at 50% 0%, rgba(138, 109, 59, 0.05) 0%, transparent 60%),
+        var(--paper);
+}
+
+.tree-container svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* ========== 节点样式 ========== */
+.node-group {
+    cursor: pointer;
+}
+
+.node-rect {
+    transition: filter 0.2s;
+}
+
+.node-group:hover .node-rect {
+    filter: brightness(0.96) saturate(1.1);
+}
+
+.node-name {
+    font-family: var(--font-kai);
+    font-weight: 600;
+    text-anchor: middle;
+    pointer-events: none;
+}
+
+.node-info {
+    font-family: var(--font-kai);
+    text-anchor: middle;
+    pointer-events: none;
+}
+
+.node-gen {
+    font-family: var(--font-kai);
+    text-anchor: middle;
+    pointer-events: none;
+}
+
+.link-parent {
+    fill: none;
+    stroke: #a89877;
+    stroke-width: 1.6;
+}
+
+.link-spouse {
+    fill: none;
+    stroke: var(--cinnabar);
+    stroke-width: 2;
+    stroke-dasharray: 6, 3;
+}
+
+/* ========== 右键菜单 ========== */
+.context-menu {
+    position: fixed;
+    background: var(--paper-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 20px rgba(43, 38, 34, 0.2);
+    padding: 6px 0;
+    z-index: 1000;
+    min-width: 160px;
+    display: none;
+}
+
+.context-menu .menu-item {
+    padding: 10px 20px;
+    font-size: 15px;
+    font-family: var(--font-kai);
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.context-menu .menu-item:hover {
+    background: #f0e8d2;
+}
+
+.context-menu .menu-item.danger {
+    color: var(--cinnabar);
+}
+
+/* ========== 模态框 ========== */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(43, 38, 34, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.modal {
+    background: var(--paper-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px;
+    width: 420px;
+    max-width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(43, 38, 34, 0.3);
+}
+
+.modal.modal-wide {
+    width: 780px;
+}
+
+/* ========== 辈分管理网格 ========== */
+.gen-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+}
+
+.gen-cell {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 8px;
+    background: #fffdf6;
+}
+
+.gen-cell-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--ink-faint);
+    margin-bottom: 4px;
+}
+
+.gen-cell-head .gen-count {
+    color: #b3a88d;
+    font-size: 11px;
+}
+
+.gen-cell .gen-input {
+    width: 100%;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    background: transparent;
+    padding: 2px 0;
+    font-size: 15px;
+    font-family: var(--font-kai);
+    text-align: center;
+    outline: none;
+    color: var(--ink);
+}
+
+.gen-cell .gen-input:focus {
+    border-bottom-color: var(--cinnabar);
+}
+
+.modal h3 {
+    margin-bottom: 20px;
+    font-size: 20px;
+    letter-spacing: 2px;
+    color: var(--ink);
+}
+
+.modal .form-group {
+    margin-bottom: 14px;
+}
+
+.modal .form-group select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: #fffdf6;
+    font-size: 15px;
+    font-family: var(--font-kai);
+    color: var(--ink);
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.modal-actions .btn-cancel {
+    padding: 8px 20px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: #fffdf6;
+    color: var(--ink-light);
+    font-family: var(--font-kai);
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.modal-actions .btn-confirm {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 4px;
+    background: var(--cinnabar);
+    color: #f7f1e0;
+    font-family: var(--font-kai);
+    font-size: 15px;
+    letter-spacing: 2px;
+    cursor: pointer;
+}
+
+.modal-actions .btn-confirm:hover {
+    background: var(--cinnabar-dark);
+}
+
+/* 关联现有配偶 弹窗 */
+.link-spouse-tip {
+    margin-bottom: 14px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--ink-light);
+}
+
+.link-spouse-list {
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: #fffdf6;
+}
+
+.link-spouse-opt {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 14px;
+    border-bottom: 1px solid #f0ead8;
+    cursor: pointer;
+    font-family: var(--font-kai);
+}
+
+.link-spouse-opt:last-child {
+    border-bottom: none;
+}
+
+.link-spouse-opt:hover {
+    background: #f6efdd;
+}
+
+.link-spouse-opt.selected {
+    background: #f3e2d8;
+    box-shadow: inset 3px 0 0 var(--cinnabar);
+}
+
+.link-spouse-opt .opt-name {
+    font-size: 15px;
+    color: var(--ink);
+}
+
+.link-spouse-opt .opt-meta {
+    font-size: 12px;
+    color: var(--ink-light);
+    white-space: nowrap;
+}
+
+.link-spouse-empty {
+    padding: 20px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--ink-light);
+}
+
+/* ========== 辈分（字辈）水印层 ========== */
+/* 整体取传统手卷（横卷）意象：左右紫檀木轴 + 赭金轴头，列从右到左排列，
+   列内字符从上到下，龙纹团龙居中平铺为底纹，上下淡出融于宣纸。 */
+#generation-watermark {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: row-reverse;
+    pointer-events: none;
+    user-select: none;
+    z-index: 5;
+    overflow: hidden;
+    box-sizing: border-box;
+    padding: 0 clamp(28px, 4vw, 64px);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 7%, #000 93%, transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 7%, #000 93%, transparent 100%);
+}
+
+/* 左右卷轴：紫檀木圆柱，渐变模拟高光与阴影 */
+#generation-watermark::before,
+#generation-watermark::after {
+    content: '';
+    position: absolute;
+    top: 3%;
+    bottom: 3%;
+    width: clamp(14px, 2vw, 26px);
+    z-index: 3;
+    border-radius: 999px;
+    background: linear-gradient(to right,
+        #2e1a12 0%, #5c3a28 22%, #a07050 42%, #c49a6c 50%,
+        #a07050 58%, #5c3a28 78%, #2e1a12 100%);
+    box-shadow:
+        inset 0 0 4px rgba(0, 0, 0, 0.5),
+        2px 0 8px rgba(43, 38, 34, 0.25),
+        -2px 0 8px rgba(43, 38, 34, 0.25);
+}
+
+#generation-watermark::before {
+    left: clamp(6px, 1vw, 16px);
+}
+
+#generation-watermark::after {
+    right: clamp(6px, 1vw, 16px);
+}
+
+#generation-watermark .wm-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    align-items: center;
+    min-width: 0;
+    /* 界行：每列左侧一条淡墨细线（row-reverse 下最左列的左边线即成左侧边栏） */
+    border-left: 1px solid rgba(43, 38, 34, 0.07);
+    position: relative;
+    z-index: 1;
+}
+
+/* 最右列（DOM 首列）补右侧边线，与各界行合成完整古籍版框 */
+#generation-watermark .wm-col:first-child {
+    border-right: 1px solid rgba(43, 38, 34, 0.07);
+}
+
+#generation-watermark .wm-char {
+    font-family: var(--font-kai);
+    font-size: clamp(32px, 6vh, 72px);
+    line-height: 1;
+    color: var(--ink);
+    opacity: 0.13;
+    text-align: center;
+    position: relative;
+    z-index: 0;
+}
+
+/* 龙纹底衬：每个辈分字正下方居中一团龙纹，尺寸为字大的约 2.67 倍（4em 的 2/3），低透明度垫于文字之下 */
+#generation-watermark .wm-char::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: calc(8em / 3);
+    height: calc(8em / 3);
+    transform: translate(-50%, -50%);
+    background: url('/img/longwen.png') center / contain no-repeat;
+    opacity: 0.6;
+    z-index: -1;
+    pointer-events: none;
+}
+
+/* 登录人所属辈分：朱砂双圈"圈点" + 柔光，醒目而不失雅致 */
+#generation-watermark .wm-char.wm-highlight {
+    color: var(--cinnabar);
+    opacity: 0.65;
+    font-weight: 700;
+    font-size: clamp(38px, 7vh, 84px);
+    border: 2px solid var(--cinnabar);
+    border-radius: 50%;
+    width: 1.6em;
+    height: 1.6em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    outline: 1px solid rgba(166, 58, 43, 0.4);
+    outline-offset: 3px;
+    box-shadow: 0 0 14px rgba(166, 58, 43, 0.25);
+    /* 可点击：高亮该辈分节点 */
+    pointer-events: auto;
+    cursor: pointer;
+    transition: box-shadow 0.2s, background-color 0.2s, color 0.2s;
+}
+
+#generation-watermark .wm-char.wm-highlight:hover {
+    box-shadow: 0 0 20px rgba(166, 58, 43, 0.45);
+}
+
+/* 激活态：正在高亮该辈分节点时，圈点转为实心朱砂底白字 */
+#generation-watermark .wm-char.wm-highlight.wm-active {
+    background-color: var(--cinnabar);
+    color: #faf5e6;
+    opacity: 1;
+    box-shadow: 0 0 22px rgba(166, 58, 43, 0.6);
+}
+
+/* 辈分高亮的树节点：朱砂柔光晕染 + 轻微脉冲 */
+.node-group.gen-highlighted {
+    filter: drop-shadow(0 0 6px rgba(166, 58, 43, 0.85));
+    animation: gen-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes gen-pulse {
+    0%, 100% {
+        filter: drop-shadow(0 0 5px rgba(166, 58, 43, 0.75));
+    }
+    50% {
+        filter: drop-shadow(0 0 10px rgba(166, 58, 43, 0.95));
+    }
+}
+
+/* 卷轴轴头（上下端帽）：赭金色圆帽 */
+#generation-watermark .wm-rod-cap {
+    position: absolute;
+    z-index: 4;
+    width: clamp(20px, 2.8vw, 36px);
+    height: clamp(10px, 1.4vw, 18px);
+    border-radius: 4px;
+    background: linear-gradient(to bottom,
+        #d4a84b 0%, #8a6d3b 40%, #6b5230 70%, #4a3820 100%);
+    box-shadow:
+        inset 0 1px 2px rgba(255, 220, 140, 0.5),
+        0 2px 4px rgba(43, 38, 34, 0.3);
+}
+
+#generation-watermark .wm-rod-cap.cap-left-top {
+    left: clamp(3px, 0.6vw, 11px);
+    top: 1.5%;
+}
+
+#generation-watermark .wm-rod-cap.cap-left-bottom {
+    left: clamp(3px, 0.6vw, 11px);
+    bottom: 1.5%;
+}
+
+#generation-watermark .wm-rod-cap.cap-right-top {
+    right: clamp(3px, 0.6vw, 11px);
+    top: 1.5%;
+}
+
+#generation-watermark .wm-rod-cap.cap-right-bottom {
+    right: clamp(3px, 0.6vw, 11px);
+    bottom: 1.5%;
+}
+
+/* ========== 入场卷轴蒙层 ========== */
+/* 全屏蒙层：宣纸覆盖，点击「开启卷轴」后纸面自中缝向两侧卷起、木轴随之前滚出。
+   蒙层本身透明，纸面卷起处即露出下方族谱。 */
+#scroll-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    overflow: hidden;
+}
+
+/* 宣纸纸面：左右各一张，固定不动；仅以 clip-path 动画"卷起"，纹理不随动画位移。
+   底色与首页 --paper(#f0e8d2) 保持一致，展开瞬间无色差跳变；上下微阴影增加卷轴立体感 */
+#scroll-overlay .scroll-paper {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 50%;
+    background:
+        linear-gradient(to bottom,
+            rgba(43, 38, 34, 0.05) 0%, rgba(43, 38, 34, 0) 7%,
+            rgba(43, 38, 34, 0) 93%, rgba(43, 38, 34, 0.05) 100%),
+        linear-gradient(135deg, #ede4cd 0%, #f0e8d2 50%, #eae0c6 100%);
+    transition: clip-path 2.5s cubic-bezier(0.7, 0, 0.3, 1);
+    will-change: clip-path;
+}
+
+#scroll-overlay .paper-left {
+    left: 0;
+    clip-path: inset(0 0 0 0);
+}
+
+#scroll-overlay .paper-right {
+    right: 0;
+    clip-path: inset(0 0 0 0);
+}
+
+/* 龙纹暗纹：团龙居中平铺，低透明度 */
+#scroll-overlay .scroll-pattern {
+    position: absolute;
+    inset: 0;
+    background: url('/img/longwen.png') center / 22vmin 22vmin repeat;
+    opacity: 0.07;
+    pointer-events: none;
+}
+
+/* 紫檀木轴：独立于纸面，初始并拢于中缝；开启时作为卷动前沿向两侧滚出 */
+#scroll-overlay .scroll-rod {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: calc(50% - 13px);
+    width: 26px;
+    z-index: 2;
+    background: linear-gradient(to right,
+        #2e1a12 0%, #5c3a28 22%, #a07050 42%, #c49a6c 50%,
+        #a07050 58%, #5c3a28 78%, #2e1a12 100%);
+    box-shadow:
+        inset 0 0 5px rgba(0, 0, 0, 0.5),
+        0 0 14px rgba(43, 38, 34, 0.4);
+    transition: transform 2.5s cubic-bezier(0.7, 0, 0.3, 1);
+    will-change: transform;
+}
+
+/* 轴头（上下端帽）：赭金色圆帽 */
+#scroll-overlay .scroll-rod::before,
+#scroll-overlay .scroll-rod::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 150%;
+    height: clamp(12px, 1.6vw, 20px);
+    border-radius: 4px;
+    background: linear-gradient(to bottom,
+        #d4a84b 0%, #8a6d3b 40%, #6b5230 70%, #4a3820 100%);
+    box-shadow:
+        inset 0 1px 2px rgba(255, 220, 140, 0.5),
+        0 2px 5px rgba(43, 38, 34, 0.35);
+}
+
+#scroll-overlay .scroll-rod::before {
+    top: 1.2%;
+}
+
+#scroll-overlay .scroll-rod::after {
+    bottom: 1.2%;
+}
+
+/* 中央题签：牌位式宣纸匾额，端坐于中缝之上——不透明卡片纸盖住木轴，
+   双线框（金边 + 纸缝 + 朱砂内线）呼应族谱节点的双线框，收拢印章/副标题/按钮为一整体 */
+#scroll-overlay .scroll-center {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    text-align: center;
+    background: rgba(250, 245, 230, 0.97);
+    border: 1px solid #c9b283;
+    border-radius: 6px;
+    padding: clamp(30px, 4.6vh, 50px) clamp(38px, 5vw, 66px);
+    box-shadow:
+        inset 0 0 0 3px #faf5e6,
+        inset 0 0 0 4px rgba(166, 58, 43, 0.45),
+        0 10px 36px rgba(43, 38, 34, 0.24);
+    transition: opacity 0.9s ease, transform 0.9s ease;
+}
+
+/* 金色对角角花：左上、右下各一折角，添手作之雅 */
+#scroll-overlay .scroll-center::before,
+#scroll-overlay .scroll-center::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    pointer-events: none;
+    opacity: 0.55;
+}
+
+#scroll-overlay .scroll-center::before {
+    top: 9px;
+    left: 9px;
+    border-top: 1px solid var(--gold);
+    border-left: 1px solid var(--gold);
+}
+
+#scroll-overlay .scroll-center::after {
+    bottom: 9px;
+    right: 9px;
+    border-bottom: 1px solid var(--gold);
+    border-right: 1px solid var(--gold);
+}
+
+/* 印章式标题：朱砂方印，楷体白字，匾额内的视觉焦点 */
+#scroll-overlay .scroll-seal {
+    display: inline-block;
+    font-family: var(--font-kai);
+    font-size: clamp(38px, 6vw, 62px);
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    color: #faf5e6;
+    background: var(--cinnabar);
+    border: 3px solid var(--cinnabar-dark);
+    border-radius: 8px;
+    padding: 0.26em 0.4em;
+    line-height: 1.15;
+    box-shadow:
+        inset 0 0 0 2px rgba(250, 245, 230, 0.55),
+        0 4px 18px rgba(139, 47, 31, 0.35);
+}
+
+#scroll-overlay .scroll-subtitle {
+    margin-top: clamp(14px, 2.2vh, 24px);
+    font-family: var(--font-kai);
+    font-size: clamp(15px, 2vw, 20px);
+    letter-spacing: 0.32em;
+    text-indent: 0.32em;
+    color: var(--ink-light);
+}
+
+/* 装饰分隔线：两侧渐隐的金线，中央一枚菱形，分隔副标题与按钮 */
+#scroll-overlay .scroll-divider {
+    position: relative;
+    width: clamp(120px, 16vw, 200px);
+    height: 1px;
+    margin: clamp(16px, 2.6vh, 26px) auto 0;
+    background: linear-gradient(to right, transparent, #b8935a 30%, #b8935a 70%, transparent);
+}
+
+#scroll-overlay .scroll-divider::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    transform: translate(-50%, -50%) rotate(45deg);
+    background: #b8935a;
+}
+
+/* 开启按钮：朱砂底 + 纸色字，悬停微亮 */
+#scroll-overlay .scroll-open-btn {
+    margin-top: clamp(18px, 3vh, 30px);
+    font-family: var(--font-kai);
+    font-size: clamp(16px, 2vw, 20px);
+    letter-spacing: 0.3em;
+    text-indent: 0.3em;
+    color: #faf5e6;
+    background: linear-gradient(to bottom, #b04434 0%, #a63a2b 55%, #8b2f1f 100%);
+    border: 1px solid var(--cinnabar-dark);
+    border-radius: 999px;
+    padding: 0.62em 2.4em;
+    cursor: pointer;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 220, 190, 0.35),
+        0 3px 10px rgba(139, 47, 31, 0.35);
+    transition: filter 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+
+#scroll-overlay .scroll-open-btn:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 220, 190, 0.35),
+        0 5px 16px rgba(139, 47, 31, 0.45);
+}
+
+#scroll-overlay .scroll-open-btn:active {
+    transform: translateY(0);
+}
+
+/* 展开态：纸面自中缝向两侧卷起（clip-path 收拢），木轴作为卷动前沿滚出屏幕 */
+#scroll-overlay.opened .paper-left {
+    clip-path: inset(0 100% 0 0);
+}
+
+#scroll-overlay.opened .paper-right {
+    clip-path: inset(0 0 0 100%);
+}
+
+#scroll-overlay.opened .rod-left {
+    transform: translateX(calc(-50vw - 60px));
+}
+
+#scroll-overlay.opened .rod-right {
+    transform: translateX(calc(50vw + 60px));
+}
+
+#scroll-overlay.opened .scroll-center {
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -50%) scale(0.96);
+}

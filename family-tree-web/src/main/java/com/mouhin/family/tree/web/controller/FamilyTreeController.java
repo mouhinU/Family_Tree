@@ -1,0 +1,46 @@
+package com.mouhin.family.tree.web.controller;
+
+import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
+import com.mouhin.family.tree.common.dto.TreeNodeVO;
+import com.mouhin.family.tree.common.result.Result;
+import com.mouhin.family.tree.service.FamilyTreeService;
+import jakarta.servlet.http.HttpSession;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+/**
+ * 族谱树形结构控制器
+ *
+ * @author Family-Tree
+ * @date 2026-07-30
+ */
+@RestController
+@RequestMapping("/api/tree")
+public class FamilyTreeController {
+
+    private final FamilyTreeService familyTreeService;
+
+    public FamilyTreeController(FamilyTreeService familyTreeService) {
+        this.familyTreeService = familyTreeService;
+    }
+
+    @GetMapping("/full")
+    public Result<List<TreeNodeVO>> fullTree(HttpSession session) {
+        Long userId = getCurrentUserId(session);
+        return Result.success(familyTreeService.getFullTree(userId));
+    }
+
+    @GetMapping("/subtree")
+    public Result<TreeNodeVO> subTree(@RequestParam Long nodeId, HttpSession session) {
+        Long userId = getCurrentUserId(session);
+        return Result.success(familyTreeService.getSubTree(userId, nodeId));
+    }
+
+    private Long getCurrentUserId(HttpSession session) {
+        return (Long) session.getAttribute(FamilyTreeConsts.SESSION_USER_ID);
+    }
+}

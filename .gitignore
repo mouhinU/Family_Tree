@@ -1,0 +1,31 @@
+# ===== 构建产物 =====
+target/
+*.class
+*.jar
+*.war
+
+# ===== IDE =====
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.project
+.classpath
+.settings/
+
+# ===== 日志 =====
+logs/
+*.log
+
+# ===== 数据库文件（H2 开发库，含真实族谱数据，勿提交） =====
+data/
+*.mv.db
+*.trace.db
+
+# ===== 操作系统 =====
+.DS_Store
+Thumbs.db
+
+# ===== Maven Wrapper（可选，如需提交 wrapper 可移除） =====
+# .mvn/wrapper/maven-wrapper.jar

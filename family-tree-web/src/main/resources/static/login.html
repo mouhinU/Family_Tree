@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>族谱管理系统 - 登录</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="login-body">
+    <div class="login-container">
+        <div class="login-card">
+            <h1 class="login-title">族谱管理系统</h1>
+            <p class="login-subtitle">Family Tree Manager</p>
+
+            <div class="login-tabs">
+                <button class="tab-btn active" id="tab-login">登录</button>
+                <button class="tab-btn" id="tab-register">注册</button>
+            </div>
+
+            <!-- 登录表单 -->
+            <form id="login-form" class="login-form">
+                <div class="form-group">
+                    <label for="login-username">用户名</label>
+                    <input type="text" id="login-username" name="username" placeholder="请输入用户名" required>
+                </div>
+                <div class="form-group">
+                    <label for="login-password">密码</label>
+                    <input type="password" id="login-password" name="password" placeholder="请输入密码" required>
+                </div>
+                <button type="submit" class="btn-primary">登 录</button>
+            </form>
+
+            <!-- 注册表单 -->
+            <form id="register-form" class="login-form" style="display:none;">
+                <div class="form-group">
+                    <label for="reg-username">用户名</label>
+                    <input type="text" id="reg-username" name="username" placeholder="请输入用户名" required>
+                </div>
+                <div class="form-group">
+                    <label for="reg-nickname">昵称</label>
+                    <input type="text" id="reg-nickname" name="nickname" placeholder="请输入昵称">
+                </div>
+                <div class="form-group">
+                    <label for="reg-password">密码</label>
+                    <input type="password" id="reg-password" name="password" placeholder="至少6位密码" required minlength="6">
+                </div>
+                <button type="submit" class="btn-primary">注 册</button>
+            </form>
+
+            <div id="login-message" class="message"></div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const tabLogin = document.getElementById('tab-login');
+        const tabRegister = document.getElementById('tab-register');
+        const loginForm = document.getElementById('login-form');
+        const registerForm = document.getElementById('register-form');
+        const messageEl = document.getElementById('login-message');
+
+        tabLogin.addEventListener('click', function() {
+            tabLogin.classList.add('active');
+            tabRegister.classList.remove('active');
+            loginForm.style.display = 'block';
+            registerForm.style.display = 'none';
+            messageEl.textContent = '';
+        });
+
+        tabRegister.addEventListener('click', function() {
+            tabRegister.classList.add('active');
+            tabLogin.classList.remove('active');
+            registerForm.style.display = 'block';
+            loginForm.style.display = 'none';
+            messageEl.textContent = '';
+        });
+
+        loginForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, password})
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    window.location.href = '/index.html';
+                } else {
+                    messageEl.textContent = data.message || '登录失败';
+                    messageEl.className = 'message error';
+                }
+            } catch (err) {
+                messageEl.textContent = '网络错误，请重试';
+                messageEl.className = 'message error';
+            }
+        });
+
+        registerForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const username = document.getElementById('reg-username').value;
+            const nickname = document.getElementById('reg-nickname').value;
+            const password = document.getElementById('reg-password').value;
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, nickname, password})
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    messageEl.textContent = '注册成功，请登录';
+                    messageEl.className = 'message success';
+                    setTimeout(function() { tabLogin.click(); }, 1000);
+                } else {
+                    messageEl.textContent = data.message || '注册失败';
+                    messageEl.className = 'message error';
+                }
+            } catch (err) {
+                messageEl.textContent = '网络错误，请重试';
+                messageEl.className = 'message error';
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

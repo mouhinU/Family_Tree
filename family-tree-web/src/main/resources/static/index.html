@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>族谱管理系统</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+</head>
+<body class="toolbar-hidden">
+    <!-- 入场卷轴蒙层：点击「开启卷轴」后纸面自中缝向两侧卷起，木轴随之前滚出 -->
+    <div id="scroll-overlay">
+        <div class="scroll-paper paper-left">
+            <div class="scroll-pattern"></div>
+        </div>
+        <div class="scroll-paper paper-right">
+            <div class="scroll-pattern"></div>
+        </div>
+        <div class="scroll-rod rod-left"></div>
+        <div class="scroll-rod rod-right"></div>
+        <div class="scroll-center">
+            <div class="scroll-seal">族谱</div>
+            <div class="scroll-subtitle">木有本 · 水有源 · 世代相传</div>
+            <div class="scroll-divider"></div>
+            <button type="button" class="scroll-open-btn" id="btn-open-scroll">开启卷轴</button>
+        </div>
+    </div>
+
+    <!-- 顶部导航 -->
+    <header class="app-header">
+        <div class="header-left">
+            <h1>族谱管理系统</h1>
+            <button class="btn-sm" id="btn-generation">辈分管理</button>
+        </div>
+        <div class="header-actions">
+            <span class="nickname" id="user-nickname"></span>
+            <button class="btn-sm primary" id="btn-add-root">添加始祖</button>
+            <button class="btn-sm" id="btn-logout">退出</button>
+        </div>
+    </header>
+
+    <!-- 工具栏（默认收起，点击底边把手展开） -->
+    <div class="toolbar collapsed" id="toolbar">
+        <div class="legend" id="legend">
+            <span class="legend-toggle" id="legend-toggle" title="显示 / 隐藏颜色图例">图例：<span class="legend-caret">▾</span></span>
+            <div class="legend-items">
+                <div class="legend-item"><div class="legend-dot" style="background:#5b6b7c"></div>默认</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#a63a2b"></div>父系</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#a0522d"></div>母系</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#6b4f8a"></div>姻亲</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#3a6b4f"></div>过继</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#a63d5c"></div>高亮</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#9a968c"></div>已故</div>
+            </div>
+        </div>
+        <label class="layout-select" title="切换族谱布局方向">
+            <span>布局</span>
+            <select id="sel-layout">
+                <option value="tb" selected>上下</option>
+                <option value="lr">左→右</option>
+                <option value="rl">右→左</option>
+            </select>
+        </label>
+        <label class="living-toggle" title="隐藏已故节点，只显示健在成员">
+            <input type="checkbox" id="chk-hide-deceased">
+            <span>只看健在</span>
+        </label>
+        <span class="hint">右键点击节点可操作 | 滚轮缩放 | 拖拽平移</span>
+        <!-- 下拉把手：整体收起 / 展开工具栏 -->
+        <button class="toolbar-handle" id="toolbar-handle" type="button" title="展开工具栏">
+            <span class="handle-caret">▴</span>
+        </button>
+    </div>
+
+    <!-- 族谱画布 -->
+    <div class="tree-container" id="tree-container">
+        <svg id="tree-svg"></svg>
+        <!-- 辈分（字辈）水印层：右起竖排，登录人所属辈分高亮 -->
+        <div id="generation-watermark" aria-hidden="true"></div>
+    </div>
+
+    <!-- 右键菜单 -->
+    <div class="context-menu" id="context-menu">
+        <div class="menu-item" data-action="add-child">添加子女</div>
+        <div class="menu-item" data-action="add-spouse">添加配偶</div>
+        <div class="menu-item" data-action="link-spouse">关联现有配偶</div>
+        <div class="menu-item" data-action="add-parent">添加父母</div>
+        <div class="menu-item" data-action="birth-order">排次管理</div>
+        <div class="menu-item" data-action="edit">编辑信息</div>
+        <div class="menu-item" data-action="color">修改颜色</div>
+        <div class="menu-item danger" data-action="delete">删除节点</div>
+    </div>
+
+    <!-- 模态框容器 -->
+    <div id="modal-container"></div>
+
+    <script src="/js/family-tree.js"></script>
+</body>
+</html>
