@@ -35,6 +35,9 @@
     const INK_COLOR = '#2b2622';
     const INK_DECEASED = '#77736a';
 
+    // 楷体字体栈：导出 SVG 为独立文档不携带页面 CSS，文本需内联 font-family
+    const FONT_KAI = '"Kaiti SC", "STKaiti", "KaiTi", "BiauKai", "Noto Serif SC", "Songti SC", "SimSun", serif';
+
     // 配偶连线爱心（24x24 视图坐标）
     const HEART_PATH = 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 ' +
         '2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 ' +
@@ -70,6 +73,8 @@
     let highlightedGeneration = null;
     // 只看健在（隐藏已故节点）开关
     let hideDeceased = false;
+    // 隐藏外嫁开关：女性（女儿）外嫁后配偶与子女归属夫家，隐藏其家支不显示
+    let hideMarryOut = false;
     // 布局方向：'tb' 上下（世代从上到下） | 'lr' 左→右（始祖居最左） | 'rl' 右→左（始祖居最右，传统阅读方向）
     let layoutDirection = 'tb';
 
@@ -294,10 +299,40 @@
         return result;
     }
 
+    // 「隐藏外嫁」显示树：女性（女儿）外嫁后，其配偶与子女归属夫家，
+    // 保留本人、清空其配偶与子女（整棵子树）。生成新对象，不修改原始 treeData。
+    function buildHideMarryOutTree(nodes) {
+        const result = [];
+        nodes.forEach(function (node) {
+            if (node.gender === 2) {
+                // 外嫁女：本人仍为本支血脉予以保留；配偶与子女（含其后代）随夫家，不显示
+                result.push(Object.assign({}, node, {
+                    spouses: [],
+                    bloodSpouses: [],
+                    children: []
+                }));
+            } else {
+                result.push(Object.assign({}, node, {
+                    spouses: node.spouses || [],
+                    bloodSpouses: node.bloodSpouses || [],
+                    children: buildHideMarryOutTree(node.children || [])
+                }));
+            }
+        });
+        return result;
+    }
+
     function renderTree() {
         setupSvg();
 
-        const displayTree = hideDeceased ? buildLivingTree(treeData || []) : (treeData || []);
+        // 先按「隐藏外嫁」剔除出嫁女家支，再按「只看健在」剔除已故节点，两开关可叠加
+        let displayTree = treeData || [];
+        if (hideMarryOut) {
+            displayTree = buildHideMarryOutTree(displayTree);
+        }
+        if (hideDeceased) {
+            displayTree = buildLivingTree(displayTree);
+        }
 
         // 清空后代计数记忆化缓存（树结构可能已变化）
         descendantMemo = new Map();
@@ -351,6 +386,22 @@
         const startX = (container.clientWidth - treeWidth) / 2;
         const startY = 40;
 
+        drawTreeContent(layoutNodes, links, startX, startY, horiz, true);
+
+        // 初始适配缩放：统一仅按屏幕宽度适配（treeWidth 已按方向取对应跨度）；
+        // 树过高时保持节点可读尺寸，由用户纵向平移查看
+        const scale = Math.min(1, container.clientWidth / (treeWidth + 100));
+        svg.call(zoom.transform, d3.zoomIdentity.translate(0, 0).scale(Math.max(scale, 0.5)));
+
+        // 重绘后恢复辈分高亮状态
+        applyGenerationHighlight();
+    }
+
+    // 绘制族谱内容（连线 + 血亲配偶弧线 + 节点卡片），追加到全局 gMain。
+    // interactive=true（实时视图）：绘制折叠按钮并绑定右键/点击事件；
+    // interactive=false（静态导出）：省略折叠按钮与交互，文本/连线内联字体与描边，
+    // 以便序列化为独立 SVG（不携带页面 CSS）时样式不丢失。
+    function drawTreeContent(layoutNodes, links, startX, startY, horiz, interactive) {
         // 绘制连线
         links.forEach(function (link) {
             if (link.type === 'spouse') {
@@ -376,6 +427,9 @@
                 const midX = (link.x1 + link.x2) / 2;
                 gMain.append('path')
                     .attr('class', 'link-parent')
+                    .attr('fill', 'none')
+                    .attr('stroke', '#a89877')
+                    .attr('stroke-width', 1.6)
                     .attr('d', 'M' + (link.x1 + startX) + ',' + (link.y1 + startY) +
                         ' C' + (midX + startX) + ',' + (link.y1 + startY) +
                         ' ' + (midX + startX) + ',' + (link.y2 + startY) +
@@ -385,6 +439,9 @@
                 const midY = (link.y1 + link.y2) / 2;
                 gMain.append('path')
                     .attr('class', 'link-parent')
+                    .attr('fill', 'none')
+                    .attr('stroke', '#a89877')
+                    .attr('stroke-width', 1.6)
                     .attr('d', 'M' + (link.x1 + startX) + ',' + (link.y1 + startY) +
                         ' C' + (link.x1 + startX) + ',' + (midY + startY) +
                         ' ' + (link.x2 + startX) + ',' + (midY + startY) +
@@ -465,6 +522,7 @@
                     .attr('x', NODE_WIDTH / 2)
                     .attr('y', 17.5)
                     .attr('text-anchor', 'middle')
+                    .attr('font-family', FONT_KAI)
                     .attr('font-size', '9px')
                     .attr('fill', deceased ? '#a39d8f' : '#8a6d3b')
                     .text(genLabel);
@@ -485,6 +543,8 @@
                     .attr('y', nameStartY + i * charH)
                     .attr('text-anchor', 'middle')
                     .attr('dominant-baseline', 'central')
+                    .attr('font-family', FONT_KAI)
+                    .attr('font-weight', '600')
                     .attr('font-size', fontSize)
                     .attr('fill', ink)
                     .text(ch);
@@ -499,6 +559,7 @@
                     .attr('x', NODE_WIDTH / 2)
                     .attr('y', NODE_HEIGHT - 11)
                     .attr('text-anchor', 'middle')
+                    .attr('font-family', FONT_KAI)
                     .attr('font-size', '10px')
                     .attr('fill', deceased ? '#948f83' : '#8a7f6a')
                     .text(info);
@@ -521,8 +582,8 @@
                     .text(n.data.birthOrder);
             }
 
-            // 折叠/展开按钮（位置随布局方向：上下→底部，左→右→右缘，右→左→左缘）
-            if (n.hasChildren) {
+            // 折叠/展开按钮与交互事件仅实时视图需要，静态导出省略
+            if (interactive && n.hasChildren) {
                 const isCollapsed = collapsedNodes.has(n.data.id);
                 let btnTransform;
                 if (layoutDirection === 'lr') {
@@ -572,27 +633,220 @@
                 });
             }
 
-            // 右键菜单
-            group.on('contextmenu', function (event) {
-                event.preventDefault();
-                event.stopPropagation();
-                contextNodeId = n.data.id;
-                showContextMenu(event.clientX, event.clientY);
-            });
+            if (interactive) {
+                // 右键菜单
+                group.on('contextmenu', function (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    contextNodeId = n.data.id;
+                    showContextMenu(event.clientX, event.clientY);
+                });
 
-            // 单击打开详情
-            group.on('click', function () {
-                showDetailModal(n.data);
+                // 单击打开详情
+                group.on('click', function () {
+                    showDetailModal(n.data);
+                });
+            }
+        });
+    }
+
+    // ========== 导出族谱 PDF ==========
+
+    // 计算全量布局（忽略折叠与「只看健在」「隐藏外嫁」过滤），返回布局节点、连线及树的宽高。
+    // 临时清空 collapsedNodes / hideDeceased / hideMarryOut，结束后恢复，不影响当前视图。
+    function layoutWholeTree() {
+        const savedCollapsed = collapsedNodes;
+        const savedHideDeceased = hideDeceased;
+        const savedHideMarryOut = hideMarryOut;
+        collapsedNodes = new Set();
+        hideDeceased = false;
+        hideMarryOut = false;
+        descendantMemo = new Map();
+        try {
+            const displayTree = treeData || [];
+            const layoutNodes = [];
+            const links = [];
+            let crossOffset = 0;
+            displayTree.forEach(function (root) {
+                crossOffset = layoutSubTree(root, crossOffset, 0, layoutNodes, links).cross;
+                crossOffset += H_GAP * 2;
+            });
+            const totalCross = crossOffset;
+            const horiz = isHorizontal();
+            let maxDepth = 0;
+            layoutNodes.forEach(function (n) { if (n.depth > maxDepth) { maxDepth = n.depth; } });
+            const mainExtent = horiz ? NODE_WIDTH : NODE_HEIGHT;
+            const mainGap = horiz ? 60 : V_GAP;
+            const totalMain = maxDepth * (mainExtent + mainGap) + mainExtent;
+            if (layoutDirection === 'rl') {
+                layoutNodes.forEach(function (n) { n.x = totalMain - n.x - NODE_WIDTH; });
+                links.forEach(function (link) { link.x1 = totalMain - link.x1; link.x2 = totalMain - link.x2; });
+            }
+            return {
+                layoutNodes: layoutNodes,
+                links: links,
+                treeWidth: horiz ? totalMain : totalCross,
+                treeHeight: horiz ? totalCross : totalMain,
+                horiz: horiz
+            };
+        } finally {
+            collapsedNodes = savedCollapsed;
+            hideDeceased = savedHideDeceased;
+            hideMarryOut = savedHideMarryOut;
+        }
+    }
+
+    // 导出用辈分水印：50 世按 10 列 × 5 行自右向左排布，每字下衬一团龙纹，
+    // 登录人所属辈分以朱砂圈点高亮。全部使用内联属性（独立 SVG 无页面 CSS）。
+    function drawExportWatermark(svgSel, width, height, dragonDataUrl) {
+        const totalGenerations = 50;
+        const perColumn = 5;
+        const numCols = Math.ceil(totalGenerations / perColumn);
+        const myGeneration = currentUser && currentUser.generation ? currentUser.generation : null;
+        const colW = width / numCols;
+        const charSize = Math.max(36, Math.min(72, Math.round(height / perColumn * 0.35)));
+        const dragonSize = charSize * 8 / 3;
+
+        for (let g = 1; g <= totalGenerations; g++) {
+            const colFromRight = Math.floor((g - 1) / perColumn);
+            const rowInCol = (g - 1) % perColumn;
+            const cx = width - (colFromRight + 0.5) * colW;
+            const cy = height * (rowInCol + 0.5) / perColumn;
+            const isHl = myGeneration === g;
+
+            svgSel.append('image')
+                .attr('href', dragonDataUrl)
+                .attr('x', cx - dragonSize / 2)
+                .attr('y', cy - dragonSize / 2)
+                .attr('width', dragonSize)
+                .attr('height', dragonSize)
+                .attr('opacity', isHl ? 0.39 : 0.08)
+                .attr('preserveAspectRatio', 'xMidYMid meet');
+
+            if (isHl) {
+                svgSel.append('circle')
+                    .attr('cx', cx).attr('cy', cy)
+                    .attr('r', charSize * 0.85)
+                    .attr('fill', 'none')
+                    .attr('stroke', '#a63a2b')
+                    .attr('stroke-width', 2)
+                    .attr('opacity', 0.65);
+            }
+
+            svgSel.append('text')
+                .attr('x', cx).attr('y', cy)
+                .attr('text-anchor', 'middle')
+                .attr('dominant-baseline', 'central')
+                .attr('font-family', FONT_KAI)
+                .attr('font-size', charSize)
+                .attr('font-weight', isHl ? 700 : 400)
+                .attr('fill', isHl ? '#a63a2b' : '#2b2622')
+                .attr('opacity', isHl ? 0.65 : 0.13)
+                .text(generationNames[g] || '·');
+        }
+    }
+
+    // 构建导出用独立 SVG：宣纸背景 + 辈分水印 + 全量族谱，返回 SVG 元素及画布宽高。
+    function buildExportSvg(dragonDataUrl) {
+        const layout = layoutWholeTree();
+        const padX = 80;
+        const padTop = 180;   // 预留血亲配偶弧线向上抬升的空间（最大约 170）
+        const padBottom = 80;
+        const width = layout.treeWidth + padX * 2;
+        const height = layout.treeHeight + padTop + padBottom;
+
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const svgEl = document.createElementNS(svgNS, 'svg');
+        svgEl.setAttribute('xmlns', svgNS);
+        svgEl.setAttribute('width', width);
+        svgEl.setAttribute('height', height);
+        svgEl.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+        const svgSel = d3.select(svgEl);
+
+        // 宣纸底色
+        svgSel.append('rect').attr('width', width).attr('height', height).attr('fill', '#f0e8d2');
+
+        // 辈分水印（垫于最底层）
+        drawExportWatermark(svgSel, width, height, dragonDataUrl);
+
+        // 全量族谱内容：临时把 gMain 指向导出组，复用 drawTreeContent
+        const exportGroup = svgSel.append('g');
+        const savedGMain = gMain;
+        gMain = exportGroup;
+        try {
+            drawTreeContent(layout.layoutNodes, layout.links, padX, padTop, layout.horiz, false);
+        } finally {
+            gMain = savedGMain;
+        }
+
+        return { svgEl: svgEl, width: width, height: height };
+    }
+
+    function fetchAsDataUrl(url) {
+        return fetch(url).then(function (r) { return r.blob(); }).then(function (blob) {
+            return new Promise(function (resolve, reject) {
+                const reader = new FileReader();
+                reader.onloadend = function () { resolve(reader.result); };
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
             });
         });
+    }
 
-        // 初始适配缩放：统一仅按屏幕宽度适配（treeWidth 已按方向取对应跨度）；
-        // 树过高时保持节点可读尺寸，由用户纵向平移查看
-        const scale = Math.min(1, container.clientWidth / (treeWidth + 100));
-        svg.call(zoom.transform, d3.zoomIdentity.translate(0, 0).scale(Math.max(scale, 0.5)));
+    function loadImage(src) {
+        return new Promise(function (resolve, reject) {
+            const img = new Image();
+            img.onload = function () { resolve(img); };
+            img.onerror = reject;
+            img.src = src;
+        });
+    }
 
-        // 重绘后恢复辈分高亮状态
-        applyGenerationHighlight();
+    // 导出族谱 PDF：全量渲染 → 栅格化 → 单页自定义尺寸 PDF 下载。
+    async function exportToPdf() {
+        const btn = document.getElementById('btn-export');
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '导出中…';
+        try {
+            // 龙纹内联为 base64（SVG 作为图片加载时不允许外部资源）
+            const dragonDataUrl = await fetchAsDataUrl('/img/longwen.png');
+            const built = buildExportSvg(dragonDataUrl);
+
+            const svgStr = new XMLSerializer().serializeToString(built.svgEl);
+            const svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
+            const img = await loadImage(svgUrl);
+
+            // 栅格化：放大以提升清晰度，同时限制画布总尺寸避免超出浏览器上限
+            const scale = Math.min(2, 8000 / Math.max(built.width, built.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.round(built.width * scale);
+            canvas.height = Math.round(built.height * scale);
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#f0e8d2';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const pngUrl = canvas.toDataURL('image/png');
+
+            // 单页 PDF，页面尺寸按族谱实际比例（px → pt）
+            const wPt = built.width * 0.75;
+            const hPt = built.height * 0.75;
+            const pdf = new window.jspdf.jsPDF({
+                orientation: wPt >= hPt ? 'landscape' : 'portrait',
+                unit: 'pt',
+                format: [wPt, hPt],
+                compress: true
+            });
+            pdf.addImage(pngUrl, 'PNG', 0, 0, wPt, hPt);
+            const d = new Date();
+            const stamp = d.getFullYear() + ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2);
+            pdf.save('族谱_' + stamp + '.pdf');
+        } catch (e) {
+            alert('导出失败：' + (e && e.message ? e.message : e));
+        } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
     }
 
     function toggleCollapse(nodeId) {
@@ -746,6 +1000,7 @@
                 .attr('x', cx)
                 .attr('y', cy - 12)
                 .attr('text-anchor', 'middle')
+                .attr('font-family', FONT_KAI)
                 .attr('font-size', '10px')
                 .attr('fill', '#9a968c')
                 .text('离异');
@@ -1247,10 +1502,60 @@
         });
     }
 
+    // 已故节点香烛缅怀场景：中央三炷香插于金铜小炉（火星明灭、青烟袅袅），
+    // 左右各一支红烛（烛焰错峰摇曳），如供桌陈设。
+    function buildOfferingHtml() {
+        const phases = [[0, 1.7], [0.9, 2.5], [0.45, 2.1]];
+        let sticks = '';
+        phases.forEach(function (p) {
+            sticks += '<span class="incense-unit">' +
+                '<span class="smoke-track">' +
+                '<i class="smoke" style="animation-delay:' + p[0] + 's;"></i>' +
+                '<i class="smoke" style="animation-delay:' + p[1] + 's;animation-duration:3.8s;"></i>' +
+                '</span>' +
+                '<span class="incense-stick"></span>' +
+                '</span>';
+        });
+        // 左右红烛：烛焰动画错峰，避免同步摇曳
+        const candleLeft = '<span class="candle-unit">' +
+            '<span class="candle-flame"></span>' +
+            '<span class="candle-wick"></span>' +
+            '<span class="candle-body"></span>' +
+            '</span>';
+        const candleRight = '<span class="candle-unit">' +
+            '<span class="candle-flame" style="animation-delay:0.45s;animation-duration:1.6s;"></span>' +
+            '<span class="candle-wick"></span>' +
+            '<span class="candle-body"></span>' +
+            '</span>';
+        return '<div class="incense-scene" title="为逝者敬上香烛">' +
+            '<div class="offering-row">' +
+            candleLeft +
+            '<span class="incense-middle">' +
+            '<span class="incense-row">' + sticks + '</span>' +
+            '<span class="incense-burner"></span>' +
+            '</span>' +
+            candleRight +
+            '</div>' +
+            '<div class="altar-table">' +
+            '<div class="altar-top"></div>' +
+            '<div class="altar-base">' +
+            '<span class="altar-leg"></span>' +
+            '<span class="altar-apron"></span>' +
+            '<span class="altar-leg"></span>' +
+            '</div>' +
+            '</div>' +
+            '<div class="incense-text">音容宛在 · 德泽长存</div>' +
+            '</div>';
+    }
+
     // 节点详情（含去世日期编辑 + 配偶离异管理）
     function showDetailModal(node) {
         const genderText = node.gender === 1 ? '男' : node.gender === 2 ? '女' : '未知';
         const deceased = node.deathDate != null && node.deathDate !== '';
+        // 香烛拜台仅敬献给「长辈」：节点已故且辈分高于登录人（世代数更小，更靠近始祖）。
+        // 登录人或节点辈分缺失时无法论资排辈，不予展示。
+        const myGeneration = currentUser && currentUser.generation;
+        const isSenior = deceased && myGeneration != null && node.generation != null && node.generation < myGeneration;
         const color = deceased ? DECEASED_COLOR : (COLOR_MAP[node.colorLabel] || COLOR_MAP['default']);
         const genName = generationNames[node.generation] ? '（' + generationNames[node.generation] + '）' : '';
 
@@ -1259,16 +1564,27 @@
         if (hasSpouses) {
             spouseHtml = '<div class="detail-section" style="margin-top:14px;"><label style="font-weight:600;display:block;margin-bottom:6px;">配偶关系</label>';
             const renderSpouseRow = function (sp, isBlood) {
-                // 已故节点不展示婚姻状态（在婚/已离异），配偶名后留空
-                const statusText = deceased
-                    ? ''
-                    : (sp.divorced
-                        ? '<span style="color:#999;font-size:12px;">已离异' + (sp.divorceDate ? '（' + escapeHtml(sp.divorceDate) + '）' : '') + '</span>'
-                        : '<span style="color:#e91e63;font-size:12px;">在婚</span>');
-                const bloodTag = isBlood ? '<span style="color:#a0522d;font-size:12px;">（血亲·各留本支）</span>' : '';
+                // 已故节点不展示婚姻状态（在婚/已离异），配偶名后留空；
+                // 在婚（含再婚）与离异配偶用不同底色卡片 + 徽章区分，一眼可辨。
+                let rowCls = 'spouse-row';
+                let badgeHtml = '';
+                if (!deceased) {
+                    if (sp.divorced) {
+                        rowCls += ' spouse-row--divorced';
+                        badgeHtml = '<span class="spouse-badge spouse-badge--divorced">已离异</span>' +
+                            (sp.divorceDate ? '<span class="spouse-date">（' + escapeHtml(sp.divorceDate) + '）</span>' : '');
+                    } else {
+                        rowCls += ' spouse-row--current';
+                        badgeHtml = '<span class="spouse-badge spouse-badge--current">在婚</span>';
+                    }
+                }
+                const bloodTag = isBlood ? '<span class="spouse-blood-tag">（血亲·各留本支）</span>' : '';
                 // 参数经 data-* 属性传递（escapeAttr 转义），避免 inline onclick 拼接姓名导致 JS 注入
-                return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f0f0f0;">' +
-                    '<span style="font-size:14px;">' + escapeHtml(sp.name) + bloodTag + (statusText ? ' ' + statusText : '') + '</span>' +
+                return '<div class="' + rowCls + '">' +
+                    '<span class="spouse-info">' +
+                    '<span class="spouse-name">' + escapeHtml(sp.name) + '</span>' +
+                    bloodTag + badgeHtml +
+                    '</span>' +
                     '<button class="btn-sm js-divorce-btn" data-relation-id="' + escapeAttr(sp.relationId) +
                     '" data-marriage="' + escapeAttr(sp.marriageDate || '') +
                     '" data-divorce="' + escapeAttr(sp.divorceDate || '') +
@@ -1284,6 +1600,7 @@
             '<h3 style="display:flex;align-items:center;gap:10px;">' +
             '<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:' + color + ';"></span>' +
             escapeHtml(node.name) + ' <small style="color:#999;font-weight:normal;">第' + node.generation + '世' + escapeHtml(genName) + '</small></h3>' +
+            (isSenior ? buildOfferingHtml() : '') +
             '<div style="margin:12px 0;">' +
             '<p style="margin:4px 0;color:#666;font-size:14px;">性别：' + genderText + '</p>' +
             '<p style="margin:4px 0;color:#666;font-size:14px;">出生：' + escapeHtml(node.birthDate || '未知') + '</p>' +
@@ -1458,8 +1775,18 @@
             showGenerationModal();
         });
 
+        // 导出族谱：将整棵树（含宣纸背景与辈分水印）导出为单页 PDF
+        document.getElementById('btn-export').addEventListener('click', function () {
+            exportToPdf();
+        });
+
         document.getElementById('chk-hide-deceased').addEventListener('change', function () {
             hideDeceased = this.checked;
+            renderTree();
+        });
+
+        document.getElementById('chk-hide-marryout').addEventListener('change', function () {
+            hideMarryOut = this.checked;
             renderTree();
         });
 

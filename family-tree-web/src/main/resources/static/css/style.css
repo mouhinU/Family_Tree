@@ -655,6 +655,330 @@ body.toolbar-hidden .tree-container {
     background: var(--cinnabar-dark);
 }
 
+/* ========== 配偶关系：在婚 / 离异卡片 ========== */
+/* 每段婚姻一张小卡片：左缘色条 + 底色 + 徽章，在婚与离异一眼可辨 */
+.spouse-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 12px;
+    margin-bottom: 8px;
+    border: 1px solid transparent;
+    border-left-width: 3px;
+    border-radius: 6px;
+}
+
+/* 在婚（含再婚）：桃腮暖底 + 朱砂左缘，姓名加粗 */
+.spouse-row--current {
+    background: #fbeee7;
+    border-color: #f0d8cc;
+    border-left-color: var(--cinnabar);
+}
+
+/* 离异：褪色冷灰底 + 灰褐左缘，姓名淡化 */
+.spouse-row--divorced {
+    background: #f2f0ea;
+    border-color: #e3dfd4;
+    border-left-color: #b3aa97;
+}
+
+.spouse-info {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 14px;
+    min-width: 0;
+}
+
+.spouse-row--current .spouse-name {
+    color: var(--ink);
+    font-weight: 600;
+}
+
+.spouse-row--divorced .spouse-name {
+    color: var(--ink-faint);
+}
+
+/* 婚姻状态徽章：圆角胶囊 */
+.spouse-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    letter-spacing: 1px;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+
+.spouse-badge--current {
+    background: var(--cinnabar);
+    color: #f7f1e0;
+}
+
+.spouse-badge--divorced {
+    background: #d8d2c4;
+    color: #77705f;
+}
+
+/* 血亲配偶标签 */
+.spouse-blood-tag {
+    color: #a0522d;
+    font-size: 12px;
+}
+
+/* 离异日期小字 */
+.spouse-date {
+    color: var(--ink-faint);
+    font-size: 12px;
+}
+
+/* ========== 已故节点详情·香烛缅怀 ========== */
+.incense-scene {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px 12px 12px;
+    margin-bottom: 16px;
+    background: linear-gradient(180deg, rgba(138, 109, 59, 0.05), rgba(166, 58, 43, 0.06));
+    border: 1px solid rgba(138, 109, 59, 0.28);
+    border-radius: 6px;
+}
+
+/* 供品横排：左红烛 + 中央香炉香支 + 右红烛，底部对齐如陈设于供桌 */
+.offering-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 32px;
+}
+
+/* 中央香支组：三炷香 + 香炉 */
+.incense-middle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.incense-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 14px;
+}
+
+.incense-unit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* 青烟上升区：置于香支正上方，烟粒在其中自下而上飘散 */
+.smoke-track {
+    position: relative;
+    width: 26px;
+    height: 66px;
+}
+
+.smoke {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 7px;
+    height: 16px;
+    margin-left: -3.5px;
+    background: radial-gradient(ellipse at center, rgba(188, 182, 170, 0.6), rgba(188, 182, 170, 0) 70%);
+    border-radius: 50%;
+    filter: blur(2px);
+    opacity: 0;
+    animation: smoke-rise 3.4s ease-out infinite;
+}
+
+@keyframes smoke-rise {
+    0%   { transform: translateY(0) translateX(0) scale(0.5); opacity: 0; }
+    12%  { opacity: 0.55; }
+    45%  { transform: translateY(-28px) translateX(5px) scale(1); opacity: 0.4; }
+    75%  { transform: translateY(-48px) translateX(-4px) scale(1.3); opacity: 0.22; }
+    100% { transform: translateY(-62px) translateX(2px) scale(1.6); opacity: 0; }
+}
+
+/* 香支 */
+.incense-stick {
+    width: 3px;
+    height: 50px;
+    background: linear-gradient(180deg, #9a5a33, #7a4426);
+    border-radius: 1px;
+    position: relative;
+}
+
+/* 香头火星：明灭闪烁 */
+.incense-stick::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #e25822;
+    animation: ember-glow 1.5s ease-in-out infinite;
+}
+
+@keyframes ember-glow {
+    0%, 100% { opacity: 0.75; box-shadow: 0 0 4px 1px rgba(226, 88, 34, 0.5); }
+    50%      { opacity: 1;    box-shadow: 0 0 8px 3px rgba(226, 88, 34, 0.9); }
+}
+
+/* 香炉：束口金铜小炉，香支插入炉口 */
+.incense-burner {
+    width: 96px;
+    height: 30px;
+    margin-top: -4px;
+    background: linear-gradient(180deg, #b08d4f 0%, #8a6d3b 45%, #6b522c 100%);
+    border-radius: 4px 4px 22px 22px;
+    position: relative;
+    z-index: 1;
+    box-shadow: inset 0 2px 3px rgba(255, 240, 200, 0.4), 0 4px 10px rgba(43, 38, 34, 0.3);
+}
+
+.incense-burner::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: -5px;
+    right: -5px;
+    height: 9px;
+    background: linear-gradient(180deg, #c8a45e, #9a7c42);
+    border-radius: 3px;
+    box-shadow: 0 1px 2px rgba(43, 38, 34, 0.3);
+}
+
+/* 红烛：烛焰 + 烛芯 + 烛身 */
+.candle-unit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+/* 烛焰：泪滴形橙黄渐变，外泛暖光，自焰心摇曳 */
+.candle-flame {
+    width: 12px;
+    height: 19px;
+    background: radial-gradient(ellipse at 50% 72%, #fffbe6 0%, #ffe082 30%, #ffb300 55%, #ff7043 80%, rgba(255, 112, 67, 0) 100%);
+    border-radius: 50% 50% 46% 46% / 64% 64% 36% 36%;
+    box-shadow: 0 0 8px 2px rgba(255, 167, 38, 0.5), 0 0 18px 6px rgba(255, 167, 38, 0.22);
+    transform-origin: 50% 100%;
+    animation: flame-flicker 1.3s ease-in-out infinite;
+}
+
+@keyframes flame-flicker {
+    0%, 100% { transform: scale(1) rotate(0deg);      opacity: 0.95; }
+    25%      { transform: scale(0.93, 1.1) rotate(-2.5deg); opacity: 1; }
+    50%      { transform: scale(1.07, 0.94) rotate(2deg);   opacity: 0.88; }
+    75%      { transform: scale(0.96, 1.08) rotate(-1.5deg); opacity: 1; }
+}
+
+/* 烛芯 */
+.candle-wick {
+    width: 2px;
+    height: 5px;
+    margin-top: -3px;
+    background: #3a2a1a;
+    border-radius: 1px;
+}
+
+/* 烛身：朱红圆柱，顶部融蜡高光、底部暗影。
+   高度 58px：烛身58 + 烛芯净2 + 烛焰19 = 79px，与香支火头高度齐平 */
+.candle-body {
+    width: 15px;
+    height: 58px;
+    background: linear-gradient(90deg, #a63a2b 0%, #c0503f 30%, #d96a55 50%, #c0503f 72%, #a63a2b 100%);
+    border-radius: 3px 3px 5px 5px;
+    position: relative;
+    box-shadow: inset 0 -4px 8px rgba(0, 0, 0, 0.18);
+}
+
+.candle-body::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: radial-gradient(ellipse at 50% 0%, rgba(255, 224, 178, 0.95), rgba(255, 178, 140, 0.35) 70%, transparent);
+    border-radius: 3px 3px 0 0;
+}
+
+/* 拜台：深棕原木翘头供桌，香烛陈设于台面之上 */
+.altar-table {
+    width: 252px;
+    margin-top: -2px;
+}
+
+/* 台面：上缘高光，两端翘头 */
+.altar-top {
+    height: 12px;
+    background: linear-gradient(180deg, #9a6a42 0%, #7d5230 50%, #654226 100%);
+    border-radius: 3px;
+    position: relative;
+    box-shadow: inset 0 2px 2px rgba(255, 224, 178, 0.35), 0 2px 5px rgba(43, 38, 34, 0.35);
+}
+
+/* 翘头：台面两端微微上卷的小立耳 */
+.altar-top::before,
+.altar-top::after {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    width: 10px;
+    height: 5px;
+    background: linear-gradient(180deg, #a06e44, #7d5230);
+}
+
+.altar-top::before {
+    left: 0;
+    border-radius: 5px 2px 0 0;
+}
+
+.altar-top::after {
+    right: 0;
+    border-radius: 2px 5px 0 0;
+}
+
+/* 台座：两腿 + 中间牙板 */
+.altar-base {
+    display: flex;
+    align-items: stretch;
+    padding: 0 14px;
+}
+
+.altar-leg {
+    width: 11px;
+    height: 26px;
+    background: linear-gradient(90deg, #7d5230 0%, #6a4527 55%, #57381e 100%);
+    border-radius: 0 0 3px 3px;
+    box-shadow: inset 0 2px 2px rgba(0, 0, 0, 0.25);
+}
+
+/* 牙板：两腿间横板，下缘圆润微拱 */
+.altar-apron {
+    flex: 1;
+    height: 11px;
+    margin: 0 3px;
+    background: linear-gradient(180deg, #7d5230 0%, #6a4527 70%, #5f3e22 100%);
+    border-radius: 0 0 6px 6px;
+    box-shadow: inset 0 1px 1px rgba(255, 224, 178, 0.2);
+}
+
+.incense-text {
+    margin-top: 14px;
+    font-family: var(--font-kai);
+    font-size: 13px;
+    letter-spacing: 3px;
+    color: var(--ink-light);
+}
+
 /* 关联现有配偶 弹窗 */
 .link-spouse-tip {
     margin-bottom: 14px;
