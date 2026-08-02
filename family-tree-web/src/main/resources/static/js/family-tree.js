@@ -15,7 +15,7 @@
     const NODE_HEIGHT = 132;
     const SPOUSE_GAP = 14;
     const H_GAP = 36;
-    const V_GAP = 70;
+    const V_GAP = 48;
 
     // 古典配色（作为节点绶带/边框的强调色）
     const COLOR_MAP = {
@@ -292,6 +292,7 @@
                 result.push(Object.assign({}, node, {
                     spouses: (node.spouses || []).filter(function (sp) { return !isDeceased(sp); }),
                     bloodSpouses: livingBloodSpouses(node),
+                    formerSpouses: (node.formerSpouses || []).filter(function (sp) { return !isDeceased(sp); }),
                     children: buildLivingTree(node.children || [])
                 }));
             }
@@ -381,17 +382,25 @@
             });
         }
 
-        // 屏幕起点：横向按主轴宽度(totalMain)居中，纵向按交叉轴宽度(totalCross)居中
+        // 屏幕起点：先按交叉轴宽度(totalCross)粗略定位，绘制后再按实际包围盒精确居中
         const treeWidth = horiz ? totalMain : totalCross;
         const startX = (container.clientWidth - treeWidth) / 2;
         const startY = 40;
 
         drawTreeContent(layoutNodes, links, startX, startY, horiz, true);
 
-        // 初始适配缩放：统一仅按屏幕宽度适配（treeWidth 已按方向取对应跨度）；
-        // 树过高时保持节点可读尺寸，由用户纵向平移查看
+        // 初始适配缩放：按屏幕宽度适配（树过宽时保持节点可读尺寸，由用户平移查看）。
+        // 缩放会向原点(0,0)收缩，若仍用 translate(0,0) 整棵树会左移，
+        // 故按 gMain 实际包围盒计算平移：水平始终居中；垂直放得下则居中，放不下则顶部留白。
         const scale = Math.min(1, container.clientWidth / (treeWidth + 100));
-        svg.call(zoom.transform, d3.zoomIdentity.translate(0, 0).scale(Math.max(scale, 0.5)));
+        const fitted = Math.max(scale, 0.5);
+        const bbox = gMain.node().getBBox();
+        const tx = (container.clientWidth - bbox.width * fitted) / 2 - bbox.x * fitted;
+        const scaledHeight = bbox.height * fitted;
+        const ty = scaledHeight <= container.clientHeight
+            ? (container.clientHeight - scaledHeight) / 2 - bbox.y * fitted
+            : 24 - bbox.y * fitted;
+        svg.call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(fitted));
 
         // 重绘后恢复辈分高亮状态
         applyGenerationHighlight();
@@ -1201,7 +1210,7 @@
         }
 
         showModal(
-            '<h3>关联现有配偶</h3>' +
+            '<h3>关联配偶</h3>' +
             '<p class="link-spouse-tip">为「' + escapeHtml(currentNode.name) + '」关联族谱中已有成员为配偶' +
             '（适用于表兄妹等近亲结婚，双方将各自保留在原分支并连线）</p>' +
             '<div class="form-group"><input type="text" id="link-spouse-search" placeholder="搜索姓名…"></div>' +
@@ -1548,6 +1557,124 @@
             '</div>';
     }
 
+    // 祭奠面板骨架：详情弹窗打开后由 loadOfferingPanel 异步填充统计与按钮
+    function offeringPanelShell() {
+        return '<div class="offering-panel" id="offering-panel">' +
+            '<div class="offering-loading">载入祭奠记录…</div>' +
+            '</div>';
+    }
+
+    // 依据后端统计渲染祭奠面板：上香烛 / 烧纸按钮 + 各自的次数与人员明细
+    function buildOfferingPanelHtml(nodeId, stats) {
+        let html = '<div class="offering-actions">' +
+            '<button class="offering-btn offering-btn--incense js-offering-btn" data-node-id="' + escapeAttr(nodeId) + '" data-type="1">上香烛</button>' +
+            '<button class="offering-btn offering-btn--paper js-offering-btn" data-node-id="' + escapeAttr(nodeId) + '" data-type="2">烧纸</button>' +
+            '</div>';
+        html += '<div class="offering-stats">';
+        (stats || []).forEach(function (stat) {
+            const isIncense = stat.offeringType === 1;
+            const emptyText = isIncense ? '暂无人上香烛' : '暂无人烧纸';
+            let usersHtml;
+            if (stat.users && stat.users.length > 0) {
+                usersHtml = stat.users.map(function (u) {
+                    return '<span class="offering-user">' + escapeHtml(u.nickname) +
+                        '<em>×' + u.count + '</em></span>';
+                }).join('');
+            } else {
+                usersHtml = '<span class="offering-empty">' + emptyText + '</span>';
+            }
+            html += '<div class="offering-stat offering-stat--' + (isIncense ? 'incense' : 'paper') + '">' +
+                '<div class="offering-stat-head">' +
+                '<span class="offering-stat-name">' + escapeHtml(stat.typeName) + '</span>' +
+                '<span class="offering-stat-count">' + stat.totalCount + ' 次 · ' + stat.userCount + ' 人</span>' +
+                '</div>' +
+                '<div class="offering-stat-users">' + usersHtml + '</div>' +
+                '</div>';
+        });
+        html += '</div>';
+        return html;
+    }
+
+    // 拉取某节点祭奠统计并渲染面板（上香/烧纸后复用此函数刷新）
+    async function loadOfferingPanel(nodeId) {
+        const panel = document.getElementById('offering-panel');
+        if (!panel) {
+            return;
+        }
+        const res = await api('/api/offering/node/' + nodeId);
+        if (res.code !== 200) {
+            panel.innerHTML = '<div class="offering-loading">' + escapeHtml(res.message || '载入失败') + '</div>';
+            return;
+        }
+        panel.innerHTML = buildOfferingPanelHtml(nodeId, res.data || []);
+        wireOfferingButtons(nodeId);
+    }
+
+    // 绑定上香烛 / 烧纸按钮：每次点击记录一次，成功后刷新统计
+    function wireOfferingButtons(nodeId) {
+        document.querySelectorAll('.js-offering-btn').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                const type = parseInt(btn.dataset.type, 10);
+                btn.disabled = true;
+                const res = await api('/api/offering', {
+                    method: 'POST',
+                    body: JSON.stringify({nodeId: nodeId, offeringType: type})
+                });
+                btn.disabled = false;
+                if (res.code !== 200) {
+                    alert(res.message || '操作失败');
+                    return;
+                }
+                playOfferingEffect(type);
+                await loadOfferingPanel(nodeId);
+            });
+        });
+    }
+
+    // 祭奠动效持续时长（毫秒），与 CSS 动画时长保持一致
+    const OFFERING_FX_DURATION = 2400;
+
+    // 播放一次性祭奠动效：在香案场景（.incense-scene）上叠加动效层，
+    // 动画结束后自动移除，不残留任何 DOM。
+    function playOfferingEffect(type) {
+        const scene = document.querySelector('.incense-scene');
+        if (!scene) {
+            return;
+        }
+        const fx = document.createElement('div');
+        fx.className = 'offering-fx';
+        fx.innerHTML = type === 1 ? buildIncenseFxHtml() : buildPaperFxHtml();
+        scene.appendChild(fx);
+        setTimeout(function () {
+            fx.remove();
+        }, OFFERING_FX_DURATION);
+    }
+
+    // 上香烛动效：香炉泛起金光、青烟缭绕升起、浮字"香烛已敬上"
+    function buildIncenseFxHtml() {
+        return '<div class="fx-glow"></div>' +
+            '<span class="fx-smoke fx-smoke--1"></span>' +
+            '<span class="fx-smoke fx-smoke--2"></span>' +
+            '<span class="fx-smoke fx-smoke--3"></span>' +
+            '<div class="fx-text">香烛已敬上</div>';
+    }
+
+    // 烧纸动效：供桌前纸钱焚化（层叠火苗 + 金色火星 + 青烟）、浮字"纸钱已焚化"
+    function buildPaperFxHtml() {
+        return '<div class="fx-paper">' +
+            '<span class="fx-flame fx-flame--1"></span>' +
+            '<span class="fx-flame fx-flame--2"></span>' +
+            '<span class="fx-flame fx-flame--3"></span>' +
+            '<span class="fx-ember fx-ember--1"></span>' +
+            '<span class="fx-ember fx-ember--2"></span>' +
+            '<span class="fx-ember fx-ember--3"></span>' +
+            '<span class="fx-ember fx-ember--4"></span>' +
+            '<div class="fx-paper-pile"></div>' +
+            '</div>' +
+            '<span class="fx-smoke fx-smoke--paper"></span>' +
+            '<div class="fx-text fx-text--paper">纸钱已焚化</div>';
+    }
+
     // 节点详情（含去世日期编辑 + 配偶离异管理）
     function showDetailModal(node) {
         const genderText = node.gender === 1 ? '男' : node.gender === 2 ? '女' : '未知';
@@ -1560,25 +1687,30 @@
         const genName = generationNames[node.generation] ? '（' + generationNames[node.generation] + '）' : '';
 
         let spouseHtml = '';
-        const hasSpouses = (node.spouses && node.spouses.length > 0) || (node.bloodSpouses && node.bloodSpouses.length > 0);
+        const hasSpouses = (node.spouses && node.spouses.length > 0) || (node.bloodSpouses && node.bloodSpouses.length > 0) || (node.formerSpouses && node.formerSpouses.length > 0);
         if (hasSpouses) {
             spouseHtml = '<div class="detail-section" style="margin-top:14px;"><label style="font-weight:600;display:block;margin-bottom:6px;">配偶关系</label>';
-            const renderSpouseRow = function (sp, isBlood) {
+            const renderSpouseRow = function (sp, isBlood, isFormer) {
                 // 已故节点不展示婚姻状态（在婚/已离异），配偶名后留空；
                 // 在婚（含再婚）与离异配偶用不同底色卡片 + 徽章区分，一眼可辨。
+                // 离异配偶引用（isFormer：改嫁/再婚至他处）始终展示"已离异"徽章，不受节点已故影响。
                 let rowCls = 'spouse-row';
                 let badgeHtml = '';
-                if (!deceased) {
+                if (!deceased || isFormer) {
                     if (sp.divorced) {
                         rowCls += ' spouse-row--divorced';
                         badgeHtml = '<span class="spouse-badge spouse-badge--divorced">已离异</span>' +
                             (sp.divorceDate ? '<span class="spouse-date">（' + escapeHtml(sp.divorceDate) + '）</span>' : '');
+                    } else if (sp.widowed) {
+                        rowCls += ' spouse-row--widowed';
+                        badgeHtml = '<span class="spouse-badge spouse-badge--widowed">丧偶</span>';
                     } else {
                         rowCls += ' spouse-row--current';
                         badgeHtml = '<span class="spouse-badge spouse-badge--current">在婚</span>';
                     }
                 }
-                const bloodTag = isBlood ? '<span class="spouse-blood-tag">（血亲·各留本支）</span>' : '';
+                const bloodLabel = (isBlood && sp.bloodRelationLabel) ? sp.bloodRelationLabel : '血亲';
+                const bloodTag = isBlood ? '<span class="spouse-blood-tag">（' + escapeHtml(bloodLabel) + '·各留本支）</span>' : '';
                 // 参数经 data-* 属性传递（escapeAttr 转义），避免 inline onclick 拼接姓名导致 JS 注入
                 return '<div class="' + rowCls + '">' +
                     '<span class="spouse-info">' +
@@ -1588,11 +1720,13 @@
                     '<button class="btn-sm js-divorce-btn" data-relation-id="' + escapeAttr(sp.relationId) +
                     '" data-marriage="' + escapeAttr(sp.marriageDate || '') +
                     '" data-divorce="' + escapeAttr(sp.divorceDate || '') +
+                    '" data-widowed="' + (sp.widowed ? '1' : '') +
                     '" data-name="' + escapeAttr(sp.name) + '">婚姻设置</button>' +
                     '</div>';
             };
-            (node.spouses || []).forEach(function (sp) { spouseHtml += renderSpouseRow(sp, false); });
-            (node.bloodSpouses || []).forEach(function (sp) { spouseHtml += renderSpouseRow(sp, true); });
+            (node.spouses || []).forEach(function (sp) { spouseHtml += renderSpouseRow(sp, false, false); });
+            (node.bloodSpouses || []).forEach(function (sp) { spouseHtml += renderSpouseRow(sp, true, false); });
+            (node.formerSpouses || []).forEach(function (sp) { spouseHtml += renderSpouseRow(sp, false, true); });
             spouseHtml += '</div>';
         }
 
@@ -1600,7 +1734,7 @@
             '<h3 style="display:flex;align-items:center;gap:10px;">' +
             '<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:' + color + ';"></span>' +
             escapeHtml(node.name) + ' <small style="color:#999;font-weight:normal;">第' + node.generation + '世' + escapeHtml(genName) + '</small></h3>' +
-            (isSenior ? buildOfferingHtml() : '') +
+            (isSenior ? buildOfferingHtml() + offeringPanelShell() : '') +
             '<div style="margin:12px 0;">' +
             '<p style="margin:4px 0;color:#666;font-size:14px;">性别：' + genderText + '</p>' +
             '<p style="margin:4px 0;color:#666;font-size:14px;">出生：' + escapeHtml(node.birthDate || '未知') + '</p>' +
@@ -1622,7 +1756,7 @@
         document.querySelectorAll('.js-divorce-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 window._showDivorceModal(parseInt(btn.dataset.relationId, 10),
-                    btn.dataset.marriage, btn.dataset.divorce, btn.dataset.name);
+                    btn.dataset.marriage, btn.dataset.divorce, btn.dataset.widowed, btn.dataset.name);
             });
         });
         const deathBtn = document.querySelector('.js-death-btn');
@@ -1631,6 +1765,11 @@
                 window._showDeathModal(parseInt(deathBtn.dataset.nodeId, 10),
                     deathBtn.dataset.death, deathBtn.dataset.name);
             });
+        }
+
+        // 已故长辈：异步加载祭奠统计面板（上香烛 / 烧纸）
+        if (isSenior) {
+            loadOfferingPanel(node.id);
         }
     }
 
@@ -1677,28 +1816,29 @@
         }
     };
 
-    // 婚姻设置模态框（结婚日期、离异日期均为非必填）
-    window._showDivorceModal = function (relationId, currentMarriageDate, currentDivorceDate, spouseName) {
+    // 婚姻设置模态框（结婚日期、离异日期均为非必填；支持离异/丧偶状态切换）
+    window._showDivorceModal = function (relationId, currentMarriageDate, currentDivorceDate, currentWidowed, spouseName) {
         showModal(
             '<h3>婚姻设置 - ' + escapeHtml(spouseName) + '</h3>' +
             '<div class="form-group"><label>结婚日期（选填）</label>' +
             '<input type="date" id="marriage-date" value="' + escapeAttr(currentMarriageDate || '') + '"></div>' +
             '<div class="form-group"><label>离异日期（选填）</label>' +
             '<input type="date" id="divorce-date" value="' + escapeAttr(currentDivorceDate || '') + '"></div>' +
-            '<p style="font-size:13px;color:#999;margin-bottom:12px;">两个日期均为选填。「标记离异」可不填日期直接标记；「恢复在婚」将清除离异状态。</p>' +
+            '<p style="font-size:13px;color:#999;margin-bottom:12px;">日期均为选填。「标记离异」可不填日期直接标记；「标记丧偶」表示配偶一方已去世；「恢复在婚」将清除离异和丧偶状态。</p>' +
             '<div class="modal-actions">' +
             '<button class="btn-cancel" onclick="window._closeModal()">取消</button>' +
             '<button class="btn-sm danger" id="divorce-clear">恢复在婚</button>' +
+            '<button class="btn-sm" id="widowed-save" style="background:#6d597a;border-color:#6d597a;">标记丧偶</button>' +
             '<button class="btn-confirm" id="divorce-save">标记离异</button></div>'
         );
 
-        // 标记离异：日期非必填
+        // 标记离异：日期非必填，同时清除丧偶状态
         document.getElementById('divorce-save').addEventListener('click', async function () {
             const marriageDate = document.getElementById('marriage-date').value || null;
             const divorceDate = document.getElementById('divorce-date').value || null;
             const res = await api('/api/relation', {
                 method: 'PUT',
-                body: JSON.stringify({id: relationId, divorced: true, marriageDate: marriageDate, divorceDate: divorceDate})
+                body: JSON.stringify({id: relationId, divorced: true, widowed: false, marriageDate: marriageDate, divorceDate: divorceDate})
             });
             if (res.code === 200) {
                 closeModal();
@@ -1708,12 +1848,27 @@
             }
         });
 
-        // 恢复在婚：清除离异标记和离异日期，保留结婚日期
+        // 标记丧偶：配偶一方去世，同时清除离异状态
+        document.getElementById('widowed-save').addEventListener('click', async function () {
+            const marriageDate = document.getElementById('marriage-date').value || null;
+            const res = await api('/api/relation', {
+                method: 'PUT',
+                body: JSON.stringify({id: relationId, widowed: true, divorced: false, marriageDate: marriageDate, divorceDate: null})
+            });
+            if (res.code === 200) {
+                closeModal();
+                await loadTree();
+            } else {
+                alert(res.message || '操作失败');
+            }
+        });
+
+        // 恢复在婚：清除离异和丧偶标记，保留结婚日期
         document.getElementById('divorce-clear').addEventListener('click', async function () {
             const marriageDate = document.getElementById('marriage-date').value || null;
             const res = await api('/api/relation', {
                 method: 'PUT',
-                body: JSON.stringify({id: relationId, divorced: false, marriageDate: marriageDate, divorceDate: null})
+                body: JSON.stringify({id: relationId, divorced: false, widowed: false, marriageDate: marriageDate, divorceDate: null})
             });
             if (res.code === 200) {
                 closeModal();

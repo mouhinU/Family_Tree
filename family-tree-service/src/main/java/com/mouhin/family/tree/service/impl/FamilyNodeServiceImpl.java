@@ -13,13 +13,18 @@ import com.mouhin.family.tree.persistence.entity.FamilyRelationDO;
 import com.mouhin.family.tree.persistence.mapper.FamilyNodeMapper;
 import com.mouhin.family.tree.persistence.mapper.FamilyRelationMapper;
 import com.mouhin.family.tree.service.FamilyNodeService;
+import com.mouhin.family.tree.service.FamilyRelationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -38,10 +43,14 @@ public class FamilyNodeServiceImpl implements FamilyNodeService {
 
     private final FamilyNodeMapper familyNodeMapper;
     private final FamilyRelationMapper familyRelationMapper;
+    private final FamilyRelationService familyRelationService;
 
-    public FamilyNodeServiceImpl(FamilyNodeMapper familyNodeMapper, FamilyRelationMapper familyRelationMapper) {
+    public FamilyNodeServiceImpl(FamilyNodeMapper familyNodeMapper,
+                                 FamilyRelationMapper familyRelationMapper,
+                                 @Lazy FamilyRelationService familyRelationService) {
         this.familyNodeMapper = familyNodeMapper;
         this.familyRelationMapper = familyRelationMapper;
+        this.familyRelationService = familyRelationService;
     }
 
     @Override
@@ -111,8 +120,9 @@ public class FamilyNodeServiceImpl implements FamilyNodeService {
             familyRelationMapper.insert(relation);
         }
 
-        // 建立夫妻关系
+        // 建立夫妻关系（需先校验：禁止自身、重复、直系血亲、同胞）
         if (dto.getSpouseNodeId() != null) {
+            familyRelationService.validateSpouseRelation(userId, dto.getSpouseNodeId(), node.getId());
             FamilyRelationDO relation = new FamilyRelationDO();
             relation.setUserId(userId);
             relation.setFromNodeId(dto.getSpouseNodeId());
@@ -159,9 +169,10 @@ public class FamilyNodeServiceImpl implements FamilyNodeService {
         if (dto.getGeneration() != null) {
             boolean generationChanged = !dto.getGeneration().equals(existing.getGeneration());
             existing.setGeneration(dto.getGeneration());
-            // 配偶的辈分（第几世）与本节点保持一致
+            // 配偶的辈分（第几世）与本节点保持一致，后代递归同步
             if (generationChanged) {
                 syncSpouseGeneration(userId, existing.getId(), dto.getGeneration());
+                syncDescendantGenerations(userId, existing.getId(), dto.getGeneration());
             }
         }
         if (dto.getAvatar() != null) {
@@ -220,6 +231,55 @@ public class FamilyNodeServiceImpl implements FamilyNodeService {
             logger.info("Synced generation={} to {} spouse(s) of node={} for user={}",
                     generation, spouseRelations.size(), nodeId, userId);
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void syncDescendantGenerations(Long userId, Long nodeId, Integer generation) {
+        Set<Long> visited = new HashSet<>();
+        Deque<long[]> queue = new ArrayDeque<>();
+        // 元素：[nodeId, generation]
+        queue.offer(new long[]{nodeId, generation});
+        visited.add(nodeId);
+
+        while (!queue.isEmpty()) {
+            long[] current = queue.poll();
+            long currentId = current[0];
+            int currentGen = (int) current[1];
+
+            // 查找所有子节点
+            LambdaQueryWrapper<FamilyRelationDO> childQuery = new LambdaQueryWrapper<>();
+            childQuery.eq(FamilyRelationDO::getUserId, userId)
+                    .eq(FamilyRelationDO::getFromNodeId, currentId)
+                    .eq(FamilyRelationDO::getRelationType, RelationTypeEnum.PARENT_CHILD.getCode());
+            List<FamilyRelationDO> childRelations = familyRelationMapper.selectList(childQuery);
+
+            for (FamilyRelationDO rel : childRelations) {
+                Long childId = rel.getToNodeId();
+                if (visited.contains(childId)) {
+                    continue;
+                }
+                visited.add(childId);
+                int childGen = currentGen + 1;
+                if (childGen > FamilyTreeConsts.MAX_GENERATION_DEPTH) {
+                    throw new BusinessException("世代层级不能超过"
+                            + FamilyTreeConsts.MAX_GENERATION_DEPTH + "世");
+                }
+                // 更新子节点世代
+                LambdaUpdateWrapper<FamilyNodeDO> childUpdate = new LambdaUpdateWrapper<>();
+                childUpdate.eq(FamilyNodeDO::getId, childId)
+                        .eq(FamilyNodeDO::getUserId, userId)
+                        .set(FamilyNodeDO::getGeneration, childGen)
+                        .set(FamilyNodeDO::getUpdateTime, LocalDateTime.now());
+                familyNodeMapper.update(null, childUpdate);
+
+                // 子节点的配偶同代
+                syncSpouseGeneration(userId, childId, childGen);
+                // 继续向下遍历
+                queue.offer(new long[]{childId, childGen});
+            }
+        }
+        logger.info("Synced descendant generations from node={} gen={} for user={}", nodeId, generation, userId);
     }
 
     @Override

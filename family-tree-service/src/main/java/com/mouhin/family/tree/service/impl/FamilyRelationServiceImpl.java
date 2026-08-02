@@ -9,9 +9,11 @@ import com.mouhin.family.tree.persistence.entity.FamilyNodeDO;
 import com.mouhin.family.tree.persistence.entity.FamilyRelationDO;
 import com.mouhin.family.tree.persistence.mapper.FamilyNodeMapper;
 import com.mouhin.family.tree.persistence.mapper.FamilyRelationMapper;
+import com.mouhin.family.tree.service.FamilyNodeService;
 import com.mouhin.family.tree.service.FamilyRelationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,10 +36,14 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
 
     private final FamilyRelationMapper familyRelationMapper;
     private final FamilyNodeMapper familyNodeMapper;
+    private final FamilyNodeService familyNodeService;
 
-    public FamilyRelationServiceImpl(FamilyRelationMapper familyRelationMapper, FamilyNodeMapper familyNodeMapper) {
+    public FamilyRelationServiceImpl(FamilyRelationMapper familyRelationMapper,
+                                     FamilyNodeMapper familyNodeMapper,
+                                     @Lazy FamilyNodeService familyNodeService) {
         this.familyRelationMapper = familyRelationMapper;
         this.familyNodeMapper = familyNodeMapper;
+        this.familyNodeService = familyNodeService;
     }
 
     @Override
@@ -60,14 +66,17 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
             throw new BusinessException("该关系已存在");
         }
 
-        // 亲子关系需更新子节点的 generation
+        // 亲子关系需更新子节点的 generation，并递归同步其后代
         if (Objects.equals(dto.getRelationType(), RelationTypeEnum.PARENT_CHILD.getCode())) {
             FamilyNodeDO parent = familyNodeMapper.selectById(dto.getFromNodeId());
             FamilyNodeDO child = familyNodeMapper.selectById(dto.getToNodeId());
             if (parent != null && child != null) {
-                child.setGeneration(parent.getGeneration() + 1);
+                int childGen = parent.getGeneration() + 1;
+                child.setGeneration(childGen);
                 child.setUpdateTime(LocalDateTime.now());
                 familyNodeMapper.updateById(child);
+                // 递归同步子节点的所有后代世代
+                familyNodeService.syncDescendantGenerations(userId, child.getId(), childGen);
             }
         }
 
@@ -113,8 +122,12 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
         if (dto.getDivorced() != null) {
             update.set(FamilyRelationDO::getDivorced, dto.getDivorced());
         }
+        if (dto.getWidowed() != null) {
+            update.set(FamilyRelationDO::getWidowed, dto.getWidowed());
+        }
         familyRelationMapper.update(null, update);
-        logger.info("Updated relation id={} divorced={} for user={}", dto.getId(), dto.getDivorced(), userId);
+        logger.info("Updated relation id={} divorced={} widowed={} for user={}",
+                dto.getId(), dto.getDivorced(), dto.getWidowed(), userId);
     }
 
     @Override
@@ -156,7 +169,8 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
      * @param fromNodeId 关系起点节点
      * @param toNodeId   关系终点节点
      */
-    private void validateSpouseRelation(Long userId, Long fromNodeId, Long toNodeId) {
+    @Override
+    public void validateSpouseRelation(Long userId, Long fromNodeId, Long toNodeId) {
         if (Objects.equals(fromNodeId, toNodeId)) {
             throw new BusinessException("不能与自身建立夫妻关系");
         }
@@ -220,6 +234,7 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
         dto.setMarriageDate(entity.getMarriageDate());
         dto.setDivorceDate(entity.getDivorceDate());
         dto.setDivorced(entity.getDivorced());
+        dto.setWidowed(entity.getWidowed());
         return dto;
     }
 }

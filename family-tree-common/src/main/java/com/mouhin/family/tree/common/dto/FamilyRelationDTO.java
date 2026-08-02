@@ -22,4 +22,7 @@ public class FamilyRelationDTO {
 
     /** 是否离异（独立于离异日期） */
     private Boolean divorced;
+
+    /** 是否丧偶（配偶一方去世） */
+    private Boolean widowed;
 }

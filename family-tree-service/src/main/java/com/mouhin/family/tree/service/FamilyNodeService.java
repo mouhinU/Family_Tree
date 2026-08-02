@@ -63,4 +63,14 @@ public interface FamilyNodeService {
      * @param colorLabel 颜色标签
      */
     void updateColor(Long userId, List<Long> nodeIds, String colorLabel);
+
+    /**
+     * 递归同步指定节点所有后代的世代层级。
+     * 子节点 = 父节点 + 1，配偶与节点同代。
+     *
+     * @param userId     当前用户ID
+     * @param nodeId     起始节点ID
+     * @param generation 起始节点的目标世代
+     */
+    void syncDescendantGenerations(Long userId, Long nodeId, Integer generation);
 }

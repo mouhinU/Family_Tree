@@ -53,4 +53,14 @@ public interface FamilyRelationService {
      * @return 关系列表
      */
     List<FamilyRelationDTO> listAllRelations(Long userId);
+
+    /**
+     * 夫妻关系合法性校验（禁止自身、重复、直系血亲、同胞）。
+     * 供节点服务在创建配偶关系前调用。
+     *
+     * @param userId     当前用户ID
+     * @param fromNodeId 关系起点节点
+     * @param toNodeId   关系终点节点
+     */
+    void validateSpouseRelation(Long userId, Long fromNodeId, Long toNodeId);
 }

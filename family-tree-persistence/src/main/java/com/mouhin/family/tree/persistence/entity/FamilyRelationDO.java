@@ -41,6 +41,10 @@ public class FamilyRelationDO {
     @TableField("is_divorced")
     private Boolean divorced;
 
+    /** 是否丧偶（配偶一方去世，独立于离异状态） */
+    @TableField("is_widowed")
+    private Boolean widowed;
+
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;
