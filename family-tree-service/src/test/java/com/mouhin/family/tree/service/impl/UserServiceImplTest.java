@@ -1,11 +1,13 @@
 package com.mouhin.family.tree.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.mouhin.family.tree.common.constant.LoginSecurityConsts;
 import com.mouhin.family.tree.common.dto.LoginDTO;
 import com.mouhin.family.tree.common.dto.RegisterDTO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.persistence.entity.SysUserDO;
 import com.mouhin.family.tree.persistence.mapper.SysUserMapper;
+import com.mouhin.family.tree.service.LoginAttemptService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -41,6 +43,9 @@ class UserServiceImplTest {
 
     @Mock
     private SysUserMapper sysUserMapper;
+
+    @Mock
+    private LoginAttemptService loginAttemptService;
 
     @InjectMocks
     private UserServiceImpl userService;
@@ -131,5 +136,43 @@ class UserServiceImplTest {
         assertNotEquals(RAW_PASSWORD, stored);
         assertNotEquals(md5(RAW_PASSWORD), stored);
         assertTrue(ENCODER.matches(RAW_PASSWORD, stored), "注册应存储 BCrypt 哈希");
+    }
+
+    @Test
+    void loginLockedAfterMaxFailedAttempts() {
+        // 使用真实计数器实现，验证完整锁定链路
+        UserServiceImpl service = new UserServiceImpl(sysUserMapper, new LoginAttemptServiceImpl());
+        SysUserDO user = userWithHash(ENCODER.encode(RAW_PASSWORD));
+        when(sysUserMapper.selectOne(any(Wrapper.class))).thenReturn(user);
+
+        for (int i = 0; i < LoginSecurityConsts.MAX_FAILED_ATTEMPTS; i++) {
+            assertThrows(BusinessException.class, () -> service.login(loginDto("wrongPwd")));
+        }
+
+        // 达到上限后即使密码正确也应拒绝登录
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.login(loginDto(RAW_PASSWORD)));
+        assertTrue(ex.getMessage().contains("登录失败次数过多"), "锁定提示应告知用户等待时长");
+    }
+
+    @Test
+    void successfulLoginResetsFailureCount() {
+        UserServiceImpl service = new UserServiceImpl(sysUserMapper, new LoginAttemptServiceImpl());
+        SysUserDO user = userWithHash(ENCODER.encode(RAW_PASSWORD));
+        when(sysUserMapper.selectOne(any(Wrapper.class))).thenReturn(user);
+
+        // 累计若干次失败但未达上限
+        for (int i = 0; i < LoginSecurityConsts.MAX_FAILED_ATTEMPTS - 1; i++) {
+            assertThrows(BusinessException.class, () -> service.login(loginDto("wrongPwd")));
+        }
+
+        // 成功登录应清空失败计数
+        assertEquals(1L, service.login(loginDto(RAW_PASSWORD)));
+
+        // 重新从 0 计数：再次失败 MAX-1 次仍不应被锁定
+        for (int i = 0; i < LoginSecurityConsts.MAX_FAILED_ATTEMPTS - 1; i++) {
+            assertThrows(BusinessException.class, () -> service.login(loginDto("wrongPwd")));
+        }
+        assertEquals(1L, service.login(loginDto(RAW_PASSWORD)));
     }
 }

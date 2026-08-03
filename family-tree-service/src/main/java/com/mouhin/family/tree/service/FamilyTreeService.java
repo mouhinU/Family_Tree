@@ -28,4 +28,12 @@ public interface FamilyTreeService {
      * @return 子树结构
      */
     TreeNodeVO getSubTree(Long userId, Long nodeId);
+
+    /**
+     * 失效指定用户的整棵族谱树缓存。
+     * 所有会改变树结构的写操作（节点/关系增删改、批量改色等）成功后必须调用。
+     *
+     * @param userId 当前用户ID
+     */
+    void evictUserTree(Long userId);
 }

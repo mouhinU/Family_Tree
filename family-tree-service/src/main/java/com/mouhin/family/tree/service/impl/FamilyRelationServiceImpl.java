@@ -11,6 +11,7 @@ import com.mouhin.family.tree.persistence.mapper.FamilyNodeMapper;
 import com.mouhin.family.tree.persistence.mapper.FamilyRelationMapper;
 import com.mouhin.family.tree.service.FamilyNodeService;
 import com.mouhin.family.tree.service.FamilyRelationService;
+import com.mouhin.family.tree.service.FamilyTreeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -37,13 +38,16 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
     private final FamilyRelationMapper familyRelationMapper;
     private final FamilyNodeMapper familyNodeMapper;
     private final FamilyNodeService familyNodeService;
+    private final FamilyTreeService familyTreeService;
 
     public FamilyRelationServiceImpl(FamilyRelationMapper familyRelationMapper,
                                      FamilyNodeMapper familyNodeMapper,
-                                     @Lazy FamilyNodeService familyNodeService) {
+                                     @Lazy FamilyNodeService familyNodeService,
+                                     FamilyTreeService familyTreeService) {
         this.familyRelationMapper = familyRelationMapper;
         this.familyNodeMapper = familyNodeMapper;
         this.familyNodeService = familyNodeService;
+        this.familyTreeService = familyTreeService;
     }
 
     @Override
@@ -93,6 +97,10 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
 
         logger.info("Created relation id={} type={} from={} to={} for user={}",
                 relation.getId(), dto.getRelationType(), dto.getFromNodeId(), dto.getToNodeId(), userId);
+
+        // 树结构已变更，失效该用户的族谱树缓存（事务提交后生效）
+        familyTreeService.evictUserTree(userId);
+
         return relation.getId();
     }
 
@@ -104,6 +112,9 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
         }
         familyRelationMapper.deleteById(relationId);
         logger.info("Deleted relation id={} for user={}", relationId, userId);
+
+        // 树结构已变更，失效该用户的族谱树缓存
+        familyTreeService.evictUserTree(userId);
     }
 
     @Override
@@ -128,6 +139,9 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
         familyRelationMapper.update(null, update);
         logger.info("Updated relation id={} divorced={} widowed={} for user={}",
                 dto.getId(), dto.getDivorced(), dto.getWidowed(), userId);
+
+        // 婚姻状态已变更，失效该用户的族谱树缓存（离异/丧偶影响配偶挂载与渲染）
+        familyTreeService.evictUserTree(userId);
     }
 
     @Override

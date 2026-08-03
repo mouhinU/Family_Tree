@@ -1,6 +1,8 @@
 package com.mouhin.family.tree.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.mouhin.family.tree.common.dto.TreeNodeVO;
 import com.mouhin.family.tree.common.enums.ColorLabelEnum;
 import com.mouhin.family.tree.common.enums.RelationTypeEnum;
@@ -11,7 +13,10 @@ import com.mouhin.family.tree.persistence.mapper.FamilyNodeMapper;
 import com.mouhin.family.tree.persistence.mapper.FamilyRelationMapper;
 import com.mouhin.family.tree.service.FamilyTreeService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -36,6 +41,19 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
     private final FamilyNodeMapper familyNodeMapper;
     private final FamilyRelationMapper familyRelationMapper;
 
+    /** 树缓存最大用户数：家庭内部系统，远超实际规模，仅作内存保护 */
+    private static final int MAX_CACHED_USERS = 200;
+
+    /** 树缓存过期时间：除写操作主动失效外的兜底，防止遗漏写路径导致长期脏读 */
+    private static final Duration TREE_CACHE_TTL = Duration.ofMinutes(10);
+
+    /** 整棵族谱树缓存（key=userId）。族谱为读多写少场景，命中时省去全表查询与建树。
+     *  注意：缓存值为构建好的 VO 列表，读取方只可序列化展示，不得修改其内容。 */
+    private final Cache<Long, List<TreeNodeVO>> fullTreeCache = Caffeine.newBuilder()
+            .maximumSize(MAX_CACHED_USERS)
+            .expireAfterWrite(TREE_CACHE_TTL)
+            .build();
+
     public FamilyTreeServiceImpl(FamilyNodeMapper familyNodeMapper, FamilyRelationMapper familyRelationMapper) {
         this.familyNodeMapper = familyNodeMapper;
         this.familyRelationMapper = familyRelationMapper;
@@ -43,6 +61,34 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
 
     @Override
     public List<TreeNodeVO> getFullTree(Long userId) {
+        return fullTreeCache.get(userId, this::buildFullTree);
+    }
+
+    @Override
+    public void evictUserTree(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        // 写路径多在事务内：延迟到提交后再失效，避免并发读在提交前用旧数据回填缓存
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    fullTreeCache.invalidate(userId);
+                }
+            });
+        } else {
+            fullTreeCache.invalidate(userId);
+        }
+    }
+
+    /**
+     * 真正执行全量查询与建树（缓存未命中时由 {@link #getFullTree} 触发）。
+     *
+     * @param userId 当前用户ID
+     * @return 树形结构列表（可能有多个根节点）
+     */
+    private List<TreeNodeVO> buildFullTree(Long userId) {
         List<FamilyNodeDO> allNodes = listUserNodes(userId);
         List<FamilyRelationDO> allRelations = listUserRelations(userId);
 

@@ -1,11 +1,13 @@
 package com.mouhin.family.tree.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.mouhin.family.tree.common.constant.LoginSecurityConsts;
 import com.mouhin.family.tree.common.dto.LoginDTO;
 import com.mouhin.family.tree.common.dto.RegisterDTO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.persistence.entity.SysUserDO;
 import com.mouhin.family.tree.persistence.mapper.SysUserMapper;
+import com.mouhin.family.tree.service.LoginAttemptService;
 import com.mouhin.family.tree.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,10 +34,12 @@ public class UserServiceImpl implements UserService {
     private static final int LEGACY_MD5_HASH_LENGTH = 32;
 
     private final SysUserMapper sysUserMapper;
+    private final LoginAttemptService loginAttemptService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public UserServiceImpl(SysUserMapper sysUserMapper) {
+    public UserServiceImpl(SysUserMapper sysUserMapper, LoginAttemptService loginAttemptService) {
         this.sysUserMapper = sysUserMapper;
+        this.loginAttemptService = loginAttemptService;
     }
 
     @Override
@@ -72,13 +76,25 @@ public class UserServiceImpl implements UserService {
             throw new BusinessException("用户名和密码不能为空");
         }
 
+        String username = dto.getUsername().trim();
+
+        // 防暴力破解：锁定期间直接拒绝，不落库、不透露账号是否存在
+        if (loginAttemptService.isLocked(username)) {
+            logger.warn("Login blocked due to lockout: username={}", username);
+            throw new BusinessException("登录失败次数过多，请 " + LoginSecurityConsts.LOCK_MINUTES + " 分钟后再试");
+        }
+
         LambdaQueryWrapper<SysUserDO> query = new LambdaQueryWrapper<>();
-        query.eq(SysUserDO::getUsername, dto.getUsername().trim());
+        query.eq(SysUserDO::getUsername, username);
         SysUserDO user = sysUserMapper.selectOne(query);
 
         if (user == null || !verifyPassword(dto.getPassword(), user.getPasswordHash())) {
+            loginAttemptService.recordFailure(username);
             throw new BusinessException("用户名或密码错误");
         }
+
+        // 校验通过，清除失败计数
+        loginAttemptService.recordSuccess(username);
 
         // 存量 MD5 哈希校验通过后，透明升级为 BCrypt（平滑迁移，不影响用户登录）
         if (isLegacyMd5Hash(user.getPasswordHash())) {

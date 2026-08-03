@@ -14,6 +14,7 @@ import com.mouhin.family.tree.persistence.mapper.FamilyNodeMapper;
 import com.mouhin.family.tree.persistence.mapper.FamilyRelationMapper;
 import com.mouhin.family.tree.service.FamilyNodeService;
 import com.mouhin.family.tree.service.FamilyRelationService;
+import com.mouhin.family.tree.service.FamilyTreeService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Lazy;
@@ -44,13 +45,16 @@ public class FamilyNodeServiceImpl implements FamilyNodeService {
     private final FamilyNodeMapper familyNodeMapper;
     private final FamilyRelationMapper familyRelationMapper;
     private final FamilyRelationService familyRelationService;
+    private final FamilyTreeService familyTreeService;
 
     public FamilyNodeServiceImpl(FamilyNodeMapper familyNodeMapper,
                                  FamilyRelationMapper familyRelationMapper,
-                                 @Lazy FamilyRelationService familyRelationService) {
+                                 @Lazy FamilyRelationService familyRelationService,
+                                 FamilyTreeService familyTreeService) {
         this.familyNodeMapper = familyNodeMapper;
         this.familyRelationMapper = familyRelationMapper;
         this.familyRelationService = familyRelationService;
+        this.familyTreeService = familyTreeService;
     }
 
     @Override
@@ -145,6 +149,9 @@ public class FamilyNodeServiceImpl implements FamilyNodeService {
             familyRelationMapper.insert(relation);
         }
 
+        // 树结构已变更，失效该用户的族谱树缓存（事务提交后生效）
+        familyTreeService.evictUserTree(userId);
+
         return node.getId();
     }
 
@@ -200,6 +207,9 @@ public class FamilyNodeServiceImpl implements FamilyNodeService {
             }
             familyNodeMapper.update(null, dateUpdate);
         }
+
+        // 节点信息已变更，失效该用户的族谱树缓存（事务提交后生效）
+        familyTreeService.evictUserTree(userId);
     }
 
     /**
@@ -280,6 +290,9 @@ public class FamilyNodeServiceImpl implements FamilyNodeService {
             }
         }
         logger.info("Synced descendant generations from node={} gen={} for user={}", nodeId, generation, userId);
+
+        // 后代世代已变更，失效该用户的族谱树缓存（事务提交后生效）
+        familyTreeService.evictUserTree(userId);
     }
 
     @Override
@@ -297,6 +310,9 @@ public class FamilyNodeServiceImpl implements FamilyNodeService {
         // 删除节点
         familyNodeMapper.deleteById(nodeId);
         logger.info("Deleted family node id={} for user={}", nodeId, userId);
+
+        // 树结构已变更，失效该用户的族谱树缓存（事务提交后生效）
+        familyTreeService.evictUserTree(userId);
     }
 
     @Override
@@ -342,6 +358,9 @@ public class FamilyNodeServiceImpl implements FamilyNodeService {
                 .set(FamilyNodeDO::getUpdateTime, LocalDateTime.now());
         familyNodeMapper.update(null, update);
         logger.info("Updated colorLabel={} for {} nodes for user={}", colorLabel, nodeIds.size(), userId);
+
+        // 节点颜色已变更，失效该用户的族谱树缓存（事务提交后生效）
+        familyTreeService.evictUserTree(userId);
     }
 
     private FamilyNodeDO getAndCheckOwnership(Long userId, Long nodeId) {

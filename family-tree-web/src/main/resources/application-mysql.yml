@@ -1,10 +1,13 @@
 # MySQL 生产环境配置
+# 凭据不入库：通过环境变量注入（DB_URL / DB_USERNAME / DB_PASSWORD）。
+# 部署时请创建最小权限应用账号（仅 family_tree 库的 CRUD 权限），勿使用 root；
+# 历史上曾泄露的 root/123456 组合必须立即轮换。
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/family_tree?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+    url: ${DB_URL:jdbc:mysql://localhost:3306/family_tree?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: root
-    password: 123456
+    username: ${DB_USERNAME:family_tree_app}
+    password: ${DB_PASSWORD:}
 
   flyway:
     enabled: true

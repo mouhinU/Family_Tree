@@ -103,6 +103,14 @@
     <!-- 模态框容器 -->
     <div id="modal-container"></div>
 
-    <script src="/js/family-tree.js"></script>
+    <!-- 前端模块化拆分：core 定义命名空间/常量/状态，main 启动应用，顺序不可调换 -->
+    <script src="/js/ft/core.js?v=20260802"></script>
+    <script src="/js/ft/api.js?v=20260802"></script>
+    <script src="/js/ft/layout.js?v=20260802"></script>
+    <script src="/js/ft/render.js?v=20260802"></script>
+    <script src="/js/ft/export.js?v=20260802"></script>
+    <script src="/js/ft/modals.js?v=20260802"></script>
+    <script src="/js/ft/context-menu.js?v=20260802"></script>
+    <script src="/js/ft/main.js?v=20260802"></script>
 </body>
 </html>
