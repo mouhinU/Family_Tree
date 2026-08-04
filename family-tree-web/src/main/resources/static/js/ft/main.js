@@ -11,6 +11,11 @@
     const FT = window.FT;
 
     async function init() {
+        // 恢复 CSRF Token（登录时存储在 sessionStorage）
+        var savedToken = sessionStorage.getItem('csrfToken');
+        if (savedToken) {
+            FT.initCsrfToken(savedToken);
+        }
         FT.setupScrollOverlay();
         try {
             const res = await FT.api('/api/auth/me');
@@ -19,7 +24,36 @@
                 return;
             }
             FT.state.currentUser = res.data;
+            // 刷新 CSRF Token（/api/auth/me 每次返回新 token）
+            if (res.data.csrfToken) {
+                FT.initCsrfToken(res.data.csrfToken);
+                sessionStorage.setItem('csrfToken', res.data.csrfToken);
+            }
             document.getElementById('user-nickname').textContent = FT.state.currentUser.nickname || '';
+
+            // 家族信息展示
+            if (!res.data.hasFamily) {
+                window.location.href = '/family-setup.html';
+                return;
+            }
+            const familyNameEl = document.getElementById('family-name');
+            if (familyNameEl) {
+                familyNameEl.textContent = res.data.familyName || '';
+            }
+
+            // 族长/管理员标识
+            var role = res.data.familyRole;
+            if (role === 'OWNER' || role === 'ADMIN') {
+                var badge = document.getElementById('family-role-badge');
+                if (badge) {
+                    badge.style.display = 'inline-block';
+                    badge.textContent = role === 'OWNER' ? '族长' : '管理员';
+                }
+                var logBtn = document.getElementById('btn-operation-log');
+                if (logBtn) {
+                    logBtn.style.display = 'inline-block';
+                }
+            }
         } catch (e) {
             window.location.href = '/login.html';
             return;
@@ -74,6 +108,165 @@
             document.body.classList.toggle('toolbar-hidden', collapsed);
             this.title = collapsed ? '展开工具栏' : '收起工具栏';
         });
+
+        // 家族管理按钮
+        const btnFamily = document.getElementById('btn-family');
+        if (btnFamily) {
+            btnFamily.addEventListener('click', function () {
+                FT.showFamilyModal();
+            });
+        }
+
+        // 个人信息按钮（在更多下拉菜单中）
+        const btnProfile = document.getElementById('btn-profile');
+        if (btnProfile) {
+            btnProfile.addEventListener('click', function () {
+                var dropdown = document.getElementById('header-more-dropdown');
+                if (dropdown) dropdown.style.display = 'none';
+                FT.showProfileModal();
+            });
+        }
+
+        // 操作日志按钮（在更多下拉菜单中）
+        const btnLog = document.getElementById('btn-operation-log');
+        if (btnLog) {
+            btnLog.addEventListener('click', function () {
+                var dropdown = document.getElementById('header-more-dropdown');
+                if (dropdown) dropdown.style.display = 'none';
+                FT.showOperationLogModal();
+            });
+        }
+
+        // 时间线按钮
+        var btnTimeline = document.getElementById('btn-timeline');
+        if (btnTimeline) {
+            btnTimeline.addEventListener('click', function () {
+                FT.showTimelineModal();
+            });
+        }
+
+        // 关系路径分析按钮
+        var btnRelationPath = document.getElementById('btn-relation-path');
+        if (btnRelationPath) {
+            btnRelationPath.addEventListener('click', function () {
+                FT.showRelationPathModal();
+            });
+        }
+
+        // 忌日提醒按钮
+        var btnDeathAnniversary = document.getElementById('btn-death-anniversary');
+        if (btnDeathAnniversary) {
+            btnDeathAnniversary.addEventListener('click', function () {
+                FT.showDeathAnniversaryModal();
+            });
+        }
+
+        // 切换家族按钮
+        var btnFamilySwitch = document.getElementById('btn-family-switch');
+        if (btnFamilySwitch) {
+            btnFamilySwitch.addEventListener('click', function () {
+                FT.showFamilySwitcherModal();
+                // 点击后关闭下拉菜单
+                document.getElementById('header-more-dropdown').style.display = 'none';
+            });
+        }
+
+        // ========== 更多操作下拉菜单 ==========
+        var btnMore = document.getElementById('btn-more');
+        var moreDropdown = document.getElementById('header-more-dropdown');
+        if (btnMore && moreDropdown) {
+            btnMore.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var isVisible = moreDropdown.style.display !== 'none';
+                moreDropdown.style.display = isVisible ? 'none' : 'block';
+            });
+
+            // 点击空白处关闭下拉菜单
+            document.addEventListener('click', function (e) {
+                if (!btnMore.contains(e.target) && !moreDropdown.contains(e.target)) {
+                    moreDropdown.style.display = 'none';
+                }
+            });
+
+            // 下拉菜单项点击后关闭菜单
+            moreDropdown.querySelectorAll('.header-more-item').forEach(function (item) {
+                item.addEventListener('click', function () {
+                    moreDropdown.style.display = 'none';
+                });
+            });
+        }
+
+        // ========== 搜索 ==========
+        var searchInput = document.getElementById('search-input');
+        var searchDropdown = document.getElementById('search-dropdown');
+        var searchTimer = null;
+
+        searchInput.addEventListener('input', function () {
+            clearTimeout(searchTimer);
+            var keyword = this.value.trim();
+            if (!keyword) {
+                searchDropdown.style.display = 'none';
+                return;
+            }
+            searchTimer = setTimeout(function () {
+                FT.api('/api/node/search?keyword=' + encodeURIComponent(keyword)).then(function (res) {
+                    if (res.code === 200) {
+                        renderSearchResults(res.data || [], keyword);
+                    }
+                });
+            }, 300);
+        });
+
+        searchInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                searchDropdown.style.display = 'none';
+                searchInput.blur();
+            }
+        });
+
+        // 点击空白处关闭搜索下拉
+        document.addEventListener('click', function (e) {
+            if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+                searchDropdown.style.display = 'none';
+            }
+        });
+
+        function renderSearchResults(nodes, keyword) {
+            if (nodes.length === 0) {
+                searchDropdown.innerHTML = '<div class="search-empty">未找到「' + escapeHtml(keyword) + '」</div>';
+                searchDropdown.style.display = 'block';
+                return;
+            }
+            var html = nodes.map(function (n) {
+                var meta = [];
+                if (n.generation) meta.push('第' + n.generation + '世');
+                if (n.gender === 1) meta.push('男');
+                else if (n.gender === 2) meta.push('女');
+                if (n.birthDate) meta.push(n.birthDate);
+                return '<div class="search-item" data-node-id="' + n.id + '">'
+                    + '<div class="search-name">' + escapeHtml(n.name) + '</div>'
+                    + (meta.length ? '<div class="search-meta">' + meta.join(' · ') + '</div>' : '')
+                    + '</div>';
+            }).join('');
+            searchDropdown.innerHTML = html;
+            searchDropdown.style.display = 'block';
+
+            // 绑定点击事件：定位到节点
+            searchDropdown.querySelectorAll('.search-item').forEach(function (item) {
+                item.addEventListener('click', function () {
+                    var nodeId = parseInt(this.getAttribute('data-node-id'));
+                    searchDropdown.style.display = 'none';
+                    searchInput.value = '';
+                    FT.focusNode && FT.focusNode(nodeId);
+                });
+            });
+        }
+
+        function escapeHtml(text) {
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
     }
 
     // 启动

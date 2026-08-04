@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.service;
 
 import com.mouhin.family.tree.common.dto.LoginDTO;
+import com.mouhin.family.tree.common.dto.ProfileUpdateDTO;
 import com.mouhin.family.tree.common.dto.RegisterDTO;
 
 /**
@@ -42,4 +43,36 @@ public interface UserService {
      * @return 辈分（第几世），未设置返回 null
      */
     Integer getGeneration(Long userId);
+
+    /**
+     * 根据ID获取用户出生日期
+     *
+     * @param userId 用户ID
+     * @return 出生日期（yyyy-MM-dd），未设置返回 null
+     */
+    String getBirthDate(Long userId);
+
+    /**
+     * 根据ID获取用户关联的族谱节点ID
+     *
+     * @param userId 用户ID
+     * @return 节点ID，未关联返回 null
+     */
+    Long getNodeId(Long userId);
+
+    /**
+     * 更新用户关联的族谱节点ID（标记"这是我"）
+     *
+     * @param userId 用户ID
+     * @param nodeId 节点ID，null 表示取消关联
+     */
+    void updateNodeId(Long userId, Long nodeId);
+
+    /**
+     * 更新用户个人信息（昵称、出生日期、辈分）
+     *
+     * @param userId 用户ID
+     * @param dto    更新内容
+     */
+    void updateProfile(Long userId, ProfileUpdateDTO dto);
 }

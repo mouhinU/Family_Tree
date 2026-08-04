@@ -124,13 +124,11 @@
     function renderTree() {
         setupSvg();
 
-        // 先按「隐藏外嫁」剔除出嫁女家支，再按「只看健在」剔除已故节点，两开关可叠加
+        // 「隐藏外嫁」剔除出嫁女家支；「只看健在」不再剔除节点（保留完整树结构维持辈分层级位置），
+        // 改为在绘制阶段隐藏已故节点卡片。两开关可叠加。
         let displayTree = FT.state.treeData || [];
         if (FT.state.hideMarryOut) {
             displayTree = FT.buildHideMarryOutTree(displayTree);
-        }
-        if (FT.state.hideDeceased) {
-            displayTree = FT.buildLivingTree(displayTree);
         }
 
         // 清空后代计数记忆化缓存（树结构可能已变化）
@@ -205,6 +203,12 @@
         applyGenerationHighlight();
     }
 
+    // 判断节点在「只看健在」模式下是否可见
+    function isNodeVisible(nodeData) {
+        if (!FT.state.hideDeceased) { return true; }
+        return !FT.isDeceased(nodeData);
+    }
+
     // 绘制族谱内容（连线 + 血亲配偶弧线 + 节点卡片），追加到全局 gMain。
     // interactive=true（实时视图）：绘制折叠按钮并绑定右键/点击事件；
     // interactive=false（静态导出）：省略折叠按钮与交互，文本/连线内联字体与描边，
@@ -212,26 +216,140 @@
     function drawTreeContent(layoutNodes, links, startX, startY, horiz, interactive) {
         const gMain = FT.state.gMain;
 
-        // 绘制连线
+        // ===== 「只看健在」模式下的连线重定向 =====
+        // 已故节点保留布局占位（维持辈分位置），但不绘制卡片。
+        // 连线需绕过已故节点：配偶连线任一方已故则跳过；亲子连线指向已故子节点则跳过，
+        // 已故父节点的可见子女改连到最近的可见祖先，保证树不断开。
+        const hideDeceased = FT.state.hideDeceased;
+
+        // 布局坐标 → 布局节点 映射（用于从连线端点反查节点数据）
+        const posToLayout = new Map();
+        layoutNodes.forEach(function (ln) {
+            posToLayout.set(ln.x + ',' + ln.y, ln);
+        });
+
+        // 可见节点集合 & 已故节点集合（快速查找）
+        const visibleSet = new Set();
+        const deceasedSet = new Set();
+        layoutNodes.forEach(function (ln) {
+            var key = ln.x + ',' + ln.y;
+            if (isNodeVisible(ln.data)) {
+                visibleSet.add(key);
+            } else {
+                deceasedSet.add(key);
+            }
+        });
+
+        // 构建 子节点位置 → 父节点位置 映射（从树结构遍历，覆盖 spouses 与 children）
+        const childToParentPos = new Map();
+        function buildParentMap(nodes, parentPos) {
+            nodes.forEach(function (child) {
+                var childLayout = posToLayout.get(child.x + ',' + child.y);
+                if (!childLayout) { return; }
+                var childKey = child.x + ',' + child.y;
+                if (parentPos) {
+                    childToParentPos.set(childKey, parentPos);
+                }
+                // 配偶的父 = 本节点
+                (child.spouses || []).forEach(function (sp) {
+                    childToParentPos.set(sp.x + ',' + sp.y, childKey);
+                });
+                // 子女的父 = 本节点
+                buildParentMap(child.children || [], childKey);
+            });
+        }
+        if (hideDeceased) {
+            var displayRoots = FT.state.treeData || [];
+            buildParentMap(displayRoots, null);
+        }
+
+        // 向上查找最近的可见祖先位置
+        function findNearestVisibleAncestor(posKey) {
+            var current = posKey;
+            var safety = 50;
+            while (current && safety-- > 0) {
+                var parentPos = childToParentPos.get(current);
+                if (!parentPos) { return null; }
+                if (visibleSet.has(parentPos)) { return parentPos; }
+                current = parentPos;
+            }
+            return null;
+        }
+
+        // 位置 → 坐标（用于重定向时取祖先的屏幕坐标）
+        var posToCoords = new Map();
+        layoutNodes.forEach(function (ln) {
+            posToCoords.set(ln.x + ',' + ln.y, { x: ln.x, y: ln.y });
+        });
+
+        // 处理连线：过滤 + 重定向
+        var processedLinks = [];
+        var addedRedirects = new Set(); // 去重：同一祖先到同一子女只连一次
+
         links.forEach(function (link) {
+            var fromKey = link.x1 + ',' + link.y1;
+            var toKey = link.x2 + ',' + link.y2;
+
+            if (link.type === 'spouse') {
+                // 配偶连线：任一方已故则跳过（已故方无卡片）
+                if (hideDeceased && (!visibleSet.has(fromKey) || !visibleSet.has(toKey))) {
+                    return;
+                }
+                processedLinks.push(link);
+            } else {
+                // 亲子连线
+                var childVisible = visibleSet.has(toKey);
+                var parentVisible = visibleSet.has(fromKey);
+
+                if (hideDeceased && !childVisible) {
+                    // 子节点已故 → 不画线（无卡片可连）
+                    return;
+                }
+                if (hideDeceased && !parentVisible && childVisible) {
+                    // 父节点已故、子节点可见 → 重定向到最近的可见祖先
+                    var ancestorPos = findNearestVisibleAncestor(fromKey);
+                    if (ancestorPos) {
+                        var redirectKey = ancestorPos + '->' + toKey;
+                        if (addedRedirects.has(redirectKey)) { return; }
+                        addedRedirects.add(redirectKey);
+                        var ancestorCoords = posToCoords.get(ancestorPos);
+                        if (ancestorCoords) {
+                            processedLinks.push(Object.assign({}, link, {
+                                x1: ancestorCoords.x,
+                                y1: ancestorCoords.y
+                            }));
+                        }
+                    }
+                    // 无可见祖先 → 不画线
+                    return;
+                }
+                processedLinks.push(link);
+            }
+        });
+
+        // 绘制连线（使用处理后的连线列表）
+        processedLinks.forEach(function (link) {
             if (link.type === 'spouse') {
                 const midX = (link.x1 + link.x2) / 2 + startX;
                 const midY = (link.y1 + link.y2) / 2 + startY;
                 const deceased = link.deceased || false;
+                const former = link.former || false;
 
-                // 细连线（爱心下方垫底）：离异灰虚线；已故墨灰实线；在婚浅红
+                // 细连线（爱心下方垫底）：前配偶/离异灰虚线；已故墨灰实线；在婚浅红
+                var strokeColor = (link.divorced || former) ? '#c4c0b4' : (deceased ? '#a9a499' : '#d8b4ad');
+                var dashArray = (link.divorced || former) ? '3,3' : 'none';
                 gMain.append('line')
                     .attr('x1', link.x1 + startX)
                     .attr('y1', link.y1 + startY)
                     .attr('x2', link.x2 + startX)
                     .attr('y2', link.y2 + startY)
-                    .attr('stroke', link.divorced ? '#c4c0b4' : (deceased ? '#a9a499' : '#d8b4ad'))
+                    .attr('stroke', strokeColor)
                     .attr('stroke-width', 1.2)
-                    .attr('stroke-dasharray', link.divorced ? '3,3' : 'none')
-                    .attr('stroke-opacity', deceased && !link.divorced ? 0.7 : 1);
+                    .attr('stroke-dasharray', dashArray)
+                    .attr('stroke-opacity', (deceased && !link.divorced && !former) ? 0.7 : 1);
 
                 // 爱心（24x24 → 缩放到约 16px，居中于连线中点）
-                drawHeartMarker(midX, midY, link.divorced, deceased);
+                drawHeartMarker(midX, midY, link.divorced || former, deceased);
             } else if (horiz) {
                 // 横向布局：水平 S 曲线（控制点取中点 x）
                 const midX = (link.x1 + link.x2) / 2;
@@ -261,14 +379,21 @@
 
         // 跨分支夫妻连线（血亲配偶，如表兄妹结婚）：
         // 双方各自保留在原生分支，仅在两卡片间画一条弧线 + 爱心，按 relationId 去重。
-        // 预建 id→节点 索引，避免每个血亲配偶都线性扫描 layoutNodes。
+        // 预建 id→节点 索引（仅可见节点），避免每个血亲配偶都线性扫描 layoutNodes。
         const layoutNodeById = new Map();
-        layoutNodes.forEach(function (ln) { layoutNodeById.set(ln.data.id, ln); });
+        layoutNodes.forEach(function (ln) {
+            if (isNodeVisible(ln.data)) {
+                layoutNodeById.set(ln.data.id, ln);
+            }
+        });
 
         const drawnBloodRelations = {};
         layoutNodes.forEach(function (n) {
+            // 「只看健在」模式下跳过已故节点的血亲配偶连线
+            if (hideDeceased && !isNodeVisible(n.data)) { return; }
             const bloodSpouses = (n.data && n.data.bloodSpouses) || [];
             bloodSpouses.forEach(function (bs) {
+                if (hideDeceased && FT.isDeceased(bs)) { return; }
                 if (bs.relationId != null) {
                     if (drawnBloodRelations[bs.relationId]) { return; }
                     drawnBloodRelations[bs.relationId] = true;
@@ -284,6 +409,11 @@
             const gx = n.x + startX;
             const gy = n.y + startY;
             const deceased = n.data.deathDate != null && n.data.deathDate !== '';
+            const visible = isNodeVisible(n.data);
+
+            // 「只看健在」模式下已故节点仅保留布局占位，不绘制卡片与交互元素
+            if (!visible) { return; }
+
             const accent = deceased ? FT.DECEASED_COLOR : (FT.COLOR_MAP[n.data.colorLabel] || FT.COLOR_MAP['default']);
             const paper = deceased ? FT.PAPER_DECEASED : FT.PAPER_COLOR;
             const ink = deceased ? FT.INK_DECEASED : FT.INK_COLOR;
@@ -293,6 +423,12 @@
                 .attr('transform', 'translate(' + gx + ',' + gy + ')')
                 .attr('data-id', n.data.id)
                 .attr('data-generation', n.data.generation != null ? n.data.generation : '');
+
+            // 标记当前登录用户所在节点
+            const isSelf = FT.state.currentUser && FT.state.currentUser.nodeId === n.data.id;
+            if (isSelf) {
+                group.classed('node-self', true);
+            }
 
             // 外层卡片
             group.append('rect')
@@ -390,6 +526,27 @@
                     .attr('font-weight', 'bold')
                     .attr('fill', '#fff')
                     .text(n.data.birthOrder);
+            }
+
+            // "我"标记徽章（右上角）：标识当前登录用户在族谱中的位置
+            if (isSelf) {
+                const selfBadge = group.append('g').attr('class', 'self-badge');
+                selfBadge.append('circle')
+                    .attr('cx', FT.NODE_WIDTH - 2)
+                    .attr('cy', 2)
+                    .attr('r', 10)
+                    .attr('fill', '#a63a2b')
+                    .attr('stroke', paper)
+                    .attr('stroke-width', 1.5);
+                selfBadge.append('text')
+                    .attr('x', FT.NODE_WIDTH - 2)
+                    .attr('y', 2)
+                    .attr('text-anchor', 'middle')
+                    .attr('dy', '3.5px')
+                    .attr('font-size', '10px')
+                    .attr('font-weight', 'bold')
+                    .attr('fill', '#fff')
+                    .text('我');
             }
 
             // 折叠/展开按钮与交互事件仅实时视图需要，静态导出省略
@@ -545,6 +702,31 @@
         drawHeartMarker(heartX, heartY, divorced, deceased);
     }
 
+    /**
+     * 定位到指定节点：居中显示并高亮闪烁
+     */
+    function focusNode(nodeId) {
+        var nodeEl = document.querySelector('g[data-id="' + nodeId + '"]');
+        if (!nodeEl) return;
+
+        var transform = d3.zoomTransform(svg.node());
+        var bbox = nodeEl.getBBox();
+        var cx = bbox.x + bbox.width / 2;
+        var cy = bbox.y + bbox.height / 2;
+
+        // 保持当前缩放级别，仅平移居中
+        var newTransform = d3.zoomIdentity
+            .translate(container.clientWidth / 2 - cx * transform.k, container.clientHeight / 2 - cy * transform.k)
+            .scale(transform.k);
+
+        svg.transition().duration(600)
+            .call(FT.state.zoom.transform, newTransform);
+
+        // 高亮闪烁效果
+        nodeEl.classList.add('search-focus');
+        setTimeout(function () { nodeEl.classList.remove('search-focus'); }, 2000);
+    }
+
     FT.setupScrollOverlay = setupScrollOverlay;
     FT.buildGenerationWatermark = buildGenerationWatermark;
     FT.toggleGenerationHighlight = toggleGenerationHighlight;
@@ -552,4 +734,5 @@
     FT.renderTree = renderTree;
     FT.drawTreeContent = drawTreeContent;
     FT.toggleCollapse = toggleCollapse;
+    FT.focusNode = focusNode;
 })();

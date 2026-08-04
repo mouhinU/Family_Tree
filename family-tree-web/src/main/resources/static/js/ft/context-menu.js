@@ -42,7 +42,9 @@
                 case 'add-spouse': FT.showNodeModal('添加配偶', {spouseNodeId: nodeId}); break;
                 case 'link-spouse': FT.showLinkSpouseModal(nodeId); break;
                 case 'add-parent': FT.showNodeModal('添加父母', {childNodeId: nodeId}); break;
+                case 'adoption': FT.showAdoptionModal(nodeId); break;
                 case 'birth-order': FT.showBirthOrderModal(nodeId); break;
+                case 'mark-self': FT.markAsSelf(nodeId); break;
                 case 'edit': FT.editNode(nodeId); break;
                 case 'color': FT.showColorModal(nodeId); break;
                 case 'delete': FT.deleteNode(nodeId); break;

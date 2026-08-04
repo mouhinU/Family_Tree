@@ -24,6 +24,8 @@ public class FamilyRelationDO {
 
     private Long userId;
 
+    private Long familyId;
+
     /** 关系起点节点（亲子关系中为父节点，夫妻关系中为男方） */
     private Long fromNodeId;
 
@@ -44,6 +46,12 @@ public class FamilyRelationDO {
     /** 是否丧偶（配偶一方去世，独立于离异状态） */
     @TableField("is_widowed")
     private Boolean widowed;
+
+    /** 婚姻次序（第几任配偶） */
+    private Integer marriageOrder;
+
+    /** 婚姻终止方式：DIVORCED / WIDOWED / ALIVE */
+    private String endType;
 
     private LocalDateTime createTime;
 

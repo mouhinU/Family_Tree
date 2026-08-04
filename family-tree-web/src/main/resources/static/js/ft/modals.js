@@ -13,8 +13,9 @@
 
     // ========== 模态框基座 ==========
     function showModal(html, wide) {
+        const sizeClass = typeof wide === 'string' ? wide : (wide ? 'modal-wide' : '');
         const modalContainer = document.getElementById('modal-container');
-        modalContainer.innerHTML = '<div class="modal-overlay"><div class="modal' + (wide ? ' modal-wide' : '') + '">' + html + '</div></div>';
+        modalContainer.innerHTML = '<div class="modal-overlay"><div class="modal' + (sizeClass ? ' ' + sizeClass : '') + '">' + html + '</div></div>';
         modalContainer.querySelector('.modal-overlay').addEventListener('click', function (e) {
             if (e.target === this) closeModal();
         });
@@ -66,7 +67,7 @@
 
         document.getElementById('modal-submit').addEventListener('click', async function () {
             const name = document.getElementById('modal-name').value.trim();
-            if (!name) { alert('请输入姓名'); return; }
+            if (!name) { FT.toast('请输入姓名', 'warning'); return; }
 
             const orderEl = document.getElementById('modal-order');
             const body = {
@@ -86,7 +87,7 @@
                 closeModal();
                 await FT.loadTree();
             } else {
-                alert(res.message || '操作失败');
+                FT.toast(res.message || '操作失败');
             }
         });
     }
@@ -94,11 +95,11 @@
     // 关联现有成员为配偶（适用于表兄妹等近亲结婚：双方均已在族谱中有各自分支）
     async function showLinkSpouseModal(nodeId) {
         const nodeRes = await FT.api('/api/node/' + nodeId);
-        if (nodeRes.code !== 200) { alert(nodeRes.message || '节点不存在'); return; }
+        if (nodeRes.code !== 200) { FT.toast(nodeRes.message || '节点不存在'); return; }
         const currentNode = nodeRes.data;
 
         const listRes = await FT.api('/api/node/list');
-        if (listRes.code !== 200) { alert(listRes.message || '加载成员列表失败'); return; }
+        if (listRes.code !== 200) { FT.toast(listRes.message || '加载成员列表失败'); return; }
         const allNodes = (listRes.data || []).filter(function (n) { return n.id !== currentNode.id; });
 
         const genderText = function (g) { return g === 1 ? '男' : (g === 2 ? '女' : ''); };
@@ -148,7 +149,7 @@
         });
 
         document.getElementById('link-spouse-submit').addEventListener('click', async function () {
-            if (!selectedId) { alert('请选择一位成员'); return; }
+            if (!selectedId) { FT.toast('请选择一位成员', 'warning'); return; }
             const selected = allNodes.find(function (n) { return n.id === selectedId; });
             // 关系方向约定：from 为男方。任一为男性则以其为 from，否则以当前节点为 from。
             let fromId = currentNode.id, toId = selectedId;
@@ -164,7 +165,7 @@
                 closeModal();
                 await FT.loadTree();
             } else {
-                alert(res.message || '关联失败');
+                FT.toast(res.message || '关联失败');
             }
         });
     }
@@ -173,7 +174,7 @@
     // 编辑节点基本信息（不含去世日期）
     async function editNode(nodeId) {
         const res = await FT.api('/api/node/' + nodeId);
-        if (res.code !== 200) { alert(res.message); return; }
+        if (res.code !== 200) { FT.toast(res.message); return; }
         const node = res.data;
 
         const colorOpts = FT.buildColorOptions(node.colorLabel);
@@ -204,6 +205,14 @@
             '<div class="form-group"><label>姓名</label><input type="text" id="modal-name" value="' + FT.escapeAttr(node.name || '') + '"></div>' +
             '<div class="form-group"><label>性别</label><select id="modal-gender">' + genderOpts + '</select></div>' +
             '<div class="form-group"><label>出生日期</label><input type="date" id="modal-birth" value="' + FT.escapeAttr(node.birthDate || '') + '"></div>' +
+            '<div class="form-group"><label>农历出生</label><input type="text" id="modal-lunar-birth" value="' + FT.escapeAttr(node.lunarBirthDate || '') + '" placeholder="如：甲子年正月初一"></div>' +
+            '<div class="form-group"><label>农历忌日</label><input type="text" id="modal-lunar-death" value="' + FT.escapeAttr(node.lunarDeathDate || '') + '" placeholder="如：丙寅年三月十五"></div>' +
+            '<div class="form-group"><label>字</label><input type="text" id="modal-zi" value="' + FT.escapeAttr(node.zi || '') + '" placeholder="表字"></div>' +
+            '<div class="form-group"><label>号</label><input type="text" id="modal-hao" value="' + FT.escapeAttr(node.hao || '') + '" placeholder="别号"></div>' +
+            '<div class="form-group"><label>讳</label><input type="text" id="modal-hui" value="' + FT.escapeAttr(node.hui || '') + '" placeholder="讳名"></div>' +
+            '<div class="form-group"><label>墓地位置</label><input type="text" id="modal-grave" value="' + FT.escapeAttr(node.graveLocation || '') + '" placeholder="选填"></div>' +
+            '<div class="form-group"><label>配偶姓名</label><input type="text" id="modal-spouse-name" value="' + FT.escapeAttr(node.spouseName || '') + '" placeholder="外嫁女记录"></div>' +
+            '<div class="form-group"><label>配偶原家族</label><input type="text" id="modal-spouse-origin" value="' + FT.escapeAttr(node.spouseOriginFamily || '') + '" placeholder="外嫁女记录"></div>' +
             '<div class="form-group"><label>排次</label><input type="number" id="modal-order" min="1" value="' + (node.birthOrder != null ? node.birthOrder : '') + '" placeholder="未设置"></div>' +
             '<div class="form-group"><label>辈分（第几世）</label><select id="modal-generation">' + genOpts + '</select></div>' +
             '<div class="form-group"><label>颜色标注</label><select id="modal-color">' + colorOpts + '</select></div>' +
@@ -211,7 +220,7 @@
             '<div class="modal-actions">' +
             '<button class="btn-cancel" onclick="window._closeModal()">取消</button>' +
             '<button class="btn-confirm" id="modal-submit">保存</button></div>'
-        );
+        , true);
 
         document.getElementById('modal-submit').addEventListener('click', async function () {
             const orderRaw = document.getElementById('modal-order').value;
@@ -224,7 +233,15 @@
                 birthOrder: orderRaw ? parseInt(orderRaw) : null,
                 generation: genRaw ? parseInt(genRaw) : null,
                 colorLabel: document.getElementById('modal-color').value,
-                remark: document.getElementById('modal-remark').value || null
+                remark: document.getElementById('modal-remark').value || null,
+                lunarBirthDate: document.getElementById('modal-lunar-birth').value || null,
+                lunarDeathDate: document.getElementById('modal-lunar-death').value || null,
+                zi: document.getElementById('modal-zi').value || null,
+                hao: document.getElementById('modal-hao').value || null,
+                hui: document.getElementById('modal-hui').value || null,
+                graveLocation: document.getElementById('modal-grave').value || null,
+                spouseName: document.getElementById('modal-spouse-name').value || null,
+                spouseOriginFamily: document.getElementById('modal-spouse-origin').value || null
             };
 
             const res = await FT.api('/api/node', {method: 'PUT', body: JSON.stringify(body)});
@@ -232,7 +249,7 @@
                 closeModal();
                 await FT.loadTree();
             } else {
-                alert(res.message || '保存失败');
+                FT.toast(res.message || '保存失败');
             }
         });
     }
@@ -322,7 +339,7 @@
             for (let i = 0; i < updates.length; i++) {
                 const res = await FT.api('/api/node', {method: 'PUT', body: JSON.stringify(updates[i])});
                 if (res.code !== 200) {
-                    alert(res.message || '保存失败');
+                    FT.toast(res.message || '保存失败');
                     return;
                 }
             }
@@ -332,13 +349,11 @@
     }
 
     // ========== 辈分管理 ==========
-    // 辈分管理弹窗：10 行 × 5 列网格（共 50 世），可预先规划字辈
+    // 辈分管理弹窗：10 行 × 5 列网格（共 50 世），紧凑布局一屏展示
     function showGenerationModal() {
         const counts = FT.collectGenerationCounts(FT.state.treeData, {});
         const generationNames = FT.state.generationNames;
         const TOTAL = 50;
-        const ROWS = 10;
-        const COLS = 5;
 
         let cells = '';
         for (let g = 1; g <= TOTAL; g++) {
@@ -352,11 +367,12 @@
                 '</div>';
         }
 
+        const totalCount = Object.values(counts).reduce(function (s, v) { return s + v; }, 0);
+
         showModal(
-            '<h3>辈分管理</h3>' +
-            '<p style="font-size:13px;color:#999;margin-bottom:12px;">为各世代设置辈分名（字辈），留空表示清除。共 ' + TOTAL + ' 世（' + ROWS + ' 行 × ' + COLS + ' 列）。</p>' +
+            '<h3 style="margin-bottom:10px;">辈分管理 <span style="font-weight:normal;font-size:13px;color:#888;">共 ' + totalCount + ' 人</span></h3>' +
             '<div class="gen-grid">' + cells + '</div>' +
-            '<div class="modal-actions">' +
+            '<div class="modal-actions" style="margin-top:10px;">' +
             '<button class="btn-cancel" onclick="window._closeModal()">取消</button>' +
             '<button class="btn-confirm" id="gen-save">保存</button></div>',
             true
@@ -376,7 +392,7 @@
                 closeModal();
                 await FT.loadTree();
             } else {
-                alert(res.message || '保存失败');
+                FT.toast(res.message || '保存失败');
             }
         });
     }
@@ -435,7 +451,7 @@
             '</div>';
     }
 
-    // 依据后端统计渲染祭奠面板：上香烛 / 烧纸按钮 + 各自的次数与人员明细
+    // 依据后端统计渲染祭奠面板：上香烛 / 烧纸按钮 + 各自的总次数
     function buildOfferingPanelHtml(nodeId, stats) {
         let html = '<div class="offering-actions">' +
             '<button class="offering-btn offering-btn--incense js-offering-btn" data-node-id="' + FT.escapeAttr(nodeId) + '" data-type="1">上香烛</button>' +
@@ -445,21 +461,12 @@
         (stats || []).forEach(function (stat) {
             const isIncense = stat.offeringType === 1;
             const emptyText = isIncense ? '暂无人上香烛' : '暂无人烧纸';
-            let usersHtml;
-            if (stat.users && stat.users.length > 0) {
-                usersHtml = stat.users.map(function (u) {
-                    return '<span class="offering-user">' + FT.escapeHtml(u.nickname) +
-                        '<em>×' + u.count + '</em></span>';
-                }).join('');
-            } else {
-                usersHtml = '<span class="offering-empty">' + emptyText + '</span>';
-            }
+            const countText = stat.totalCount > 0 ? stat.totalCount + ' 次' : emptyText;
             html += '<div class="offering-stat offering-stat--' + (isIncense ? 'incense' : 'paper') + '">' +
                 '<div class="offering-stat-head">' +
                 '<span class="offering-stat-name">' + FT.escapeHtml(stat.typeName) + '</span>' +
-                '<span class="offering-stat-count">' + stat.totalCount + ' 次 · ' + stat.userCount + ' 人</span>' +
+                '<span class="offering-stat-count">' + countText + '</span>' +
                 '</div>' +
-                '<div class="offering-stat-users">' + usersHtml + '</div>' +
                 '</div>';
         });
         html += '</div>';
@@ -493,7 +500,7 @@
                 });
                 btn.disabled = false;
                 if (res.code !== 200) {
-                    alert(res.message || '操作失败');
+                    FT.toast(res.message || '操作失败');
                     return;
                 }
                 playOfferingEffect(type);
@@ -582,11 +589,12 @@
                 }
                 const bloodLabel = (isBlood && sp.bloodRelationLabel) ? sp.bloodRelationLabel : '血亲';
                 const bloodTag = isBlood ? '<span class="spouse-blood-tag">（' + FT.escapeHtml(bloodLabel) + '·各留本支）</span>' : '';
+                const marriageDateHtml = sp.marriageDate ? '<span class="spouse-date" style="margin-left:4px;color:#8a7f6a;font-size:12px;">' + FT.escapeHtml(sp.marriageDate.substring(0, 4)) + '年婚</span>' : '';
                 // 参数经 data-* 属性传递（escapeAttr 转义），避免 inline onclick 拼接姓名导致 JS 注入
                 return '<div class="' + rowCls + '">' +
                     '<span class="spouse-info">' +
                     '<span class="spouse-name">' + FT.escapeHtml(sp.name) + '</span>' +
-                    bloodTag + badgeHtml +
+                    bloodTag + badgeHtml + marriageDateHtml +
                     '</span>' +
                     '<button class="btn-sm js-divorce-btn" data-relation-id="' + FT.escapeAttr(sp.relationId) +
                     '" data-marriage="' + FT.escapeAttr(sp.marriageDate || '') +
@@ -610,6 +618,14 @@
             '<p style="margin:4px 0;color:#666;font-size:14px;">性别：' + genderText + '</p>' +
             '<p style="margin:4px 0;color:#666;font-size:14px;">出生：' + FT.escapeHtml(node.birthDate || '未知') + '</p>' +
             (deceased ? '<p style="margin:4px 0;color:#666;font-size:14px;">去世：' + FT.escapeHtml(node.deathDate) + '</p>' : '') +
+            (node.lunarBirthDate ? '<p style="margin:4px 0;color:#666;font-size:14px;">农历出生：' + FT.escapeHtml(node.lunarBirthDate) + '</p>' : '') +
+            (node.lunarDeathDate ? '<p style="margin:4px 0;color:#666;font-size:14px;">农历忌日：' + FT.escapeHtml(node.lunarDeathDate) + '</p>' : '') +
+            (node.zi ? '<p style="margin:4px 0;color:#666;font-size:14px;">字：' + FT.escapeHtml(node.zi) + '</p>' : '') +
+            (node.hao ? '<p style="margin:4px 0;color:#666;font-size:14px;">号：' + FT.escapeHtml(node.hao) + '</p>' : '') +
+            (node.hui ? '<p style="margin:4px 0;color:#666;font-size:14px;">讳：' + FT.escapeHtml(node.hui) + '</p>' : '') +
+            (node.graveLocation ? '<p style="margin:4px 0;color:#666;font-size:14px;">墓地：' + FT.escapeHtml(node.graveLocation) + '</p>' : '') +
+            (node.spouseName ? '<p style="margin:4px 0;color:#666;font-size:14px;">配偶姓名：' + FT.escapeHtml(node.spouseName) + '</p>' : '') +
+            (node.spouseOriginFamily ? '<p style="margin:4px 0;color:#666;font-size:14px;">配偶原家族：' + FT.escapeHtml(node.spouseOriginFamily) + '</p>' : '') +
             (node.birthOrder != null ? '<p style="margin:4px 0;color:#666;font-size:14px;">排次：' + FT.birthOrderText(node.birthOrder) + '</p>' : '') +
             (node.remark ? '<p style="margin:4px 0;color:#666;font-size:14px;">备注：' + FT.escapeHtml(node.remark) + '</p>' : '') +
             '</div>' +
@@ -621,7 +637,7 @@
             '</div>' +
             '<div class="modal-actions" style="margin-top:20px;">' +
             '<button class="btn-cancel" onclick="window._closeModal()">关闭</button></div>'
-        );
+        , true);
 
         // 事件委托：从 data-* 读取参数（dataset 自动反转义），杜绝 inline onclick 注入
         document.querySelectorAll('.js-divorce-btn').forEach(function (btn) {
@@ -666,7 +682,7 @@
                 closeModal();
                 await FT.loadTree();
             } else {
-                alert(res.message || '保存失败');
+                FT.toast(res.message || '保存失败');
             }
         });
 
@@ -681,7 +697,7 @@
                     closeModal();
                     await FT.loadTree();
                 } else {
-                    alert(res.message || '操作失败');
+                    FT.toast(res.message || '操作失败');
                 }
             });
         }
@@ -701,7 +717,7 @@
             '<button class="btn-sm danger" id="divorce-clear">恢复在婚</button>' +
             '<button class="btn-sm" id="widowed-save" style="background:#6d597a;border-color:#6d597a;">标记丧偶</button>' +
             '<button class="btn-confirm" id="divorce-save">标记离异</button></div>'
-        );
+        , 'modal-medium');
 
         // 标记离异：日期非必填，同时清除丧偶状态
         document.getElementById('divorce-save').addEventListener('click', async function () {
@@ -715,7 +731,7 @@
                 closeModal();
                 await FT.loadTree();
             } else {
-                alert(res.message || '操作失败');
+                FT.toast(res.message || '操作失败');
             }
         });
 
@@ -730,7 +746,7 @@
                 closeModal();
                 await FT.loadTree();
             } else {
-                alert(res.message || '操作失败');
+                FT.toast(res.message || '操作失败');
             }
         });
 
@@ -745,7 +761,7 @@
                 closeModal();
                 await FT.loadTree();
             } else {
-                alert(res.message || '操作失败');
+                FT.toast(res.message || '操作失败');
             }
         });
     };
@@ -772,7 +788,7 @@
                 closeModal();
                 await FT.loadTree();
             } else {
-                alert(res.message || '操作失败');
+                FT.toast(res.message || '操作失败');
             }
         });
     }
@@ -783,18 +799,740 @@
         if (res.code === 200) {
             await FT.loadTree();
         } else {
-            alert(res.message || '删除失败');
+            FT.toast(res.message || '删除失败');
         }
+    }
+
+    // ========== 家族管理弹窗 ==========
+    async function showFamilyModal() {
+        const user = FT.state.currentUser;
+        if (!user || !user.hasFamily) {
+            window.location.href = '/family-setup.html';
+            return;
+        }
+
+        const isOwner = user.familyRole === 'OWNER';
+        const isAdmin = isOwner || user.familyRole === 'ADMIN';
+        let membersHtml = '<p>加载中...</p>';
+
+        // 加载家族详情（含堂号、籍贯）
+        let familyInfo = {};
+        try {
+            const familyRes = await FT.api('/api/family');
+            if (familyRes.code === 200 && familyRes.data) {
+                familyInfo = familyRes.data;
+            }
+        } catch (e) { /* ignore */ }
+
+        // 加载成员列表
+        try {
+            const membersRes = await FT.api('/api/family/members');
+            if (membersRes.code === 200 && membersRes.data) {
+                if (membersRes.data.length === 0) {
+                    membersHtml = '<p>暂无成员</p>';
+                } else {
+                    membersHtml = '<ul class="family-member-list">';
+                    membersRes.data.forEach(function(m) {
+                        let roleLabel = '';
+                        if (m.role === 'OWNER') { roleLabel = '（族长）'; }
+                        else if (m.role === 'ADMIN') { roleLabel = '（管理员）'; }
+
+                        let actionBtns = '';
+                        if (isOwner && m.role !== 'OWNER') {
+                            if (m.role === 'ADMIN') {
+                                actionBtns += ' <button class="btn-role-toggle" data-uid="' + m.userId + '" data-role="MEMBER">取消管理员</button>';
+                            } else {
+                                actionBtns += ' <button class="btn-role-toggle" data-uid="' + m.userId + '" data-role="ADMIN">设为管理员</button>';
+                            }
+                            actionBtns += ' <button class="btn-remove-member" data-uid="' + m.userId + '">移除</button>';
+                        } else if (isAdmin && !isOwner && m.role === 'MEMBER') {
+                            actionBtns += ' <button class="btn-remove-member" data-uid="' + m.userId + '">移除</button>';
+                        }
+                        membersHtml += '<li>' + (m.nickname || '用户' + m.userId) + roleLabel + actionBtns + '</li>';
+                    });
+                    membersHtml += '</ul>';
+                }
+            }
+        } catch (e) {
+            membersHtml = '<p>加载失败</p>';
+        }
+
+        let inviteSection = '';
+        if (isAdmin) {
+            inviteSection = '<div class="family-invite-section">' +
+                '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                '<label style="margin:0;">邀请码：<strong id="family-invite-code">' + (user.inviteCode || '') + '</strong></label>' +
+                '<button id="btn-refresh-invite" class="btn-sm">刷新邀请码</button>' +
+                '<button id="btn-gen-invite-link" class="btn-sm">生成邀请链接</button>' +
+                '</div>' +
+                '<div id="invite-link-box" class="invite-link-box" style="display:none;">' +
+                '<input type="text" id="invite-link-input" class="invite-link-input" readonly>' +
+                '<button id="btn-copy-invite-link" class="btn-sm">复制</button>' +
+                '</div>' +
+                '</div>';
+        }
+
+        // 堂号/籍贯编辑区（管理员可编辑）
+        let hallSection = '';
+        if (isAdmin) {
+            hallSection = '<div class="family-hall-section" style="margin:12px 0;padding:10px;background:#faf8f2;border:1px solid #e8e0cc;border-radius:6px;">' +
+                '<div style="display:flex;gap:16px;flex-wrap:wrap;">' +
+                '<div class="form-group" style="flex:1;min-width:160px;margin-bottom:0;"><label style="font-size:13px;">堂号</label>' +
+                '<input type="text" id="family-hall-name" value="' + FT.escapeAttr(familyInfo.hallName || '') + '" placeholder="如：三廉堂" style="width:100%;"></div>' +
+                '<div class="form-group" style="flex:1;min-width:160px;margin-bottom:0;"><label style="font-size:13px;">籍贯</label>' +
+                '<input type="text" id="family-ancestral-home" value="' + FT.escapeAttr(familyInfo.ancestralHome || '') + '" placeholder="如：广西蒙山" style="width:100%;"></div>' +
+                '</div>' +
+                '<button class="btn-sm" id="btn-save-family-info" style="margin-top:8px;">保存堂号/籍贯</button>' +
+                '</div>';
+        } else {
+            // 非管理员只读展示
+            var hallInfo = familyInfo.hallName || familyInfo.ancestralHome;
+            if (hallInfo) {
+                hallSection = '<div style="margin:8px 0;font-size:13px;color:#666;">' +
+                    (familyInfo.hallName ? '堂号：' + FT.escapeHtml(familyInfo.hallName) + ' ' : '') +
+                    (familyInfo.ancestralHome ? '籍贯：' + FT.escapeHtml(familyInfo.ancestralHome) : '') +
+                    '</div>';
+            }
+        }
+
+        const bodyHtml = '<h3>家族管理</h3>' +
+            '<div class="family-modal-content">' +
+            '<div class="family-info-row"><span class="family-name-label">家族名称：</span><strong>' + (user.familyName || '家族') + '</strong></div>' +
+            hallSection +
+            inviteSection +
+            '<h4>已注册成员列表</h4>' +
+            membersHtml +
+            '</div>' +
+            '<div class="modal-actions">' +
+            '<button class="btn-cancel" onclick="window._closeModal()">关闭</button></div>';
+
+        showModal(bodyHtml, true);
+
+        // 绑定角色切换事件
+        document.querySelectorAll('.btn-role-toggle').forEach(function(btn) {
+            btn.addEventListener('click', async function() {
+                const uid = this.getAttribute('data-uid');
+                const role = this.getAttribute('data-role');
+                const actionText = role === 'ADMIN' ? '设为管理员' : '取消管理员';
+                if (!confirm('确定' + actionText + '？')) return;
+                const res = await FT.api('/api/family/member/role', {
+                    method: 'PUT',
+                    body: JSON.stringify({userId: parseInt(uid, 10), role: role})
+                });
+                if (res.code === 200) {
+                    closeModal();
+                    showFamilyModal();
+                } else {
+                    FT.toast(res.message || '操作失败');
+                }
+            });
+        });
+
+        // 绑定移除成员事件
+        document.querySelectorAll('.btn-remove-member').forEach(function(btn) {
+            btn.addEventListener('click', async function() {
+                const uid = this.getAttribute('data-uid');
+                if (!confirm('确定移除该成员？')) return;
+                const res = await FT.api('/api/family/member/' + uid, {method: 'DELETE'});
+                if (res.code === 200) {
+                    closeModal();
+                    showFamilyModal();
+                } else {
+                    FT.toast(res.message || '操作失败');
+                }
+            });
+        });
+
+        // 绑定刷新邀请码事件
+        const refreshBtn = document.getElementById('btn-refresh-invite');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', async function() {
+                const res = await FT.api('/api/family/invite-code', {method: 'PUT'});
+                if (res.code === 200 && res.data) {
+                    document.getElementById('family-invite-code').textContent = res.data.inviteCode;
+                    FT.state.currentUser.inviteCode = res.data.inviteCode;
+                    // 隐藏已生成的链接（邀请码已变更）
+                    var linkBox = document.getElementById('invite-link-box');
+                    if (linkBox) { linkBox.style.display = 'none'; }
+                } else {
+                    FT.toast(res.message || '刷新失败');
+                }
+            });
+        }
+
+        // 绑定生成邀请链接事件
+        var genLinkBtn = document.getElementById('btn-gen-invite-link');
+        if (genLinkBtn) {
+            genLinkBtn.addEventListener('click', function() {
+                var code = (FT.state.currentUser.inviteCode || '').toUpperCase();
+                if (!code) { FT.toast('邀请码为空，请先刷新'); return; }
+                var link = location.origin + '/login.html?invite=' + code;
+                var linkInput = document.getElementById('invite-link-input');
+                linkInput.value = link;
+                document.getElementById('invite-link-box').style.display = 'flex';
+                linkInput.select();
+            });
+        }
+
+        // 绑定复制邀请链接事件
+        var copyBtn = document.getElementById('btn-copy-invite-link');
+        if (copyBtn) {
+            copyBtn.addEventListener('click', function() {
+                var linkInput = document.getElementById('invite-link-input');
+                linkInput.select();
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(linkInput.value).then(function() {
+                        FT.toast('链接已复制', 'success');
+                    });
+                } else {
+                    document.execCommand('copy');
+                    FT.toast('链接已复制', 'success');
+                }
+            });
+        }
+
+        // 绑定保存堂号/籍贯事件
+        var saveFamilyInfoBtn = document.getElementById('btn-save-family-info');
+        if (saveFamilyInfoBtn) {
+            saveFamilyInfoBtn.addEventListener('click', async function() {
+                var hallName = document.getElementById('family-hall-name').value.trim() || null;
+                var ancestralHome = document.getElementById('family-ancestral-home').value.trim() || null;
+                var res = await FT.api('/api/family/info', {
+                    method: 'PUT',
+                    body: JSON.stringify({hallName: hallName, ancestralHome: ancestralHome})
+                });
+                if (res.code === 200) {
+                    FT.toast('保存成功', 'success');
+                } else {
+                    FT.toast(res.message || '保存失败');
+                }
+            });
+        }
+    }
+
+    // ========== 个人信息维护 ==========
+    // 编辑当前登录用户的基本信息：昵称、出生日期、辈分
+    async function showProfileModal() {
+        const user = FT.state.currentUser;
+        if (!user) { return; }
+
+        // 辈分下拉：从 generationNames 构建，补充当前值
+        const generationNames = FT.state.generationNames;
+        const genKeys = Object.keys(generationNames).map(Number).sort(function (a, b) { return a - b; });
+        const currentGen = user.generation;
+        if (currentGen != null && genKeys.indexOf(currentGen) === -1) {
+            genKeys.push(currentGen);
+            genKeys.sort(function (a, b) { return a - b; });
+        }
+        const genOpts = genKeys.map(function (g) {
+            const sel = g === currentGen ? ' selected' : '';
+            const label = generationNames[g] ? '第' + g + '世（' + FT.escapeHtml(generationNames[g]) + '）' : '第' + g + '世';
+            return '<option value="' + g + '"' + sel + '>' + label + '</option>';
+        }).join('');
+        const genUnset = currentGen == null ? ' selected' : '';
+
+        showModal(
+            '<h3>个人信息</h3>' +
+            '<div class="form-group"><label>昵称</label><input type="text" id="profile-nickname" value="' + FT.escapeAttr(user.nickname || '') + '" placeholder="请输入昵称"></div>' +
+            '<div class="form-group"><label>出生日期</label><input type="date" id="profile-birth" value="' + FT.escapeAttr(user.birthDate || '') + '"></div>' +
+            '<div class="form-group"><label>辈分（第几世）</label><select id="profile-generation"><option value=""' + genUnset + '>未设置</option>' + genOpts + '</select></div>' +
+            '<div class="modal-actions">' +
+            '<button class="btn-cancel" onclick="window._closeModal()">取消</button>' +
+            '<button class="btn-confirm" id="profile-save">保存</button></div>'
+        );
+
+        document.getElementById('profile-save').addEventListener('click', async function () {
+            const nickname = document.getElementById('profile-nickname').value.trim();
+            const birthDate = document.getElementById('profile-birth').value || null;
+            const genRaw = document.getElementById('profile-generation').value;
+
+            if (!nickname) { FT.toast('昵称不能为空', 'warning'); return; }
+
+            const body = {
+                nickname: nickname,
+                birthDate: birthDate,
+                generation: genRaw ? parseInt(genRaw) : null
+            };
+
+            const res = await FT.api('/api/auth/profile', {method: 'PUT', body: JSON.stringify(body)});
+            if (res.code === 200) {
+                // 更新客户端缓存
+                FT.state.currentUser.nickname = nickname;
+                FT.state.currentUser.birthDate = birthDate;
+                FT.state.currentUser.generation = body.generation;
+                document.getElementById('user-nickname').textContent = nickname;
+                closeModal();
+            } else {
+                FT.toast(res.message || '保存失败');
+            }
+        });
+    }
+
+    // ========== 标记为我 ==========
+    // 将右键选中的节点标记为当前登录用户所在位置
+    async function markAsSelf(nodeId) {
+        const user = FT.state.currentUser;
+        if (!user) { return; }
+
+        // 若该节点已标记为"我"，则取消标记
+        const newNodeId = (user.nodeId === nodeId) ? null : nodeId;
+
+        const res = await FT.api('/api/auth/my-node', {
+            method: 'PUT',
+            body: JSON.stringify({nodeId: newNodeId})
+        });
+        if (res.code === 200) {
+            user.nodeId = newNodeId;
+            FT.renderTree();
+        } else {
+            FT.toast(res.message || '标记失败');
+        }
+    }
+
+    // ========== 过继/收养 ==========
+    async function showAdoptionModal(nodeId) {
+        const nodeRes = await FT.api('/api/node/' + nodeId);
+        if (nodeRes.code !== 200) { FT.toast(nodeRes.message || '节点不存在'); return; }
+        const currentNode = nodeRes.data;
+
+        const listRes = await FT.api('/api/node/list');
+        if (listRes.code !== 200) { FT.toast(listRes.message || '加载成员列表失败'); return; }
+        const allNodes = (listRes.data || []).filter(function (n) { return n.id !== currentNode.id; });
+
+        const genText = function (g) {
+            if (g == null) return '';
+            const name = FT.state.generationNames[g];
+            return '第' + g + '世' + (name ? '·' + FT.escapeHtml(name) : '');
+        };
+
+        function buildOptions(keyword) {
+            const kw = (keyword || '').trim();
+            const html = allNodes
+                .filter(function (n) { return !kw || (n.name || '').indexOf(kw) >= 0; })
+                .map(function (n) {
+                    const meta = [genText(n.generation), n.gender === 1 ? '男' : (n.gender === 2 ? '女' : '')].filter(Boolean).join('·');
+                    return '<div class="link-spouse-opt" data-id="' + n.id + '">' +
+                        '<span class="opt-name">' + FT.escapeHtml(n.name) + '</span>' +
+                        (meta ? '<span class="opt-meta">' + meta + '</span>' : '') +
+                        '</div>';
+                }).join('');
+            return html || '<div class="link-spouse-empty">无匹配成员</div>';
+        }
+
+        showModal(
+            '<h3>过继/收养</h3>' +
+            '<p style="color:#6b6156;font-size:13px;margin-bottom:12px;">为「' + FT.escapeHtml(currentNode.name) + '」建立过继/收养关系</p>' +
+            '<div class="form-group"><label>收养方式</label>' +
+            '<select id="adoption-mode">' +
+            '<option value="existing">关联族谱中已有成员为养子女</option>' +
+            '<option value="new">新建养子女</option>' +
+            '</select></div>' +
+            '<div id="adoption-existing">' +
+            '<div class="form-group"><input type="text" id="adoption-search" placeholder="搜索姓名…"></div>' +
+            '<div class="link-spouse-list" id="adoption-list">' + buildOptions('') + '</div>' +
+            '</div>' +
+            '<div id="adoption-new" style="display:none;">' +
+            '<div class="form-group"><label>养子女姓名</label><input type="text" id="adoption-child-name" placeholder="请输入姓名"></div>' +
+            '<div class="form-group"><label>性别</label><select id="adoption-child-gender"><option value="1">男</option><option value="2">女</option></select></div>' +
+            '</div>' +
+            '<div class="modal-actions">' +
+            '<button class="btn-cancel" onclick="window._closeModal()">取消</button>' +
+            '<button class="btn-confirm" id="adoption-submit">确定</button></div>',
+            true
+        );
+
+        let selectedId = null;
+
+        // 切换收养方式
+        document.getElementById('adoption-mode').addEventListener('change', function () {
+            const isExisting = this.value === 'existing';
+            document.getElementById('adoption-existing').style.display = isExisting ? '' : 'none';
+            document.getElementById('adoption-new').style.display = isExisting ? 'none' : '';
+        });
+
+        // 搜索
+        var searchEl = document.getElementById('adoption-search');
+        if (searchEl) {
+            searchEl.addEventListener('input', function () {
+                document.getElementById('adoption-list').innerHTML = buildOptions(this.value);
+                selectedId = null;
+            });
+        }
+
+        // 选择成员
+        var listEl = document.getElementById('adoption-list');
+        if (listEl) {
+            listEl.addEventListener('click', function (e) {
+                var opt = e.target.closest('.link-spouse-opt');
+                if (!opt) return;
+                listEl.querySelectorAll('.link-spouse-opt').forEach(function (o) { o.classList.remove('selected'); });
+                opt.classList.add('selected');
+                selectedId = parseInt(opt.getAttribute('data-id'));
+            });
+        }
+
+        // 提交
+        document.getElementById('adoption-submit').addEventListener('click', async function () {
+            var mode = document.getElementById('adoption-mode').value;
+
+            if (mode === 'existing') {
+                if (!selectedId) { FT.toast('请选择一位成员', 'warning'); return; }
+                // from=养父母(nodeId), to=养子女(selectedId), type=3(ADOPTION)
+                var res = await FT.api('/api/relation', {
+                    method: 'POST',
+                    body: JSON.stringify({fromNodeId: nodeId, toNodeId: selectedId, relationType: 3})
+                });
+                if (res.code === 200) {
+                    closeModal();
+                    await FT.loadTree();
+                } else {
+                    FT.toast(res.message || '操作失败');
+                }
+            } else {
+                var childName = document.getElementById('adoption-child-name').value.trim();
+                if (!childName) { FT.toast('请输入养子女姓名', 'warning'); return; }
+                var gender = parseInt(document.getElementById('adoption-child-gender').value);
+                // 先创建新节点
+                var createRes = await FT.api('/api/node', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        name: childName,
+                        gender: gender,
+                        parentNodeId: nodeId
+                    })
+                });
+                if (createRes.code !== 200) {
+                    FT.toast(createRes.message || '创建失败');
+                    return;
+                }
+                var childNodeId = createRes.data.nodeId;
+                // 再建立收养关系（type=3）
+                var relRes = await FT.api('/api/relation', {
+                    method: 'POST',
+                    body: JSON.stringify({fromNodeId: nodeId, toNodeId: childNodeId, relationType: 3})
+                });
+                if (relRes.code === 200) {
+                    closeModal();
+                    await FT.loadTree();
+                } else {
+                    FT.toast(relRes.message || '收养关系创建失败');
+                }
+            }
+        });
     }
 
     FT.showModal = showModal;
     FT.closeModal = closeModal;
     FT.showNodeModal = showNodeModal;
     FT.showLinkSpouseModal = showLinkSpouseModal;
+    FT.showAdoptionModal = showAdoptionModal;
+    // ========== 操作日志 ==========
+    // 操作日志查看弹窗：分页展示家族操作记录，支持按类型筛选
+    var OPERATION_TYPE_MAP = {
+        'LOGIN': '登录',
+        'LOGIN_FAIL': '登录失败',
+        'LOGOUT': '登出',
+        'REGISTER': '注册',
+        'PROFILE_UPDATE': '修改个人信息',
+        'MARK_SELF': '标记自己',
+        'NODE_CREATE': '创建节点',
+        'NODE_UPDATE': '更新节点',
+        'NODE_DELETE': '删除节点',
+        'NODE_COLOR': '修改颜色'
+    };
+
+    async function showOperationLogModal(currentPage, filterType) {
+        currentPage = currentPage || 1;
+        filterType = filterType || '';
+        var pageSize = 15;
+
+        var url = '/api/operation-log?page=' + currentPage + '&size=' + pageSize;
+        if (filterType) { url += '&operationType=' + encodeURIComponent(filterType); }
+
+        var res = await FT.api(url);
+        if (res.code !== 200) {
+            FT.toast(res.message || '加载失败');
+            return;
+        }
+
+        var data = res.data;
+        var records = data.records || [];
+        var total = data.total || 0;
+        var totalPages = Math.ceil(total / pageSize) || 1;
+
+        // 筛选下拉
+        var filterOptions = '<option value="">全部类型</option>';
+        Object.keys(OPERATION_TYPE_MAP).forEach(function(k) {
+            filterOptions += '<option value="' + k + '"' + (filterType === k ? ' selected' : '') + '>' + OPERATION_TYPE_MAP[k] + '</option>';
+        });
+
+        // 表格
+        var tableHtml = '<table class="op-log-table"><thead><tr>' +
+            '<th>时间</th><th>用户</th><th>操作</th><th>详情</th><th>IP</th>' +
+            '</tr></thead><tbody>';
+        if (records.length === 0) {
+            tableHtml += '<tr><td colspan="5" style="text-align:center;color:#999;">暂无记录</td></tr>';
+        } else {
+            records.forEach(function(log) {
+                var time = log.createTime ? log.createTime.replace('T', ' ').substring(0, 19) : '';
+                var typeLabel = OPERATION_TYPE_MAP[log.operationType] || log.operationType;
+                tableHtml += '<tr>' +
+                    '<td>' + FT.escapeHtml(time) + '</td>' +
+                    '<td>' + FT.escapeHtml(log.username || '-') + '</td>' +
+                    '<td>' + FT.escapeHtml(typeLabel) + '</td>' +
+                    '<td>' + FT.escapeHtml(log.operationDesc || '') + '</td>' +
+                    '<td>' + FT.escapeHtml(log.ipAddress || '') + '</td>' +
+                    '</tr>';
+            });
+        }
+        tableHtml += '</tbody></table>';
+
+        // 分页
+        var pageHtml = '<div class="op-log-page">';
+        pageHtml += '<span>共 ' + total + ' 条</span>';
+        pageHtml += '<span>';
+        if (currentPage > 1) {
+            pageHtml += '<button class="btn-sm op-log-page-btn" data-page="' + (currentPage - 1) + '">上一页</button>';
+        }
+        pageHtml += ' 第 ' + currentPage + ' / ' + totalPages + ' 页 ';
+        if (currentPage < totalPages) {
+            pageHtml += '<button class="btn-sm op-log-page-btn" data-page="' + (currentPage + 1) + '">下一页</button>';
+        }
+        pageHtml += '</span></div>';
+
+        var bodyHtml = '<h3 style="margin-bottom:10px;">操作日志</h3>' +
+            '<div style="margin-bottom:10px;display:flex;align-items:center;gap:8px;">' +
+            '<span style="font-size:13px;color:#999;">筛选：</span>' +
+            '<select id="op-log-filter" style="padding:4px 8px;font-size:13px;border:1px solid var(--border);border-radius:4px;">' + filterOptions + '</select>' +
+            '</div>' +
+            tableHtml + pageHtml +
+            '<div class="modal-actions" style="margin-top:10px;">' +
+            '<button class="btn-cancel" onclick="window._closeModal()">关闭</button></div>';
+
+        showModal(bodyHtml, true);
+
+        // 绑定筛选
+        document.getElementById('op-log-filter').addEventListener('change', function() {
+            showOperationLogModal(1, this.value);
+        });
+
+        // 绑定分页
+        document.querySelectorAll('.op-log-page-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                showOperationLogModal(parseInt(btn.dataset.page, 10), filterType);
+            });
+        });
+    }
+
+    // ========== 时间线 ==========
+    async function showTimelineModal() {
+        var res = await FT.api('/api/timeline');
+        if (res.code !== 200) { FT.toast(res.message || '加载失败'); return; }
+        var events = res.data || [];
+
+        var typeIcon = function(type) {
+            if (type === 'BIRTH') return '<span style="color:#4caf50;">&#9679;</span>';
+            if (type === 'DEATH') return '<span style="color:#999;">&#9679;</span>';
+            if (type === 'MARRIAGE') return '<span style="color:#e91e63;">&#9679;</span>';
+            return '&#9679;';
+        };
+        var typeLabel = function(type) {
+            if (type === 'BIRTH') return '出生';
+            if (type === 'DEATH') return '去世';
+            if (type === 'MARRIAGE') return '婚姻';
+            return type;
+        };
+
+        var html = '<h3 style="margin-bottom:10px;">家族时间线</h3>';
+        if (events.length === 0) {
+            html += '<p style="color:#999;padding:20px 0;text-align:center;">暂无事件记录</p>';
+        } else {
+            html += '<div class="timeline-list" style="max-height:400px;overflow-y:auto;">';
+            events.forEach(function(ev) {
+                html += '<div class="timeline-item" style="display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0;">' +
+                    '<span style="font-size:16px;line-height:1;">' + typeIcon(ev.type) + '</span>' +
+                    '<div style="flex:1;">' +
+                    '<div style="font-size:14px;">' + FT.escapeHtml(ev.description) + '</div>' +
+                    '<div style="font-size:12px;color:#999;margin-top:2px;">' + FT.escapeHtml(ev.date) + ' · ' + typeLabel(ev.type) + '</div>' +
+                    '</div></div>';
+            });
+            html += '</div>';
+        }
+        html += '<div class="modal-actions"><button class="btn-cancel" onclick="window._closeModal()">关闭</button></div>';
+        showModal(html, true);
+    }
+
+    // ========== 关系路径分析 ==========
+    async function showRelationPathModal() {
+        var listRes = await FT.api('/api/node/list');
+        if (listRes.code !== 200) { FT.toast(listRes.message || '加载失败'); return; }
+        var allNodes = listRes.data || [];
+
+        // 找到最顶层节点（generation 最小的）
+        var rootNode = null;
+        allNodes.forEach(function(n) {
+            if (n.generation != null) {
+                if (!rootNode || n.generation < rootNode.generation) {
+                    rootNode = n;
+                }
+            }
+        });
+
+        // 当前用户所在节点
+        var myNodeId = FT.state.currentUser && FT.state.currentUser.nodeId;
+
+        // 默认值：起始=最顶层节点，目标=自己的节点
+        var defaultFromId = rootNode ? rootNode.id : '';
+        var defaultToId = myNodeId || '';
+
+        function buildNodeOptions(selectedId) {
+            var html = '<option value="">请选择节点</option>';
+            allNodes.forEach(function(n) {
+                var sel = n.id === selectedId ? ' selected' : '';
+                var gen = n.generation != null ? '第' + n.generation + '世' : '';
+                html += '<option value="' + n.id + '"' + sel + '>' + FT.escapeHtml(n.name) + '（' + gen + '）</option>';
+            });
+            return html;
+        }
+
+        var html = '<h3 style="margin-bottom:10px;">关系路径分析</h3>' +
+            '<p style="font-size:13px;color:#999;margin-bottom:10px;">选择两个节点，查看它们之间的最短关系路径</p>' +
+            '<div style="display:flex;gap:10px;margin-bottom:12px;">' +
+            '<div class="form-group" style="flex:1;margin-bottom:0;"><label>起始节点</label><select id="rpath-from">' + buildNodeOptions(defaultFromId) + '</select></div>' +
+            '<div class="form-group" style="flex:1;margin-bottom:0;"><label>目标节点</label><select id="rpath-to">' + buildNodeOptions(defaultToId) + '</select></div>' +
+            '</div>' +
+            '<button class="btn-sm" id="rpath-calc" style="margin-bottom:12px;">计算路径</button>' +
+            '<div id="rpath-result"></div>' +
+            '<div class="modal-actions"><button class="btn-cancel" onclick="window._closeModal()">关闭</button></div>';
+
+        showModal(html, true);
+
+        document.getElementById('rpath-calc').addEventListener('click', async function() {
+            var fromId = document.getElementById('rpath-from').value;
+            var toId = document.getElementById('rpath-to').value;
+            if (!fromId || !toId) { FT.toast('请选择两个节点', 'warning'); return; }
+            if (fromId === toId) { FT.toast('请选择不同的节点', 'warning'); return; }
+
+            var resultEl = document.getElementById('rpath-result');
+            resultEl.innerHTML = '<p style="color:#999;">计算中...</p>';
+
+            var res = await FT.api('/api/relation-path?fromNodeId=' + fromId + '&toNodeId=' + toId);
+            if (res.code !== 200) {
+                resultEl.innerHTML = '<p style="color:red;">' + FT.escapeHtml(res.message || '计算失败') + '</p>';
+                return;
+            }
+
+            var data = res.data;
+            if (!data.found) {
+                resultEl.innerHTML = '<p style="color:#999;">两个节点之间没有关系路径</p>';
+                return;
+            }
+
+            var relTypeText = function(t) {
+                if (t === 1) return '父母→子女';
+                if (t === 2) return '配偶';
+                if (t === 3) return '收养';
+                return '未知';
+            };
+
+            var pathHtml = '<div style="padding:10px;background:#faf8f2;border-radius:6px;">';
+            pathHtml += '<p style="font-weight:600;margin-bottom:8px;">找到路径（共 ' + data.pathLength + ' 个节点）</p>';
+            var path = data.path || [];
+            path.forEach(function(step, idx) {
+                pathHtml += '<span style="font-weight:600;color:#5b6b7c;">' + FT.escapeHtml(step.name) + '</span>';
+                if (idx < path.length - 1) {
+                    pathHtml += ' <span style="color:#999;font-size:12px;">—[' + relTypeText(step.relationType) + ']→</span> ';
+                }
+            });
+            pathHtml += '</div>';
+            resultEl.innerHTML = pathHtml;
+        });
+    }
+
+    // ========== 忌日提醒 ==========
+    async function showDeathAnniversaryModal() {
+        var res = await FT.api('/api/death-anniversary?days=30');
+        if (res.code !== 200) { FT.toast(res.message || '加载失败'); return; }
+        var list = res.data || [];
+
+        var html = '<h3 style="margin-bottom:10px;">忌日提醒 <small style="color:#999;font-weight:normal;">未来30天</small></h3>';
+        if (list.length === 0) {
+            html += '<p style="color:#999;padding:20px 0;text-align:center;">未来30天内没有忌日</p>';
+        } else {
+            html += '<div style="max-height:300px;overflow-y:auto;">';
+            list.forEach(function(item) {
+                var urgency = item.daysUntil <= 3 ? 'color:#a63a2b;font-weight:600;' : '';
+                var dayText = item.daysUntil === 0 ? '今天' : (item.daysUntil + '天后');
+                html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0;">' +
+                    '<span style="' + urgency + '">' + FT.escapeHtml(item.name) + '</span>' +
+                    '<span style="font-size:12px;color:#999;">忌日：' + FT.escapeHtml(item.deathDate) + '</span>' +
+                    '<span style="font-size:12px;' + urgency + '">' + dayText + '</span>' +
+                    '</div>';
+            });
+            html += '</div>';
+        }
+        html += '<div class="modal-actions"><button class="btn-cancel" onclick="window._closeModal()">关闭</button></div>';
+        showModal(html);
+    }
+
+    // ========== 家族切换 ==========
+    async function showFamilySwitcherModal() {
+        var res = await FT.api('/api/family/my-list');
+        if (res.code !== 200) { FT.toast(res.message || '加载失败'); return; }
+        var families = res.data || [];
+        var currentFamilyId = FT.state.currentUser.familyId;
+
+        if (families.length <= 1) {
+            FT.toast('您只属于一个家族', 'warning');
+            return;
+        }
+
+        var html = '<h3 style="margin-bottom:10px;">切换家族</h3>';
+        html += '<div style="max-height:300px;overflow-y:auto;">';
+        families.forEach(function(f) {
+            var isCurrent = f.id === currentFamilyId;
+            var roleLabel = f.currentRole === 'OWNER' ? '（族长）' : (f.currentRole === 'ADMIN' ? '（管理员）' : '');
+            html += '<div class="family-switch-item' + (isCurrent ? ' current' : '') + '" data-id="' + f.id + '" ' +
+                'style="padding:10px;border:1px solid ' + (isCurrent ? '#a63a2b' : '#e0e0e0') + ';border-radius:6px;margin-bottom:8px;cursor:pointer;' +
+                (isCurrent ? 'background:#fdf6f0;' : '') + '">' +
+                '<strong>' + FT.escapeHtml(f.name) + '</strong>' + roleLabel +
+                (isCurrent ? ' <span style="color:#a63a2b;font-size:12px;">← 当前</span>' : '') +
+                '</div>';
+        });
+        html += '</div>';
+        html += '<div class="modal-actions"><button class="btn-cancel" onclick="window._closeModal()">关闭</button></div>';
+        showModal(html);
+
+        document.querySelectorAll('.family-switch-item').forEach(function(el) {
+            el.addEventListener('click', async function() {
+                var familyId = parseInt(el.dataset.id);
+                if (familyId === currentFamilyId) return;
+                var switchRes = await FT.api('/api/family/switch/' + familyId, {method: 'PUT'});
+                if (switchRes.code === 200) {
+                    FT.toast('已切换家族', 'success');
+                    closeModal();
+                    location.reload();
+                } else {
+                    FT.toast(switchRes.message || '切换失败');
+                }
+            });
+        });
+    }
+
+    FT.showTimelineModal = showTimelineModal;
+    FT.showRelationPathModal = showRelationPathModal;
+    FT.showDeathAnniversaryModal = showDeathAnniversaryModal;
+    FT.showFamilySwitcherModal = showFamilySwitcherModal;
+
+    FT.showOperationLogModal = showOperationLogModal;
+
     FT.editNode = editNode;
     FT.showBirthOrderModal = showBirthOrderModal;
     FT.showGenerationModal = showGenerationModal;
     FT.showDetailModal = showDetailModal;
     FT.showColorModal = showColorModal;
+    FT.showFamilyModal = showFamilyModal;
+    FT.showProfileModal = showProfileModal;
+    FT.markAsSelf = markAsSelf;
     FT.deleteNode = deleteNode;
 })();

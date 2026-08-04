@@ -20,7 +20,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/tree")
-public class FamilyTreeController {
+public class FamilyTreeController extends BaseController {
 
     private final FamilyTreeService familyTreeService;
 
@@ -30,17 +30,13 @@ public class FamilyTreeController {
 
     @GetMapping("/full")
     public Result<List<TreeNodeVO>> fullTree(HttpSession session) {
-        Long userId = getCurrentUserId(session);
-        return Result.success(familyTreeService.getFullTree(userId));
+        Long familyId = getCurrentFamilyId(session);
+        return Result.success(familyTreeService.getFullTree(familyId));
     }
 
     @GetMapping("/subtree")
     public Result<TreeNodeVO> subTree(@RequestParam Long nodeId, HttpSession session) {
-        Long userId = getCurrentUserId(session);
-        return Result.success(familyTreeService.getSubTree(userId, nodeId));
-    }
-
-    private Long getCurrentUserId(HttpSession session) {
-        return (Long) session.getAttribute(FamilyTreeConsts.SESSION_USER_ID);
+        Long familyId = getCurrentFamilyId(session);
+        return Result.success(familyTreeService.getSubTree(familyId, nodeId));
     }
 }

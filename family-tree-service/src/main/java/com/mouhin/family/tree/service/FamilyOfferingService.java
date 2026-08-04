@@ -16,17 +16,18 @@ public interface FamilyOfferingService {
     /**
      * 记录一次祭奠操作（上香烛或烧纸），每次调用累计一次。
      *
-     * @param userId 当前用户ID
-     * @param dto    祭奠信息（节点ID + 类型）
+     * @param familyId 家族ID
+     * @param userId   当前用户ID（记录祭奠者）
+     * @param dto      祭奠信息（节点ID + 类型）
      */
-    void offer(Long userId, OfferingDTO dto);
+    void offer(Long familyId, Long userId, OfferingDTO dto);
 
     /**
      * 统计某已故节点的祭奠情况（香烛、烧纸各一项：总次数 + 人员明细）。
      *
-     * @param userId 当前用户ID
-     * @param nodeId 受祭节点ID
+     * @param familyId 家族ID
+     * @param nodeId   受祭节点ID
      * @return 祭奠统计列表（按类型固定顺序返回）
      */
-    List<OfferingStatVO> listStatsByNode(Long userId, Long nodeId);
+    List<OfferingStatVO> listStatsByNode(Long familyId, Long nodeId);
 }

@@ -1,6 +1,5 @@
 package com.mouhin.family.tree.web.controller;
 
-import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.OfferingDTO;
 import com.mouhin.family.tree.common.dto.OfferingStatVO;
 import com.mouhin.family.tree.common.result.Result;
@@ -23,7 +22,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/offering")
-public class FamilyOfferingController {
+public class FamilyOfferingController extends BaseController {
 
     private final FamilyOfferingService familyOfferingService;
 
@@ -33,32 +32,21 @@ public class FamilyOfferingController {
 
     /**
      * 记录一次上香烛 / 烧纸操作。
-     *
-     * @param dto     祭奠信息（节点ID + 类型）
-     * @param session 会话
-     * @return 统一响应
      */
     @PostMapping
     public Result<Void> offer(@RequestBody OfferingDTO dto, HttpSession session) {
+        Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
-        familyOfferingService.offer(userId, dto);
+        familyOfferingService.offer(familyId, userId, dto);
         return Result.success();
     }
 
     /**
      * 查询某已故节点的祭奠统计（香烛、烧纸的次数与人员明细）。
-     *
-     * @param nodeId  节点ID
-     * @param session 会话
-     * @return 祭奠统计列表
      */
     @GetMapping("/node/{nodeId}")
     public Result<List<OfferingStatVO>> listByNode(@PathVariable Long nodeId, HttpSession session) {
-        Long userId = getCurrentUserId(session);
-        return Result.success(familyOfferingService.listStatsByNode(userId, nodeId));
-    }
-
-    private Long getCurrentUserId(HttpSession session) {
-        return (Long) session.getAttribute(FamilyTreeConsts.SESSION_USER_ID);
+        Long familyId = getCurrentFamilyId(session);
+        return Result.success(familyOfferingService.listStatsByNode(familyId, nodeId));
     }
 }

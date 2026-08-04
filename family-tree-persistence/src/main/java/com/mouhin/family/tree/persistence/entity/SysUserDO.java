@@ -29,6 +29,15 @@ public class SysUserDO {
     /** 所属辈分（第几世），用于水印高亮等展示 */
     private Integer generation;
 
+    /** 出生日期 */
+    private String birthDate;
+
+    /** 关联族谱节点ID（标记当前用户在族谱中的位置） */
+    private Long nodeId;
+
+    /** 当前激活的家族ID（多家族管理） */
+    private Long currentFamilyId;
+
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;

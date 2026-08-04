@@ -23,6 +23,9 @@ public class FamilyOfferingDO {
     /** 上香/烧纸的用户ID */
     private Long userId;
 
+    /** 所属家族ID */
+    private Long familyId;
+
     /** 受祭的已故节点ID */
     private Long nodeId;
 

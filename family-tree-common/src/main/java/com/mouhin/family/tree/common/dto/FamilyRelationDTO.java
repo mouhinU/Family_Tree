@@ -25,4 +25,10 @@ public class FamilyRelationDTO {
 
     /** 是否丧偶（配偶一方去世） */
     private Boolean widowed;
+
+    /** 婚姻次序（第几任配偶） */
+    private Integer marriageOrder;
+
+    /** 婚姻终止方式：DIVORCED / WIDOWED / ALIVE */
+    private String endType;
 }

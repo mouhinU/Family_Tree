@@ -14,7 +14,8 @@ import lombok.Getter;
 public enum RelationTypeEnum {
 
     PARENT_CHILD(1, "亲子"),
-    SPOUSE(2, "夫妻");
+    SPOUSE(2, "夫妻"),
+    ADOPTION(3, "过继/收养");
 
     private final int code;
     private final String description;

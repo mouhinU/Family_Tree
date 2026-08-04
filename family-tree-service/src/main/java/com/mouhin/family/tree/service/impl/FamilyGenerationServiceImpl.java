@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.FamilyGenerationDTO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.persistence.entity.FamilyGenerationDO;
@@ -33,9 +34,9 @@ public class FamilyGenerationServiceImpl implements FamilyGenerationService {
     }
 
     @Override
-    public List<FamilyGenerationDTO> listGenerations(Long userId) {
+    public List<FamilyGenerationDTO> listGenerations(Long familyId) {
         LambdaQueryWrapper<FamilyGenerationDO> query = new LambdaQueryWrapper<>();
-        query.eq(FamilyGenerationDO::getUserId, userId)
+        query.eq(FamilyGenerationDO::getFamilyId, familyId)
                 .orderByAsc(FamilyGenerationDO::getGeneration);
         return familyGenerationMapper.selectList(query).stream()
                 .map(this::toDTO)
@@ -44,7 +45,7 @@ public class FamilyGenerationServiceImpl implements FamilyGenerationService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void saveGenerations(Long userId, List<FamilyGenerationDTO> dtos) {
+    public void saveGenerations(Long familyId, List<FamilyGenerationDTO> dtos) {
         if (dtos == null || dtos.isEmpty()) {
             return;
         }
@@ -52,17 +53,19 @@ public class FamilyGenerationServiceImpl implements FamilyGenerationService {
             if (dto.getGeneration() == null) {
                 throw new BusinessException("世代不能为空");
             }
-            saveSingleGeneration(userId, dto);
+            if (dto.getGeneration() < 1 || dto.getGeneration() > FamilyTreeConsts.MAX_GENERATION_DEPTH) {
+                throw new BusinessException("世代范围为 1 ~ " + FamilyTreeConsts.MAX_GENERATION_DEPTH);
+            }
+            saveSingleGeneration(familyId, dto);
         }
-        logger.info("Saved {} generation names for user={}", dtos.size(), userId);
+        logger.info("Saved {} generation names for family={}", dtos.size(), familyId);
     }
 
-    private void saveSingleGeneration(Long userId, FamilyGenerationDTO dto) {
-        FamilyGenerationDO existing = getByUserAndGeneration(userId, dto.getGeneration());
+    private void saveSingleGeneration(Long familyId, FamilyGenerationDTO dto) {
+        FamilyGenerationDO existing = getByFamilyAndGeneration(familyId, dto.getGeneration());
         boolean blank = dto.getName() == null || dto.getName().isBlank();
 
         if (blank) {
-            // 名称为空表示清除该世代的辈分名
             if (existing != null) {
                 familyGenerationMapper.deleteById(existing.getId());
             }
@@ -75,7 +78,7 @@ public class FamilyGenerationServiceImpl implements FamilyGenerationService {
             familyGenerationMapper.updateById(existing);
         } else {
             FamilyGenerationDO entity = new FamilyGenerationDO();
-            entity.setUserId(userId);
+            entity.setFamilyId(familyId);
             entity.setGeneration(dto.getGeneration());
             entity.setName(dto.getName().trim());
             entity.setCreateTime(LocalDateTime.now());
@@ -84,9 +87,9 @@ public class FamilyGenerationServiceImpl implements FamilyGenerationService {
         }
     }
 
-    private FamilyGenerationDO getByUserAndGeneration(Long userId, Integer generation) {
+    private FamilyGenerationDO getByFamilyAndGeneration(Long familyId, Integer generation) {
         LambdaQueryWrapper<FamilyGenerationDO> query = new LambdaQueryWrapper<>();
-        query.eq(FamilyGenerationDO::getUserId, userId)
+        query.eq(FamilyGenerationDO::getFamilyId, familyId)
                 .eq(FamilyGenerationDO::getGeneration, generation)
                 .last("LIMIT 1");
         return familyGenerationMapper.selectOne(query);

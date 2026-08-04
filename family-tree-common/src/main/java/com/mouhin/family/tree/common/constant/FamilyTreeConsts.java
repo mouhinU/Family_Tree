@@ -28,4 +28,13 @@ public final class FamilyTreeConsts {
 
     /** Session 中用户名的 key */
     public static final String SESSION_USERNAME = "SESSION_USERNAME";
+
+    /** Session 中当前家族ID的 key */
+    public static final String SESSION_FAMILY_ID = "SESSION_FAMILY_ID";
+
+    /** 邀请码长度 */
+    public static final int INVITE_CODE_LENGTH = 8;
+
+    /** 单个家族最大成员数 */
+    public static final int MAX_FAMILY_MEMBERS = 50;
 }

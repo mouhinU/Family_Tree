@@ -1,0 +1,23 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Git
+.git/
+.gitignore
+
+# Maven
+target/
+!.mvn/wrapper
+
+# Data
+data/
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs
+*.md

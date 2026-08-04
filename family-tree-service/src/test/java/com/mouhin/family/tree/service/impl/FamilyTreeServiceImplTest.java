@@ -40,6 +40,7 @@ import static org.mockito.Mockito.when;
 class FamilyTreeServiceImplTest {
 
     private static final Long USER_ID = 1L;
+    private static final Long FAMILY_ID = 100L;
 
     /** 关系ID发号器：断言配偶 VO 的 relationId 用 */
     private final AtomicLong relationIdSeq = new AtomicLong(100);
@@ -59,6 +60,7 @@ class FamilyTreeServiceImplTest {
         FamilyNodeDO n = new FamilyNodeDO();
         n.setId(id);
         n.setUserId(USER_ID);
+        n.setFamilyId(FAMILY_ID);
         n.setName(name);
         n.setGender(1);
         n.setGeneration(generation);
@@ -70,6 +72,7 @@ class FamilyTreeServiceImplTest {
         FamilyRelationDO rel = new FamilyRelationDO();
         rel.setId(relationIdSeq.incrementAndGet());
         rel.setUserId(USER_ID);
+        rel.setFamilyId(FAMILY_ID);
         rel.setFromNodeId(fromNodeId);
         rel.setToNodeId(toNodeId);
         rel.setRelationType(type);
@@ -113,7 +116,7 @@ class FamilyTreeServiceImplTest {
     void emptyTreeReturnsEmptyList() {
         stubTree(new ArrayList<>(), new ArrayList<>());
 
-        List<TreeNodeVO> tree = familyTreeService.getFullTree(USER_ID);
+        List<TreeNodeVO> tree = familyTreeService.getFullTree(FAMILY_ID);
 
         assertNotNull(tree);
         assertTrue(tree.isEmpty());
@@ -126,7 +129,7 @@ class FamilyTreeServiceImplTest {
         stubTree(List.of(father, node(2L, "蒙甲", 2), node(3L, "蒙乙", 2)),
                 List.of(parentChild(1L, 2L), parentChild(1L, 3L)));
 
-        List<TreeNodeVO> tree = familyTreeService.getFullTree(USER_ID);
+        List<TreeNodeVO> tree = familyTreeService.getFullTree(FAMILY_ID);
 
         assertEquals(1, tree.size(), "应只有一个根节点");
         TreeNodeVO root = tree.get(0);
@@ -146,7 +149,7 @@ class FamilyTreeServiceImplTest {
         marriage.setMarriageDate(LocalDate.of(2000, 1, 1));
         stubTree(List.of(node(1L, "蒙夫", 1), node(2L, "李妻", 1)), List.of(marriage));
 
-        List<TreeNodeVO> tree = familyTreeService.getFullTree(USER_ID);
+        List<TreeNodeVO> tree = familyTreeService.getFullTree(FAMILY_ID);
 
         // 配偶关系的 toNodeId 不作为独立根
         assertEquals(1, tree.size());
@@ -174,7 +177,7 @@ class FamilyTreeServiceImplTest {
                 List.of(parentChild(1L, 2L), parentChild(1L, 3L),
                         parentChild(2L, 4L), parentChild(3L, 5L), cousinMarriage));
 
-        List<TreeNodeVO> tree = familyTreeService.getFullTree(USER_ID);
+        List<TreeNodeVO> tree = familyTreeService.getFullTree(FAMILY_ID);
 
         assertEquals(1, tree.size(), "血亲配偶的 toNodeId 不应另立根");
         TreeNodeVO self = findNode(tree, 4L);
@@ -215,7 +218,7 @@ class FamilyTreeServiceImplTest {
                 List.of(parentChild(20L, 21L), parentChild(20L, 22L),
                         parentChild(20L, 23L), parentChild(20L, 24L)));
 
-        List<TreeNodeVO> tree = familyTreeService.getFullTree(USER_ID);
+        List<TreeNodeVO> tree = familyTreeService.getFullTree(FAMILY_ID);
 
         TreeNodeVO father = tree.get(0);
         List<TreeNodeVO> children = father.getChildren();
@@ -236,7 +239,7 @@ class FamilyTreeServiceImplTest {
         stubTree(List.of(node(10L, "蒙男", 1), node(11L, "王氏", 1), node(12L, "蒙男二", 1)),
                 List.of(firstMarriage, secondMarriage));
 
-        List<TreeNodeVO> tree = familyTreeService.getFullTree(USER_ID);
+        List<TreeNodeVO> tree = familyTreeService.getFullTree(FAMILY_ID);
 
         assertEquals(2, tree.size(), "两位丈夫各为根，妻子不另立根");
 
@@ -259,15 +262,15 @@ class FamilyTreeServiceImplTest {
     void getFullTreeUsesCacheUntilEvicted() {
         stubTree(List.of(node(1L, "蒙甲", 1)), new ArrayList<>());
 
-        familyTreeService.getFullTree(USER_ID);
-        familyTreeService.getFullTree(USER_ID);
+        familyTreeService.getFullTree(FAMILY_ID);
+        familyTreeService.getFullTree(FAMILY_ID);
 
         // 第二次读取应命中缓存，不再查库
         verify(familyNodeMapper, times(1)).selectList(any(Wrapper.class));
         verify(familyRelationMapper, times(1)).selectList(any(Wrapper.class));
 
-        familyTreeService.evictUserTree(USER_ID);
-        familyTreeService.getFullTree(USER_ID);
+        familyTreeService.evictFamilyTree(FAMILY_ID);
+        familyTreeService.getFullTree(FAMILY_ID);
 
         // 失效后重新构建
         verify(familyNodeMapper, times(2)).selectList(any(Wrapper.class));

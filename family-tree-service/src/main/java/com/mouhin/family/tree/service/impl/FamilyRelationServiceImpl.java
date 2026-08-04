@@ -52,22 +52,34 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Long createRelation(Long userId, FamilyRelationDTO dto) {
-        validateNodesOwnership(userId, dto.getFromNodeId(), dto.getToNodeId());
+    public Long createRelation(Long familyId, Long userId, FamilyRelationDTO dto) {
+        checkNodesBelongToFamily(familyId, dto.getFromNodeId(), dto.getToNodeId());
 
-        // 夫妻关系需额外校验：禁止自身、重复（含反向）、直系血亲与同胞
-        if (Objects.equals(dto.getRelationType(), RelationTypeEnum.SPOUSE.getCode())) {
-            validateSpouseRelation(userId, dto.getFromNodeId(), dto.getToNodeId());
+        // 自身校验：不允许自己与自己建立关系
+        if (Objects.equals(dto.getFromNodeId(), dto.getToNodeId())) {
+            throw new BusinessException("不能与自身建立关系");
         }
 
-        // 检查是否已存在相同关系
+        if (Objects.equals(dto.getRelationType(), RelationTypeEnum.SPOUSE.getCode())) {
+            validateSpouseRelation(familyId, dto.getFromNodeId(), dto.getToNodeId());
+        }
+
+        // 检查是否已存在相同关系（含反向，防止 A→B 与 B→A 同时存在）
         LambdaQueryWrapper<FamilyRelationDO> existQuery = new LambdaQueryWrapper<>();
-        existQuery.eq(FamilyRelationDO::getUserId, userId)
-                .eq(FamilyRelationDO::getFromNodeId, dto.getFromNodeId())
-                .eq(FamilyRelationDO::getToNodeId, dto.getToNodeId())
-                .eq(FamilyRelationDO::getRelationType, dto.getRelationType());
+        existQuery.eq(FamilyRelationDO::getFamilyId, familyId)
+                .eq(FamilyRelationDO::getRelationType, dto.getRelationType())
+                .and(w -> w.and(w1 -> w1.eq(FamilyRelationDO::getFromNodeId, dto.getFromNodeId())
+                                .eq(FamilyRelationDO::getToNodeId, dto.getToNodeId()))
+                        .or(w2 -> w2.eq(FamilyRelationDO::getFromNodeId, dto.getToNodeId())
+                                .eq(FamilyRelationDO::getToNodeId, dto.getFromNodeId())));
         if (familyRelationMapper.selectCount(existQuery) > 0) {
             throw new BusinessException("该关系已存在");
+        }
+
+        // 婚离日期顺序校验
+        if (dto.getMarriageDate() != null && dto.getDivorceDate() != null
+                && dto.getDivorceDate().isBefore(dto.getMarriageDate())) {
+            throw new BusinessException("离异日期不能早于结婚日期");
         }
 
         // 亲子关系需更新子节点的 generation，并递归同步其后代
@@ -79,52 +91,80 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
                 child.setGeneration(childGen);
                 child.setUpdateTime(LocalDateTime.now());
                 familyNodeMapper.updateById(child);
-                // 递归同步子节点的所有后代世代
-                familyNodeService.syncDescendantGenerations(userId, child.getId(), childGen);
+                familyNodeService.syncDescendantGenerations(familyId, child.getId(), childGen);
+            }
+        }
+
+        // 过继/收养关系：与亲子关系类似，更新养子女世代
+        if (Objects.equals(dto.getRelationType(), RelationTypeEnum.ADOPTION.getCode())) {
+            FamilyNodeDO parent = familyNodeMapper.selectById(dto.getFromNodeId());
+            FamilyNodeDO child = familyNodeMapper.selectById(dto.getToNodeId());
+            if (parent != null && child != null) {
+                int childGen = parent.getGeneration() + 1;
+                child.setGeneration(childGen);
+                child.setUpdateTime(LocalDateTime.now());
+                familyNodeMapper.updateById(child);
+                familyNodeService.syncDescendantGenerations(familyId, child.getId(), childGen);
+            }
+        }
+
+        // 夫妻关系需同步双方世代
+        if (Objects.equals(dto.getRelationType(), RelationTypeEnum.SPOUSE.getCode())) {
+            FamilyNodeDO fromNode = familyNodeMapper.selectById(dto.getFromNodeId());
+            FamilyNodeDO toNode = familyNodeMapper.selectById(dto.getToNodeId());
+            if (fromNode != null && toNode != null
+                    && !Objects.equals(fromNode.getGeneration(), toNode.getGeneration())) {
+                toNode.setGeneration(fromNode.getGeneration());
+                toNode.setUpdateTime(LocalDateTime.now());
+                familyNodeMapper.updateById(toNode);
             }
         }
 
         FamilyRelationDO relation = new FamilyRelationDO();
         relation.setUserId(userId);
+        relation.setFamilyId(familyId);
         relation.setFromNodeId(dto.getFromNodeId());
         relation.setToNodeId(dto.getToNodeId());
         relation.setRelationType(dto.getRelationType());
         relation.setMarriageDate(dto.getMarriageDate());
         relation.setDivorceDate(dto.getDivorceDate());
+        relation.setMarriageOrder(dto.getMarriageOrder());
+        relation.setEndType(dto.getEndType());
         relation.setCreateTime(LocalDateTime.now());
         relation.setUpdateTime(LocalDateTime.now());
         familyRelationMapper.insert(relation);
 
-        logger.info("Created relation id={} type={} from={} to={} for user={}",
-                relation.getId(), dto.getRelationType(), dto.getFromNodeId(), dto.getToNodeId(), userId);
+        logger.info("Created relation id={} type={} from={} to={} for family={} by user={}",
+                relation.getId(), dto.getRelationType(), dto.getFromNodeId(), dto.getToNodeId(), familyId, userId);
 
-        // 树结构已变更，失效该用户的族谱树缓存（事务提交后生效）
-        familyTreeService.evictUserTree(userId);
+        familyTreeService.evictFamilyTree(familyId);
 
         return relation.getId();
     }
 
     @Override
-    public void deleteRelation(Long userId, Long relationId) {
+    public void deleteRelation(Long familyId, Long relationId) {
         FamilyRelationDO relation = familyRelationMapper.selectById(relationId);
-        if (relation == null || !Objects.equals(relation.getUserId(), userId)) {
+        if (relation == null || !Objects.equals(relation.getFamilyId(), familyId)) {
             throw new BusinessException("关系不存在或无权操作");
         }
         familyRelationMapper.deleteById(relationId);
-        logger.info("Deleted relation id={} for user={}", relationId, userId);
+        logger.info("Deleted relation id={} for family={}", relationId, familyId);
 
-        // 树结构已变更，失效该用户的族谱树缓存
-        familyTreeService.evictUserTree(userId);
+        familyTreeService.evictFamilyTree(familyId);
     }
 
     @Override
-    public void updateRelation(Long userId, FamilyRelationDTO dto) {
+    public void updateRelation(Long familyId, FamilyRelationDTO dto) {
         FamilyRelationDO relation = familyRelationMapper.selectById(dto.getId());
-        if (relation == null || !Objects.equals(relation.getUserId(), userId)) {
+        if (relation == null || !Objects.equals(relation.getFamilyId(), familyId)) {
             throw new BusinessException("关系不存在或无权操作");
         }
-        // 结婚日期与离异日期均为非必填，须显式置空。
-        // updateById 默认忽略 null 字段，无法清除已有日期，故改用 UpdateWrapper。
+        // 婚离日期顺序校验
+        if (dto.getMarriageDate() != null && dto.getDivorceDate() != null
+                && dto.getDivorceDate().isBefore(dto.getMarriageDate())) {
+            throw new BusinessException("离异日期不能早于结婚日期");
+        }
         LambdaUpdateWrapper<FamilyRelationDO> update = new LambdaUpdateWrapper<>();
         update.eq(FamilyRelationDO::getId, dto.getId())
                 .set(FamilyRelationDO::getMarriageDate, dto.getMarriageDate())
@@ -136,18 +176,23 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
         if (dto.getWidowed() != null) {
             update.set(FamilyRelationDO::getWidowed, dto.getWidowed());
         }
+        if (dto.getMarriageOrder() != null) {
+            update.set(FamilyRelationDO::getMarriageOrder, dto.getMarriageOrder());
+        }
+        if (dto.getEndType() != null) {
+            update.set(FamilyRelationDO::getEndType, dto.getEndType());
+        }
         familyRelationMapper.update(null, update);
-        logger.info("Updated relation id={} divorced={} widowed={} for user={}",
-                dto.getId(), dto.getDivorced(), dto.getWidowed(), userId);
+        logger.info("Updated relation id={} divorced={} widowed={} for family={}",
+                dto.getId(), dto.getDivorced(), dto.getWidowed(), familyId);
 
-        // 婚姻状态已变更，失效该用户的族谱树缓存（离异/丧偶影响配偶挂载与渲染）
-        familyTreeService.evictUserTree(userId);
+        familyTreeService.evictFamilyTree(familyId);
     }
 
     @Override
-    public List<FamilyRelationDTO> listRelationsByNode(Long userId, Long nodeId) {
+    public List<FamilyRelationDTO> listRelationsByNode(Long familyId, Long nodeId) {
         LambdaQueryWrapper<FamilyRelationDO> query = new LambdaQueryWrapper<>();
-        query.eq(FamilyRelationDO::getUserId, userId)
+        query.eq(FamilyRelationDO::getFamilyId, familyId)
                 .and(w -> w.eq(FamilyRelationDO::getFromNodeId, nodeId)
                         .or().eq(FamilyRelationDO::getToNodeId, nodeId));
         return familyRelationMapper.selectList(query).stream()
@@ -156,21 +201,24 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
     }
 
     @Override
-    public List<FamilyRelationDTO> listAllRelations(Long userId) {
+    public List<FamilyRelationDTO> listAllRelations(Long familyId) {
         LambdaQueryWrapper<FamilyRelationDO> query = new LambdaQueryWrapper<>();
-        query.eq(FamilyRelationDO::getUserId, userId);
+        query.eq(FamilyRelationDO::getFamilyId, familyId);
         return familyRelationMapper.selectList(query).stream()
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
 
-    private void validateNodesOwnership(Long userId, Long fromNodeId, Long toNodeId) {
+    /**
+     * 校验两个节点是否都属于指定家族
+     */
+    private void checkNodesBelongToFamily(Long familyId, Long fromNodeId, Long toNodeId) {
         FamilyNodeDO fromNode = familyNodeMapper.selectById(fromNodeId);
         FamilyNodeDO toNode = familyNodeMapper.selectById(toNodeId);
-        if (fromNode == null || !Objects.equals(fromNode.getUserId(), userId)) {
+        if (fromNode == null || !Objects.equals(fromNode.getFamilyId(), familyId)) {
             throw new BusinessException("起始节点不存在或无权操作");
         }
-        if (toNode == null || !Objects.equals(toNode.getUserId(), userId)) {
+        if (toNode == null || !Objects.equals(toNode.getFamilyId(), familyId)) {
             throw new BusinessException("目标节点不存在或无权操作");
         }
     }
@@ -178,20 +226,16 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
     /**
      * 夫妻关系合法性校验。
      * 允许表（堂）兄妹等旁系血亲结婚；禁止自身、重复（含反向）、直系血亲与同胞。
-     *
-     * @param userId     用户 ID
-     * @param fromNodeId 关系起点节点
-     * @param toNodeId   关系终点节点
      */
     @Override
-    public void validateSpouseRelation(Long userId, Long fromNodeId, Long toNodeId) {
+    public void validateSpouseRelation(Long familyId, Long fromNodeId, Long toNodeId) {
         if (Objects.equals(fromNodeId, toNodeId)) {
             throw new BusinessException("不能与自身建立夫妻关系");
         }
 
-        // 重复校验（含反向：夫妻互为配偶，任一方向已存在即视为重复）
+        // 重复校验（含反向）
         LambdaQueryWrapper<FamilyRelationDO> duplicateQuery = new LambdaQueryWrapper<>();
-        duplicateQuery.eq(FamilyRelationDO::getUserId, userId)
+        duplicateQuery.eq(FamilyRelationDO::getFamilyId, familyId)
                 .eq(FamilyRelationDO::getRelationType, RelationTypeEnum.SPOUSE.getCode())
                 .and(w -> w.and(w1 -> w1.eq(FamilyRelationDO::getFromNodeId, fromNodeId)
                                 .eq(FamilyRelationDO::getToNodeId, toNodeId))
@@ -201,9 +245,9 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
             throw new BusinessException("该夫妻关系已存在");
         }
 
-        // 直系血亲（亲子，任一向）禁止结婚
+        // 直系血亲禁止结婚
         LambdaQueryWrapper<FamilyRelationDO> directQuery = new LambdaQueryWrapper<>();
-        directQuery.eq(FamilyRelationDO::getUserId, userId)
+        directQuery.eq(FamilyRelationDO::getFamilyId, familyId)
                 .eq(FamilyRelationDO::getRelationType, RelationTypeEnum.PARENT_CHILD.getCode())
                 .and(w -> w.and(w1 -> w1.eq(FamilyRelationDO::getFromNodeId, fromNodeId)
                                 .eq(FamilyRelationDO::getToNodeId, toNodeId))
@@ -213,25 +257,40 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
             throw new BusinessException("直系血亲不能建立夫妻关系");
         }
 
-        // 同胞（存在共同父或母）禁止结婚；表/堂兄妹无共同父母，不受限制
-        Set<Long> fromParents = listParentIds(userId, fromNodeId);
-        Set<Long> toParents = listParentIds(userId, toNodeId);
+        // 同胞（存在共同父或母）禁止结婚
+        Set<Long> fromParents = listParentIds(familyId, fromNodeId);
+        Set<Long> toParents = listParentIds(familyId, toNodeId);
         fromParents.retainAll(toParents);
         if (!fromParents.isEmpty()) {
             throw new BusinessException("同胞兄妹不能建立夫妻关系");
         }
+
+        // 重婚校验：双方均不得已有未终止的婚姻（离异或丧偶视为已终止）
+        LambdaQueryWrapper<FamilyRelationDO> activeMarriageQuery = new LambdaQueryWrapper<>();
+        activeMarriageQuery.eq(FamilyRelationDO::getFamilyId, familyId)
+                .eq(FamilyRelationDO::getRelationType, RelationTypeEnum.SPOUSE.getCode())
+                .and(w -> w.eq(FamilyRelationDO::getFromNodeId, fromNodeId)
+                        .or().eq(FamilyRelationDO::getToNodeId, fromNodeId))
+                .and(w -> w.ne(FamilyRelationDO::getDivorced, Boolean.TRUE)
+                        .and(w2 -> w2.ne(FamilyRelationDO::getWidowed, Boolean.TRUE)));
+        if (familyRelationMapper.selectCount(activeMarriageQuery) > 0) {
+            throw new BusinessException("该成员已有在婚配偶，不能重复建立夫妻关系");
+        }
+        LambdaQueryWrapper<FamilyRelationDO> activeMarriageQuery2 = new LambdaQueryWrapper<>();
+        activeMarriageQuery2.eq(FamilyRelationDO::getFamilyId, familyId)
+                .eq(FamilyRelationDO::getRelationType, RelationTypeEnum.SPOUSE.getCode())
+                .and(w -> w.eq(FamilyRelationDO::getFromNodeId, toNodeId)
+                        .or().eq(FamilyRelationDO::getToNodeId, toNodeId))
+                .and(w -> w.ne(FamilyRelationDO::getDivorced, Boolean.TRUE)
+                        .and(w2 -> w2.ne(FamilyRelationDO::getWidowed, Boolean.TRUE)));
+        if (familyRelationMapper.selectCount(activeMarriageQuery2) > 0) {
+            throw new BusinessException("该成员已有在婚配偶，不能重复建立夫妻关系");
+        }
     }
 
-    /**
-     * 获取指定节点的所有父节点 ID。
-     *
-     * @param userId 用户 ID
-     * @param nodeId 节点 ID
-     * @return 父节点 ID 集合（可变，便于求交集）
-     */
-    private Set<Long> listParentIds(Long userId, Long nodeId) {
+    private Set<Long> listParentIds(Long familyId, Long nodeId) {
         LambdaQueryWrapper<FamilyRelationDO> query = new LambdaQueryWrapper<>();
-        query.eq(FamilyRelationDO::getUserId, userId)
+        query.eq(FamilyRelationDO::getFamilyId, familyId)
                 .eq(FamilyRelationDO::getRelationType, RelationTypeEnum.PARENT_CHILD.getCode())
                 .eq(FamilyRelationDO::getToNodeId, nodeId);
         return familyRelationMapper.selectList(query).stream()
@@ -249,6 +308,8 @@ public class FamilyRelationServiceImpl implements FamilyRelationService {
         dto.setDivorceDate(entity.getDivorceDate());
         dto.setDivorced(entity.getDivorced());
         dto.setWidowed(entity.getWidowed());
+        dto.setMarriageOrder(entity.getMarriageOrder());
+        dto.setEndType(entity.getEndType());
         return dto;
     }
 }

@@ -61,28 +61,41 @@ public class FamilyOfferingServiceImpl implements FamilyOfferingService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void offer(Long userId, OfferingDTO dto) {
+    public void offer(Long familyId, Long userId, OfferingDTO dto) {
         OfferingTypeEnum type = OfferingTypeEnum.fromCode(dto.getOfferingType());
-        FamilyNodeDO node = getOwnedNode(userId, dto.getNodeId());
+        checkNodeBelongsToFamily(familyId, dto.getNodeId());
+
+        FamilyNodeDO node = familyNodeMapper.selectById(dto.getNodeId());
         if (node.getDeathDate() == null) {
             throw new BusinessException("只能为已故长辈上香烛或烧纸");
         }
 
+        // 后端校验：目标必须是登录人的长辈（世代数更小，更靠近始祖）
+        SysUserDO currentUser = sysUserMapper.selectById(userId);
+        if (currentUser != null && currentUser.getNodeId() != null) {
+            FamilyNodeDO userNode = familyNodeMapper.selectById(currentUser.getNodeId());
+            if (userNode != null && node.getGeneration() != null && userNode.getGeneration() != null
+                    && node.getGeneration() >= userNode.getGeneration()) {
+                throw new BusinessException("只能为已故长辈上香烛或烧纸");
+            }
+        }
+
         FamilyOfferingDO record = new FamilyOfferingDO();
         record.setUserId(userId);
+        record.setFamilyId(familyId);
         record.setNodeId(dto.getNodeId());
         record.setOfferingType(type.getCode());
         record.setCreateTime(LocalDateTime.now());
         record.setUpdateTime(LocalDateTime.now());
         familyOfferingMapper.insert(record);
 
-        logger.info("Offering recorded id={} type={} user={} node={}",
-                record.getId(), type.getDescription(), userId, dto.getNodeId());
+        logger.info("Offering recorded id={} type={} user={} node={} family={}",
+                record.getId(), type.getDescription(), userId, dto.getNodeId(), familyId);
     }
 
     @Override
-    public List<OfferingStatVO> listStatsByNode(Long userId, Long nodeId) {
-        getOwnedNode(userId, nodeId);
+    public List<OfferingStatVO> listStatsByNode(Long familyId, Long nodeId) {
+        checkNodeBelongsToFamily(familyId, nodeId);
 
         LambdaQueryWrapper<FamilyOfferingDO> query = new LambdaQueryWrapper<>();
         query.eq(FamilyOfferingDO::getNodeId, nodeId);
@@ -97,26 +110,15 @@ public class FamilyOfferingServiceImpl implements FamilyOfferingService {
     }
 
     /**
-     * 校验节点存在且归当前用户所有。
-     *
-     * @param userId 当前用户ID
-     * @param nodeId 节点ID
-     * @return 节点数据对象
+     * 校验节点存在且属于指定家族
      */
-    private FamilyNodeDO getOwnedNode(Long userId, Long nodeId) {
+    private void checkNodeBelongsToFamily(Long familyId, Long nodeId) {
         FamilyNodeDO node = familyNodeMapper.selectById(nodeId);
-        if (node == null || !Objects.equals(node.getUserId(), userId)) {
+        if (node == null || !Objects.equals(node.getFamilyId(), familyId)) {
             throw new BusinessException("节点不存在或无权操作");
         }
-        return node;
     }
 
-    /**
-     * 批量查询记录涉及用户的昵称，构建 userId → nickname 映射。
-     *
-     * @param records 祭奠记录
-     * @return 昵称映射
-     */
     private Map<Long, String> buildNicknameMap(List<FamilyOfferingDO> records) {
         Set<Long> userIds = records.stream()
                 .map(FamilyOfferingDO::getUserId)
@@ -130,14 +132,6 @@ public class FamilyOfferingServiceImpl implements FamilyOfferingService {
         return nicknameMap;
     }
 
-    /**
-     * 聚合指定类型的祭奠统计：总次数 + 人员明细（按累计次数降序）。
-     *
-     * @param type        祭奠类型
-     * @param records     该节点的全部祭奠记录
-     * @param nicknameMap 昵称映射
-     * @return 祭奠统计视图对象
-     */
     private OfferingStatVO buildStat(OfferingTypeEnum type, List<FamilyOfferingDO> records,
                                      Map<Long, String> nicknameMap) {
         OfferingStatVO stat = new OfferingStatVO();

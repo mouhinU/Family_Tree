@@ -28,3 +28,13 @@ mybatis-plus:
 logging:
   level:
     com.mouhin.family.tree: debug
+
+# Actuator 健康检查
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized

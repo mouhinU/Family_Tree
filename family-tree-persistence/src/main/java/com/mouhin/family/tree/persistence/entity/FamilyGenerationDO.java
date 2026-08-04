@@ -22,6 +22,8 @@ public class FamilyGenerationDO {
 
     private Long userId;
 
+    private Long familyId;
+
     /** 世代（从1开始） */
     private Integer generation;
 

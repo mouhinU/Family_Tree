@@ -41,16 +41,16 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
     private final FamilyNodeMapper familyNodeMapper;
     private final FamilyRelationMapper familyRelationMapper;
 
-    /** 树缓存最大用户数：家庭内部系统，远超实际规模，仅作内存保护 */
-    private static final int MAX_CACHED_USERS = 200;
+    /** 树缓存最大家族数：家庭内部系统，远超实际规模，仅作内存保护 */
+    private static final int MAX_CACHED_FAMILIES = 200;
 
     /** 树缓存过期时间：除写操作主动失效外的兜底，防止遗漏写路径导致长期脏读 */
     private static final Duration TREE_CACHE_TTL = Duration.ofMinutes(10);
 
-    /** 整棵族谱树缓存（key=userId）。族谱为读多写少场景，命中时省去全表查询与建树。
+    /** 整棵族谱树缓存（key=familyId）。族谱为读多写少场景，命中时省去全表查询与建树。
      *  注意：缓存值为构建好的 VO 列表，读取方只可序列化展示，不得修改其内容。 */
     private final Cache<Long, List<TreeNodeVO>> fullTreeCache = Caffeine.newBuilder()
-            .maximumSize(MAX_CACHED_USERS)
+            .maximumSize(MAX_CACHED_FAMILIES)
             .expireAfterWrite(TREE_CACHE_TTL)
             .build();
 
@@ -60,13 +60,13 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
     }
 
     @Override
-    public List<TreeNodeVO> getFullTree(Long userId) {
-        return fullTreeCache.get(userId, this::buildFullTree);
+    public List<TreeNodeVO> getFullTree(Long familyId) {
+        return fullTreeCache.get(familyId, fid -> buildFullTree(fid));
     }
 
     @Override
-    public void evictUserTree(Long userId) {
-        if (userId == null) {
+    public void evictFamilyTree(Long familyId) {
+        if (familyId == null) {
             return;
         }
         // 写路径多在事务内：延迟到提交后再失效，避免并发读在提交前用旧数据回填缓存
@@ -74,31 +74,32 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    fullTreeCache.invalidate(userId);
+                    fullTreeCache.invalidate(familyId);
                 }
             });
         } else {
-            fullTreeCache.invalidate(userId);
+            fullTreeCache.invalidate(familyId);
         }
     }
 
     /**
      * 真正执行全量查询与建树（缓存未命中时由 {@link #getFullTree} 触发）。
      *
-     * @param userId 当前用户ID
+     * @param familyId 家族ID
      * @return 树形结构列表（可能有多个根节点）
      */
-    private List<TreeNodeVO> buildFullTree(Long userId) {
-        List<FamilyNodeDO> allNodes = listUserNodes(userId);
-        List<FamilyRelationDO> allRelations = listUserRelations(userId);
+    private List<TreeNodeVO> buildFullTree(Long familyId) {
+        List<FamilyNodeDO> allNodes = listFamilyNodes(familyId);
+        List<FamilyRelationDO> allRelations = listFamilyRelations(familyId);
 
         if (allNodes.isEmpty()) {
             return new ArrayList<>();
         }
 
-        // 找出有父节点的节点（非根）
+        // 找出有父节点的节点（非根，含过继/收养）
         Set<Long> childIds = allRelations.stream()
-                .filter(r -> Objects.equals(r.getRelationType(), RelationTypeEnum.PARENT_CHILD.getCode()))
+                .filter(r -> Objects.equals(r.getRelationType(), RelationTypeEnum.PARENT_CHILD.getCode())
+                        || Objects.equals(r.getRelationType(), RelationTypeEnum.ADOPTION.getCode()))
                 .map(FamilyRelationDO::getToNodeId)
                 .collect(Collectors.toSet());
 
@@ -122,31 +123,60 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
         Map<Long, List<Long>> parentIdsByChild = new HashMap<>();
         buildRelationIndexes(allRelations, spouseRelByNode, childIdsByParent, parentIdsByChild);
 
+        // 预计算：改嫁/续弦配偶的卫星挂载优先级
+        // 对每个有多段非离异婚姻的配偶，关系ID最大的丈夫优先获得卫星配偶卡片
+        Set<Long> contestedSpouseSet = new HashSet<>();
+        Map<Long, Long> contestedPreferredHusband = new HashMap<>();
+        for (Map.Entry<Long, List<FamilyRelationDO>> entry : spouseRelByNode.entrySet()) {
+            Long spouseId = entry.getKey();
+            Long bestNodeId = null;
+            Long bestRelId = null;
+            int nonDivCount = 0;
+            for (FamilyRelationDO rel : entry.getValue()) {
+                boolean divorced = Boolean.TRUE.equals(rel.getDivorced()) || rel.getDivorceDate() != null;
+                if (divorced) {
+                    continue;
+                }
+                nonDivCount++;
+                Long partnerId = Objects.equals(rel.getFromNodeId(), spouseId) ? rel.getToNodeId() : rel.getFromNodeId();
+                if (bestRelId == null || rel.getId() > bestRelId) {
+                    bestRelId = rel.getId();
+                    bestNodeId = partnerId;
+                }
+            }
+            if (nonDivCount >= 2 && bestNodeId != null) {
+                contestedSpouseSet.add(spouseId);
+                contestedPreferredHusband.put(spouseId, bestNodeId);
+            }
+        }
+
         Set<Long> visited = new HashSet<>();
+        Set<Long> globalSatelliteSpouseIds = new HashSet<>();
         List<TreeNodeVO> tree = new ArrayList<>();
         for (FamilyNodeDO root : roots) {
             if (visited.contains(root.getId())) {
                 continue;
             }
-            TreeNodeVO vo = buildSubTree(root, spouseRelByNode, childIdsByParent, parentIdsByChild, nodeMap, visited, childIds);
+            TreeNodeVO vo = buildSubTree(root, spouseRelByNode, childIdsByParent, parentIdsByChild, nodeMap, visited, childIds, globalSatelliteSpouseIds, contestedSpouseSet, contestedPreferredHusband);
             tree.add(vo);
         }
         return tree;
     }
 
     @Override
-    public TreeNodeVO getSubTree(Long userId, Long nodeId) {
+    public TreeNodeVO getSubTree(Long familyId, Long nodeId) {
         FamilyNodeDO node = familyNodeMapper.selectById(nodeId);
-        if (node == null || !Objects.equals(node.getUserId(), userId)) {
+        if (node == null || !Objects.equals(node.getFamilyId(), familyId)) {
             throw new BusinessException("节点不存在或无权操作");
         }
 
-        List<FamilyRelationDO> allRelations = listUserRelations(userId);
-        Map<Long, FamilyNodeDO> nodeMap = listUserNodes(userId).stream()
+        List<FamilyRelationDO> allRelations = listFamilyRelations(familyId);
+        Map<Long, FamilyNodeDO> nodeMap = listFamilyNodes(familyId).stream()
                 .collect(Collectors.toMap(FamilyNodeDO::getId, n -> n, (a, b) -> a));
 
         Set<Long> childIds = allRelations.stream()
-                .filter(r -> Objects.equals(r.getRelationType(), RelationTypeEnum.PARENT_CHILD.getCode()))
+                .filter(r -> Objects.equals(r.getRelationType(), RelationTypeEnum.PARENT_CHILD.getCode())
+                        || Objects.equals(r.getRelationType(), RelationTypeEnum.ADOPTION.getCode()))
                 .map(FamilyRelationDO::getToNodeId)
                 .collect(Collectors.toSet());
 
@@ -156,7 +186,10 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
         buildRelationIndexes(allRelations, spouseRelByNode, childIdsByParent, parentIdsByChild);
 
         Set<Long> visited = new HashSet<>();
-        return buildSubTree(node, spouseRelByNode, childIdsByParent, parentIdsByChild, nodeMap, visited, childIds);
+        Set<Long> globalSatelliteSpouseIds = new HashSet<>();
+        Set<Long> contestedSpouseSet = new HashSet<>();
+        Map<Long, Long> contestedPreferredHusband = new HashMap<>();
+        return buildSubTree(node, spouseRelByNode, childIdsByParent, parentIdsByChild, nodeMap, visited, childIds, globalSatelliteSpouseIds, contestedSpouseSet, contestedPreferredHusband);
     }
 
     /**
@@ -173,7 +206,9 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
             if (Objects.equals(rel.getRelationType(), RelationTypeEnum.SPOUSE.getCode())) {
                 spouseRelByNode.computeIfAbsent(rel.getFromNodeId(), k -> new ArrayList<>()).add(rel);
                 spouseRelByNode.computeIfAbsent(rel.getToNodeId(), k -> new ArrayList<>()).add(rel);
-            } else if (Objects.equals(rel.getRelationType(), RelationTypeEnum.PARENT_CHILD.getCode())) {
+            } else if (Objects.equals(rel.getRelationType(), RelationTypeEnum.PARENT_CHILD.getCode())
+                    || Objects.equals(rel.getRelationType(), RelationTypeEnum.ADOPTION.getCode())) {
+                // 亲子关系和过继/收养关系均纳入树形结构的父子索引
                 childIdsByParent.computeIfAbsent(rel.getFromNodeId(), k -> new ArrayList<>()).add(rel.getToNodeId());
                 parentIdsByChild.computeIfAbsent(rel.getToNodeId(), k -> new ArrayList<>()).add(rel.getFromNodeId());
             }
@@ -183,7 +218,10 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
     private TreeNodeVO buildSubTree(FamilyNodeDO node, Map<Long, List<FamilyRelationDO>> spouseRelByNode,
                                     Map<Long, List<Long>> childIdsByParent, Map<Long, List<Long>> parentIdsByChild,
                                     Map<Long, FamilyNodeDO> nodeMap,
-                                    Set<Long> visited, Set<Long> childIds) {
+                                    Set<Long> visited, Set<Long> childIds,
+                                    Set<Long> globalSatelliteSpouseIds,
+                                    Set<Long> contestedSpouseSet,
+                                    Map<Long, Long> contestedPreferredHusband) {
         if (visited.contains(node.getId())) {
             return toVO(node);
         }
@@ -194,63 +232,113 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
         // 查找配偶（携带关系元数据）：直接命中索引，无需全量扫描
         List<FamilyRelationDO> spouseRelations = spouseRelByNode.getOrDefault(node.getId(), List.of());
 
-        // 仅"卫星配偶"（嫁入/入赘、自身无原生分支）参与子女归集；
-        // 血亲配偶（如表兄妹结婚）保留在其原生分支，子女挂在添加时所选的父/母之下，避免重复挂载。
         Set<Long> satelliteSpouseIds = new HashSet<>();
+
+        // 血亲配偶（近亲结婚）：双方均为族谱成员，各自保留本支
         for (FamilyRelationDO rel : spouseRelations) {
             Long spouseId = Objects.equals(rel.getFromNodeId(), node.getId()) ? rel.getToNodeId() : rel.getFromNodeId();
+            if (!childIds.contains(spouseId)) {
+                continue;
+            }
             FamilyNodeDO spouseNode = nodeMap.get(spouseId);
             if (spouseNode == null) {
                 continue;
             }
             boolean divorced = Boolean.TRUE.equals(rel.getDivorced()) || rel.getDivorceDate() != null;
             boolean widowed = Boolean.TRUE.equals(rel.getWidowed());
-            boolean bloodSpouse = childIds.contains(spouseId);
-            if (bloodSpouse) {
-                // 血亲配偶：自身在族谱中有原生分支，不嵌入为卫星节点，仅保留引用，
-                // 由前端在两个分支的卡片之间绘制跨分支连线。
-                TreeNodeVO refVO = toVO(spouseNode);
-                refVO.setRelationId(rel.getId());
-                refVO.setDivorced(divorced);
-                refVO.setWidowed(widowed);
-                refVO.setMarriageDate(rel.getMarriageDate() != null ? rel.getMarriageDate().toString() : null);
-                refVO.setDivorceDate(rel.getDivorceDate() != null ? rel.getDivorceDate().toString() : null);
-                // 按距最近共同祖先的世代数标注亲缘（亲表兄妹 / 堂表兄妹 / 远房表亲）
-                refVO.setBloodRelationLabel(bloodRelationLabel(node.getId(), spouseId, parentIdsByChild));
-                vo.getBloodSpouses().add(refVO);
-            } else if ((divorced || widowed) && hasCurrentMarriageElsewhere(spouseId, node.getId(), spouseRelByNode)) {
-                // 卫星配偶已离异/丧偶且改嫁/再婚至他处：其本人将作为卫星节点挂到当前配偶名下，
-                // 本节点仅保留引用（供详情弹窗展示），不嵌入卫星节点、不标记 visited。
-                TreeNodeVO formerVO = toVO(spouseNode);
-                formerVO.setRelationId(rel.getId());
-                formerVO.setDivorced(divorced);
-                formerVO.setWidowed(widowed);
-                formerVO.setMarriageDate(rel.getMarriageDate() != null ? rel.getMarriageDate().toString() : null);
-                formerVO.setDivorceDate(rel.getDivorceDate() != null ? rel.getDivorceDate().toString() : null);
-                vo.getFormerSpouses().add(formerVO);
-            } else if (!visited.contains(spouseId)) {
-                visited.add(spouseId);
-                satelliteSpouseIds.add(spouseId);
-                TreeNodeVO spouseVO = toVO(spouseNode);
-                spouseVO.setRelationId(rel.getId());
-                spouseVO.setDivorced(divorced);
-                spouseVO.setWidowed(widowed);
-                spouseVO.setMarriageDate(rel.getMarriageDate() != null ? rel.getMarriageDate().toString() : null);
-                spouseVO.setDivorceDate(rel.getDivorceDate() != null ? rel.getDivorceDate().toString() : null);
-                // 配偶节点详情需回显丈夫信息：将本节点（丈夫）以浅引用形式加入配偶的配偶列表。
-                // toVO 生成的新对象其子列表均为空，不会与外层 vo 构成循环引用。
-                TreeNodeVO husbandRef = toVO(node);
-                husbandRef.setRelationId(rel.getId());
-                husbandRef.setDivorced(divorced);
-                husbandRef.setWidowed(widowed);
-                husbandRef.setMarriageDate(rel.getMarriageDate() != null ? rel.getMarriageDate().toString() : null);
-                husbandRef.setDivorceDate(rel.getDivorceDate() != null ? rel.getDivorceDate().toString() : null);
-                spouseVO.getSpouses().add(husbandRef);
-                vo.getSpouses().add(spouseVO);
-            }
+            TreeNodeVO refVO = toVO(spouseNode);
+            refVO.setRelationId(rel.getId());
+            refVO.setDivorced(divorced);
+            refVO.setWidowed(widowed);
+            refVO.setMarriageDate(rel.getMarriageDate() != null ? rel.getMarriageDate().toString() : null);
+            refVO.setDivorceDate(rel.getDivorceDate() != null ? rel.getDivorceDate().toString() : null);
+            refVO.setBloodRelationLabel(bloodRelationLabel(node.getId(), spouseId, parentIdsByChild));
+            vo.getBloodSpouses().add(refVO);
         }
 
-        // 查找子节点（当前节点或其卫星配偶为父节点的）：从索引取并去重
+        // 第一遍：非离异（在婚 + 丧偶）→ 卫星配偶
+        // 优先挂载在婚/丧偶配偶，确保改嫁/续弦场景中配偶卡片显示在最终丈夫身旁
+        for (FamilyRelationDO rel : spouseRelations) {
+            Long spouseId = Objects.equals(rel.getFromNodeId(), node.getId()) ? rel.getToNodeId() : rel.getFromNodeId();
+            if (childIds.contains(spouseId)) {
+                continue;
+            }
+            boolean divorced = Boolean.TRUE.equals(rel.getDivorced()) || rel.getDivorceDate() != null;
+            if (divorced) {
+                continue;
+            }
+            FamilyNodeDO spouseNode = nodeMap.get(spouseId);
+            if (spouseNode == null || visited.contains(spouseId)) {
+                continue;
+            }
+            // 已被其他节点挂载为卫星配偶的不再重复挂载
+            if (globalSatelliteSpouseIds.contains(spouseId)) {
+                continue;
+            }
+            // 改嫁/续弦争议：只有优先丈夫（关系ID最大）才能挂载为卫星配偶
+            if (contestedSpouseSet.contains(spouseId)
+                    && !Objects.equals(contestedPreferredHusband.get(spouseId), node.getId())) {
+                continue;
+            }
+            boolean widowed = Boolean.TRUE.equals(rel.getWidowed());
+            visited.add(spouseId);
+            satelliteSpouseIds.add(spouseId);
+            globalSatelliteSpouseIds.add(spouseId);
+            TreeNodeVO spouseVO = toVO(spouseNode);
+            spouseVO.setRelationId(rel.getId());
+            spouseVO.setWidowed(widowed);
+            spouseVO.setMarriageDate(rel.getMarriageDate() != null ? rel.getMarriageDate().toString() : null);
+            spouseVO.setDivorceDate(rel.getDivorceDate() != null ? rel.getDivorceDate().toString() : null);
+            TreeNodeVO husbandRef = toVO(node);
+            husbandRef.setRelationId(rel.getId());
+            husbandRef.setWidowed(widowed);
+            husbandRef.setMarriageDate(rel.getMarriageDate() != null ? rel.getMarriageDate().toString() : null);
+            husbandRef.setDivorceDate(rel.getDivorceDate() != null ? rel.getDivorceDate().toString() : null);
+            spouseVO.getSpouses().add(husbandRef);
+            vo.getSpouses().add(spouseVO);
+        }
+
+        // 第二遍：离异 → 前配偶（已被其他节点挂载为卫星的不再重复列入）
+        //        丧偶 → 前配偶（即使已被挂载为卫星也列入，保证前夫详情中可见婚姻历史）
+        for (FamilyRelationDO rel : spouseRelations) {
+            Long spouseId = Objects.equals(rel.getFromNodeId(), node.getId()) ? rel.getToNodeId() : rel.getFromNodeId();
+            if (childIds.contains(spouseId)) {
+                continue;
+            }
+            boolean divorced = Boolean.TRUE.equals(rel.getDivorced()) || rel.getDivorceDate() != null;
+            boolean widowed = Boolean.TRUE.equals(rel.getWidowed());
+            if (!divorced && !widowed) {
+                continue;
+            }
+            FamilyNodeDO spouseNode = nodeMap.get(spouseId);
+            if (spouseNode == null) {
+                continue;
+            }
+            // 本节点已在第一遍挂载为卫星的配偶 → 跳过（避免同时出现在配偶和前配偶列表）
+            if (satelliteSpouseIds.contains(spouseId)) {
+                continue;
+            }
+            // 离异配偶已被其他节点挂载为卫星 → 跳过
+            if (divorced && globalSatelliteSpouseIds.contains(spouseId)) {
+                continue;
+            }
+            TreeNodeVO formerVO = toVO(spouseNode);
+            formerVO.setRelationId(rel.getId());
+            formerVO.setDivorced(divorced);
+            formerVO.setWidowed(widowed);
+            formerVO.setMarriageDate(rel.getMarriageDate() != null ? rel.getMarriageDate().toString() : null);
+            formerVO.setDivorceDate(rel.getDivorceDate() != null ? rel.getDivorceDate().toString() : null);
+            // 反向引用：前配偶详情弹框中可看到与本节点的配偶关系
+            TreeNodeVO reverseRef = toVO(node);
+            reverseRef.setRelationId(rel.getId());
+            reverseRef.setDivorced(divorced);
+            reverseRef.setWidowed(widowed);
+            reverseRef.setMarriageDate(rel.getMarriageDate() != null ? rel.getMarriageDate().toString() : null);
+            reverseRef.setDivorceDate(rel.getDivorceDate() != null ? rel.getDivorceDate().toString() : null);
+            formerVO.getSpouses().add(reverseRef);
+            vo.getFormerSpouses().add(formerVO);
+        }
+
         Set<Long> parentIds = new HashSet<>();
         parentIds.add(node.getId());
         parentIds.addAll(satelliteSpouseIds);
@@ -260,7 +348,6 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
                 .distinct()
                 .collect(Collectors.toList());
 
-        // 按同胞排次升序排列子节点（未设置排次的排在最后）
         List<FamilyNodeDO> childNodes = childrenIds.stream()
                 .map(nodeMap::get)
                 .filter(Objects::nonNull)
@@ -269,22 +356,13 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
                 .collect(Collectors.toList());
 
         for (FamilyNodeDO childNode : childNodes) {
-            TreeNodeVO childVO = buildSubTree(childNode, spouseRelByNode, childIdsByParent, parentIdsByChild, nodeMap, visited, childIds);
+            TreeNodeVO childVO = buildSubTree(childNode, spouseRelByNode, childIdsByParent, parentIdsByChild, nodeMap, visited, childIds, globalSatelliteSpouseIds, contestedSpouseSet, contestedPreferredHusband);
             vo.getChildren().add(childVO);
         }
 
         return vo;
     }
 
-    /**
-     * 判断卫星配偶是否在本节点之外另有一段在婚（未离异）的婚姻。
-     * 用于"改嫁/再婚"场景：离异的前任配偶仅保留引用，本人归属其当前配偶名下渲染。
-     *
-     * @param spouseId        配偶节点 ID
-     * @param excludeNodeId   需排除的节点 ID（即当前正在构建的节点）
-     * @param spouseRelByNode 配偶关系索引
-     * @return 若该配偶与他人存在未离异婚姻返回 true
-     */
     private boolean hasCurrentMarriageElsewhere(Long spouseId, Long excludeNodeId,
                                                 Map<Long, List<FamilyRelationDO>> spouseRelByNode) {
         List<FamilyRelationDO> relations = spouseRelByNode.getOrDefault(spouseId, List.of());
@@ -299,16 +377,6 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
         return false;
     }
 
-    /**
-     * 计算两个血亲节点的亲缘标签（用于血亲配偶展示）。
-     * 以距最近共同祖先的世代数区分：2 代（共享祖父母）= 亲表兄妹，
-     * 3 代（共享曾祖父母）= 堂表兄妹，更远 = 远房表亲；无共同祖先时回退"血亲"。
-     *
-     * @param aId            节点 A 的 ID
-     * @param bId            节点 B 的 ID
-     * @param parentIdsByChild 子女id → 父母id列表索引
-     * @return 亲缘标签文案
-     */
     private String bloodRelationLabel(Long aId, Long bId, Map<Long, List<Long>> parentIdsByChild) {
         int distance = cousinDistance(aId, bId, parentIdsByChild);
         if (distance == 2) {
@@ -323,14 +391,6 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
         return "血亲";
     }
 
-    /**
-     * 求两节点距其最近共同祖先的世代数（同辈血亲两侧距离相等，取较大值即可）。
-     *
-     * @param aId            节点 A 的 ID
-     * @param bId            节点 B 的 ID
-     * @param parentIdsByChild 子女id → 父母id列表索引
-     * @return 最近共同祖先的世代距离；无共同祖先返回 Integer.MAX_VALUE
-     */
     private int cousinDistance(Long aId, Long bId, Map<Long, List<Long>> parentIdsByChild) {
         Map<Long, Integer> aAncestors = ancestorDistances(aId, parentIdsByChild);
         Map<Long, Integer> bAncestors = ancestorDistances(bId, parentIdsByChild);
@@ -344,13 +404,6 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
         return best;
     }
 
-    /**
-     * 广度优先向上追溯，求某节点到其全部祖先（含自身，自身距离为 0）的世代距离。
-     *
-     * @param startId          起始节点 ID
-     * @param parentIdsByChild 子女id → 父母id列表索引
-     * @return 祖先id → 世代距离 映射
-     */
     private Map<Long, Integer> ancestorDistances(Long startId, Map<Long, List<Long>> parentIdsByChild) {
         Map<Long, Integer> distances = new HashMap<>();
         Deque<Long> queue = new ArrayDeque<>();
@@ -385,16 +438,16 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
         return vo;
     }
 
-    private List<FamilyNodeDO> listUserNodes(Long userId) {
+    private List<FamilyNodeDO> listFamilyNodes(Long familyId) {
         LambdaQueryWrapper<FamilyNodeDO> query = new LambdaQueryWrapper<>();
-        query.eq(FamilyNodeDO::getUserId, userId)
+        query.eq(FamilyNodeDO::getFamilyId, familyId)
                 .orderByAsc(FamilyNodeDO::getId);
         return familyNodeMapper.selectList(query);
     }
 
-    private List<FamilyRelationDO> listUserRelations(Long userId) {
+    private List<FamilyRelationDO> listFamilyRelations(Long familyId) {
         LambdaQueryWrapper<FamilyRelationDO> query = new LambdaQueryWrapper<>();
-        query.eq(FamilyRelationDO::getUserId, userId);
+        query.eq(FamilyRelationDO::getFamilyId, familyId);
         return familyRelationMapper.selectList(query);
     }
 }

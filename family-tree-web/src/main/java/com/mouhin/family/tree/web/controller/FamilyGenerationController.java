@@ -1,6 +1,5 @@
 package com.mouhin.family.tree.web.controller;
 
-import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.FamilyGenerationDTO;
 import com.mouhin.family.tree.common.result.Result;
 import com.mouhin.family.tree.service.FamilyGenerationService;
@@ -21,7 +20,7 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/api/generation")
-public class FamilyGenerationController {
+public class FamilyGenerationController extends BaseController {
 
     private final FamilyGenerationService familyGenerationService;
 
@@ -30,12 +29,12 @@ public class FamilyGenerationController {
     }
 
     /**
-     * 获取当前用户的所有辈分（世代名称）
+     * 获取当前家族的所有辈分（世代名称）
      */
     @GetMapping
     public Result<List<FamilyGenerationDTO>> list(HttpSession session) {
-        Long userId = getCurrentUserId(session);
-        return Result.success(familyGenerationService.listGenerations(userId));
+        Long familyId = getCurrentFamilyId(session);
+        return Result.success(familyGenerationService.listGenerations(familyId));
     }
 
     /**
@@ -43,12 +42,8 @@ public class FamilyGenerationController {
      */
     @PutMapping
     public Result<Void> save(@RequestBody List<FamilyGenerationDTO> dtos, HttpSession session) {
-        Long userId = getCurrentUserId(session);
-        familyGenerationService.saveGenerations(userId, dtos);
+        Long familyId = getCurrentFamilyId(session);
+        familyGenerationService.saveGenerations(familyId, dtos);
         return Result.success();
-    }
-
-    private Long getCurrentUserId(HttpSession session) {
-        return (Long) session.getAttribute(FamilyTreeConsts.SESSION_USER_ID);
     }
 }

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>族谱管理系统 - 加入家族</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .family-setup-body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #f5f5f5;
+        }
+        .family-setup-card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 40px;
+            max-width: 480px;
+            width: 90%;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .family-setup-card h1 {
+            text-align: center;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        .family-setup-card .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 32px;
+            font-size: 14px;
+        }
+        .setup-section {
+            margin-bottom: 28px;
+            padding: 20px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+        }
+        .setup-section h3 {
+            margin: 0 0 12px 0;
+            font-size: 16px;
+            color: #333;
+        }
+        .setup-section p {
+            margin: 0 0 12px 0;
+            font-size: 13px;
+            color: #666;
+        }
+        .setup-section input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+        .setup-section button {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            color: #fff;
+            background: #4A90D9;
+        }
+        .setup-section button:hover {
+            background: #3a7bc8;
+        }
+        .setup-section .btn-secondary {
+            background: #6c757d;
+        }
+        .setup-section .btn-secondary:hover {
+            background: #5a6268;
+        }
+        #setup-message {
+            text-align: center;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 13px;
+            display: none;
+        }
+        #setup-message.error {
+            display: block;
+            background: #fff2f0;
+            border: 1px solid #ffccc7;
+            color: #cf1322;
+        }
+        #setup-message.success {
+            display: block;
+            background: #f6ffed;
+            border: 1px solid #b7eb8f;
+            color: #389e0d;
+        }
+    </style>
+</head>
+<body class="family-setup-body">
+    <div class="family-setup-card">
+        <h1>族谱管理系统</h1>
+        <p class="subtitle">您尚未加入任何家族，请创建或加入一个家族</p>
+
+        <div class="setup-section">
+            <h3>创建新家族</h3>
+            <p>输入家族名称，创建一个新的家族并成为族长。</p>
+            <input type="text" id="create-name" placeholder="例如：张氏家族">
+            <button type="button" id="btn-create">创建家族</button>
+        </div>
+
+        <div class="setup-section">
+            <h3>加入已有家族</h3>
+            <p>输入族长分享给您的邀请码，加入该家族。</p>
+            <input type="text" id="join-code" placeholder="请输入邀请码" style="text-transform: uppercase;">
+            <button type="button" id="btn-join" class="btn-secondary">加入家族</button>
+        </div>
+
+        <div id="setup-message"></div>
+    </div>
+
+    <script>
+    (function() {
+        const messageEl = document.getElementById('setup-message');
+
+        function showMessage(text, type) {
+            messageEl.textContent = text;
+            messageEl.className = type;
+        }
+
+        document.getElementById('btn-create').addEventListener('click', async function() {
+            const name = document.getElementById('create-name').value.trim();
+            if (!name) {
+                showMessage('请输入家族名称', 'error');
+                return;
+            }
+            try {
+                var headers = {'Content-Type': 'application/json'};
+                var csrfToken = sessionStorage.getItem('csrfToken');
+                if (csrfToken) { headers['X-CSRF-TOKEN'] = csrfToken; }
+                const res = await fetch('/api/family', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({name: name})
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    showMessage('家族创建成功，正在跳转...', 'success');
+                    setTimeout(function() { window.location.href = '/index.html'; }, 800);
+                } else {
+                    showMessage(data.message || '创建失败', 'error');
+                }
+            } catch (err) {
+                showMessage('网络错误，请重试', 'error');
+            }
+        });
+
+        document.getElementById('btn-join').addEventListener('click', async function() {
+            const code = document.getElementById('join-code').value.trim();
+            if (!code) {
+                showMessage('请输入邀请码', 'error');
+                return;
+            }
+            try {
+                var headers = {'Content-Type': 'application/json'};
+                var csrfToken = sessionStorage.getItem('csrfToken');
+                if (csrfToken) { headers['X-CSRF-TOKEN'] = csrfToken; }
+                const res = await fetch('/api/family/join', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({inviteCode: code})
+                });
+                const data = await res.json();
+                if (data.code === 200) {
+                    showMessage('加入成功，正在跳转...', 'success');
+                    setTimeout(function() { window.location.href = '/index.html'; }, 800);
+                } else {
+                    showMessage(data.message || '加入失败', 'error');
+                }
+            } catch (err) {
+                showMessage('网络错误，请重试', 'error');
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

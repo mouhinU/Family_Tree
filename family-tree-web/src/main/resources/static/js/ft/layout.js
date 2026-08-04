@@ -54,12 +54,14 @@
                 result.push(Object.assign({}, node, {
                     spouses: [],
                     bloodSpouses: [],
+                    formerSpouses: [],
                     children: []
                 }));
             } else {
                 result.push(Object.assign({}, node, {
                     spouses: node.spouses || [],
                     bloodSpouses: node.bloodSpouses || [],
+                    formerSpouses: node.formerSpouses || [],
                     children: buildHideMarryOutTree(node.children || [])
                 }));
             }
@@ -83,7 +85,9 @@
         const hasChildren = node.children && node.children.length > 0;
 
         const spouseCount = (node.spouses && node.spouses.length) || 0;
-        const familyCross = crossExtent * (1 + spouseCount) + FT.SPOUSE_GAP * spouseCount;
+        const formerSpouseCount = (node.formerSpouses && node.formerSpouses.length) || 0;
+        const totalSpouseCount = spouseCount + formerSpouseCount;
+        const familyCross = crossExtent * (1 + totalSpouseCount) + FT.SPOUSE_GAP * totalSpouseCount;
 
         let childTotalCross = 0;
         const childLayoutNodes = [];
@@ -136,6 +140,35 @@
                         x2: sx, y2: sy + FT.NODE_HEIGHT / 2,
                         divorced: spouse.divorced || false,
                         deceased: FT.isDeceased(node) || FT.isDeceased(spouse)
+                    });
+                }
+                spouseCross += crossExtent + FT.SPOUSE_GAP;
+            });
+        }
+
+        // 放置前配偶（离异/丧偶后再婚），布局方式同配偶，连线标记 former
+        if (node.formerSpouses) {
+            node.formerSpouses.forEach(function (spouse) {
+                const sx = horiz ? mainPos : spouseCross;
+                const sy = horiz ? spouseCross : mainPos;
+                layoutNodes.push({x: sx, y: sy, data: spouse, depth: depth, hasChildren: false, childCount: 0});
+                if (horiz) {
+                    links.push({
+                        type: 'spouse',
+                        x1: nx + FT.NODE_WIDTH / 2, y1: ny + FT.NODE_HEIGHT,
+                        x2: sx + FT.NODE_WIDTH / 2, y2: sy,
+                        divorced: spouse.divorced || false,
+                        deceased: FT.isDeceased(node) || FT.isDeceased(spouse),
+                        former: true
+                    });
+                } else {
+                    links.push({
+                        type: 'spouse',
+                        x1: nx + FT.NODE_WIDTH, y1: ny + FT.NODE_HEIGHT / 2,
+                        x2: sx, y2: sy + FT.NODE_HEIGHT / 2,
+                        divorced: spouse.divorced || false,
+                        deceased: FT.isDeceased(node) || FT.isDeceased(spouse),
+                        former: true
                     });
                 }
                 spouseCross += crossExtent + FT.SPOUSE_GAP;

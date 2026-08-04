@@ -37,12 +37,12 @@
                     <input type="text" id="reg-username" name="username" placeholder="请输入用户名" required>
                 </div>
                 <div class="form-group">
-                    <label for="reg-nickname">昵称</label>
-                    <input type="text" id="reg-nickname" name="nickname" placeholder="请输入昵称">
-                </div>
-                <div class="form-group">
                     <label for="reg-password">密码</label>
                     <input type="password" id="reg-password" name="password" placeholder="至少6位密码" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label for="reg-invite-code">家族邀请码 <span style="color:#999;font-size:12px">（可选，加入已有家族）</span></label>
+                    <input type="text" id="reg-invite-code" name="inviteCode" placeholder="留空则注册后自行创建家族" style="text-transform:uppercase">
                 </div>
                 <button type="submit" class="btn-primary">注 册</button>
             </form>
@@ -58,6 +58,13 @@
         const loginForm = document.getElementById('login-form');
         const registerForm = document.getElementById('register-form');
         const messageEl = document.getElementById('login-message');
+
+        // 检测 URL 中的邀请码参数，自动切换到注册页并填入邀请码
+        var inviteParam = new URLSearchParams(window.location.search).get('invite');
+        if (inviteParam) {
+            tabRegister.click();
+            document.getElementById('reg-invite-code').value = inviteParam.toUpperCase();
+        }
 
         tabLogin.addEventListener('click', function() {
             tabLogin.classList.add('active');
@@ -87,7 +94,15 @@
                 });
                 const data = await res.json();
                 if (data.code === 200) {
-                    window.location.href = '/index.html';
+                    // 存储 CSRF Token 供后续请求使用
+                    if (data.data.csrfToken) {
+                        sessionStorage.setItem('csrfToken', data.data.csrfToken);
+                    }
+                    if (data.data.hasFamily) {
+                        window.location.href = '/index.html';
+                    } else {
+                        window.location.href = '/family-setup.html';
+                    }
                 } else {
                     messageEl.textContent = data.message || '登录失败';
                     messageEl.className = 'message error';
@@ -101,13 +116,15 @@
         registerForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             const username = document.getElementById('reg-username').value;
-            const nickname = document.getElementById('reg-nickname').value;
             const password = document.getElementById('reg-password').value;
+            const inviteCode = document.getElementById('reg-invite-code').value.trim();
             try {
+                const body = {username, password};
+                if (inviteCode) { body.inviteCode = inviteCode; }
                 const res = await fetch('/api/auth/register', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({username, nickname, password})
+                    body: JSON.stringify(body)
                 });
                 const data = await res.json();
                 if (data.code === 200) {

@@ -201,7 +201,7 @@
             const stamp = d.getFullYear() + ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2);
             pdf.save('族谱_' + stamp + '.pdf');
         } catch (e) {
-            alert('导出失败：' + (e && e.message ? e.message : e));
+            FT.toast('导出失败：' + (e && e.message ? e.message : e));
         } finally {
             btn.disabled = false;
             btn.textContent = originalText;

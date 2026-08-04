@@ -10,13 +10,30 @@
 
     const FT = window.FT;
 
+    /** CSRF Token（登录时从服务端获取） */
+    var csrfToken = null;
+
+    /**
+     * 初始化 CSRF Token（登录成功后调用）
+     */
+    FT.initCsrfToken = function (token) {
+        csrfToken = token;
+    };
+
     async function api(url, options) {
-        const res = await fetch(url, Object.assign({
-            headers: {'Content-Type': 'application/json'}
-        }, options));
+        var headers = {'Content-Type': 'application/json'};
+        if (csrfToken) {
+            headers['X-CSRF-TOKEN'] = csrfToken;
+        }
+        const res = await fetch(url, Object.assign({headers: headers}, options));
         if (res.status === 401) {
             window.location.href = '/login.html';
             throw new Error('unauthorized');
+        }
+        if (res.status === 403) {
+            // CSRF 校验失败，跳转登录页重新获取 token
+            window.location.href = '/login.html';
+            throw new Error('csrf.invalid');
         }
         return res.json();
     }

@@ -3,6 +3,7 @@ package com.mouhin.family.tree.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.mouhin.family.tree.common.constant.LoginSecurityConsts;
 import com.mouhin.family.tree.common.dto.LoginDTO;
+import com.mouhin.family.tree.common.dto.ProfileUpdateDTO;
 import com.mouhin.family.tree.common.dto.RegisterDTO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.persistence.entity.SysUserDO;
@@ -61,7 +62,7 @@ public class UserServiceImpl implements UserService {
         SysUserDO user = new SysUserDO();
         user.setUsername(dto.getUsername().trim());
         user.setPasswordHash(hashPassword(dto.getPassword()));
-        user.setNickname(dto.getNickname() != null ? dto.getNickname().trim() : dto.getUsername().trim());
+        user.setNickname(dto.getUsername().trim());
         user.setCreateTime(LocalDateTime.now());
         user.setUpdateTime(LocalDateTime.now());
         sysUserMapper.insert(user);
@@ -118,6 +119,81 @@ public class UserServiceImpl implements UserService {
     public Integer getGeneration(Long userId) {
         SysUserDO user = sysUserMapper.selectById(userId);
         return user != null ? user.getGeneration() : null;
+    }
+
+    @Override
+    public String getBirthDate(Long userId) {
+        SysUserDO user = sysUserMapper.selectById(userId);
+        return user != null ? user.getBirthDate() : null;
+    }
+
+    @Override
+    public Long getNodeId(Long userId) {
+        SysUserDO user = sysUserMapper.selectById(userId);
+        return user != null ? user.getNodeId() : null;
+    }
+
+    @Override
+    public void updateNodeId(Long userId, Long nodeId) {
+        SysUserDO user = sysUserMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+        if (!Objects.equals(user.getNodeId(), nodeId)) {
+            if (nodeId == null) {
+                // MyBatis-Plus updateById 默认忽略 null 字段，置空须用 LambdaUpdateWrapper
+                com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<SysUserDO> wrapper =
+                        new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<>();
+                wrapper.eq(SysUserDO::getId, userId)
+                        .set(SysUserDO::getNodeId, null)
+                        .set(SysUserDO::getUpdateTime, LocalDateTime.now());
+                sysUserMapper.update(null, wrapper);
+            } else {
+                user.setNodeId(nodeId);
+                user.setUpdateTime(LocalDateTime.now());
+                sysUserMapper.updateById(user);
+            }
+            logger.info("User nodeId updated: userId={}, nodeId={}", userId, nodeId);
+        }
+    }
+
+    @Override
+    public void updateProfile(Long userId, ProfileUpdateDTO dto) {
+        SysUserDO user = sysUserMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        boolean changed = false;
+        if (dto.getNickname() != null) {
+            String nickname = dto.getNickname().trim();
+            if (!nickname.isEmpty() && !nickname.equals(user.getNickname())) {
+                user.setNickname(nickname);
+                changed = true;
+            }
+        }
+        if (dto.getBirthDate() != null) {
+            String birthDate = dto.getBirthDate().trim();
+            if (birthDate.isEmpty()) {
+                birthDate = null;
+            }
+            if (!Objects.equals(birthDate, user.getBirthDate())) {
+                user.setBirthDate(birthDate);
+                changed = true;
+            }
+        }
+        if (dto.getGeneration() != null) {
+            if (!Objects.equals(dto.getGeneration(), user.getGeneration())) {
+                user.setGeneration(dto.getGeneration());
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            user.setUpdateTime(LocalDateTime.now());
+            sysUserMapper.updateById(user);
+            logger.info("User profile updated: userId={}", userId);
+        }
     }
 
     /**

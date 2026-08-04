@@ -183,6 +183,43 @@
         return acc;
     }
 
+    // ========== 轻提示（Toast） ==========
+    // 非阻塞式消息提示，替代 alert()。支持 success/error/warning/info 四种类型。
+    // 用法：FT.toast('操作成功', 'success') 或 FT.toast('操作失败')（默认 error）
+    (function () {
+        var container = null;
+        function ensureContainer() {
+            if (container && document.body.contains(container)) { return container; }
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            document.body.appendChild(container);
+            return container;
+        }
+
+        function toast(message, type) {
+            type = type || 'error';
+            var c = ensureContainer();
+            var el = document.createElement('div');
+            el.className = 'toast toast-' + type;
+            el.textContent = message;
+            c.appendChild(el);
+            // 触发 reflow 后添加 show 类（CSS transition 需要）
+            requestAnimationFrame(function () {
+                el.classList.add('show');
+            });
+            // 3秒后自动消失
+            setTimeout(function () {
+                el.classList.remove('show');
+                el.classList.add('fade-out');
+                setTimeout(function () {
+                    if (el.parentNode) { el.parentNode.removeChild(el); }
+                }, 300);
+            }, 3000);
+        }
+
+        FT.toast = toast;
+    })();
+
     FT.isHorizontal = isHorizontal;
     FT.escapeHtml = escapeHtml;
     FT.escapeAttr = escapeAttr;
