@@ -15,7 +15,9 @@ import lombok.Getter;
 public enum OfferingTypeEnum {
 
     INCENSE(1, "香烛"),
-    PAPER(2, "烧纸");
+    PAPER(2, "烧纸"),
+    FLOWER(3, "鲜花"),
+    WORSHIP(4, "敬献");
 
     private final int code;
     private final String description;

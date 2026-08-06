@@ -48,7 +48,7 @@
         }
     }
 
-    // 加载辈分名（世代名称）映射
+    // 加载辈分名（世代名称）映射与行列布局
     async function loadGenerationNames() {
         FT.state.generationNames = {};
         const res = await api('/api/generation');
@@ -56,6 +56,12 @@
             res.data.forEach(function (g) {
                 FT.state.generationNames[g.generation] = g.name;
             });
+        }
+        // 加载行列布局
+        const layoutRes = await api('/api/generation/layout');
+        if (layoutRes.code === 200 && layoutRes.data) {
+            FT.state.generationCols = layoutRes.data.cols || 5;
+            FT.state.generationRows = layoutRes.data.rows || 5;
         }
     }
 

@@ -39,7 +39,8 @@
     }
 
     // ========== 辈分（字辈）水印层 ==========
-    // 50 世，每 5 世一列（共 10 列）；列从右到左（第 1 列 1-5 世在最右），列内从上到下（第 1 世在顶部）。
+    // 辈分水印层：行列布局与辈分管理弹框保持一致
+    // 列从右到左（传统阅读方向），列内从上到下（第 1 世在顶部）。
     // 登录人所属辈分（currentUser.generation）对应字符高亮（传统圈点）。
     function buildGenerationWatermark() {
         const wrap = document.getElementById('generation-watermark');
@@ -55,15 +56,23 @@
             wrap.appendChild(cap);
         });
 
-        const totalGenerations = 50;
-        const perColumn = 5;
+        const modalCols = FT.state.generationCols || 5;
+        const modalRows = FT.state.generationRows || 5;
+        const totalGenerations = modalCols * modalRows;
+        // 水印转置：辈分管理 N行×M列 → 水印 M行×N列
+        // 水印列数 = 弹框行数(modalRows)，每列世代数 = 弹框列数(modalCols)
+        const wmCols = modalRows;
+        const perWmCol = modalCols;
         const currentUser = FT.state.currentUser;
         const myGeneration = currentUser && currentUser.generation ? currentUser.generation : null;
 
-        for (let colStart = 1; colStart <= totalGenerations; colStart += perColumn) {
+        // CSS flex-direction: row-reverse 使 DOM 第1列显示在最右侧
+        for (let c = 0; c < wmCols; c++) {
             const col = document.createElement('div');
             col.className = 'wm-col';
-            for (let g = colStart; g < colStart + perColumn && g <= totalGenerations; g++) {
+            for (let r = 0; r < perWmCol; r++) {
+                const g = c * perWmCol + r + 1;
+                if (g > totalGenerations) break;
                 const span = document.createElement('span');
                 span.className = 'wm-char';
                 span.textContent = FT.state.generationNames[g] || '·';
@@ -122,6 +131,7 @@
     }
 
     function renderTree() {
+        stopLineAnimation();
         setupSvg();
 
         // 「隐藏外嫁」剔除出嫁女家支；「只看健在」不再剔除节点（保留完整树结构维持辈分层级位置），
@@ -129,6 +139,10 @@
         let displayTree = FT.state.treeData || [];
         if (FT.state.hideMarryOut) {
             displayTree = FT.buildHideMarryOutTree(displayTree);
+        }
+        // 「只看健在」子女重挂：已故父/母的子女挂到健在的另一方（配偶或前配偶）
+        if (FT.state.hideDeceased) {
+            displayTree = FT.buildHideDeceasedReassignTree(displayTree);
         }
 
         // 清空后代计数记忆化缓存（树结构可能已变化）
@@ -216,116 +230,25 @@
     function drawTreeContent(layoutNodes, links, startX, startY, horiz, interactive) {
         const gMain = FT.state.gMain;
 
-        // ===== 「只看健在」模式下的连线重定向 =====
-        // 已故节点保留布局占位（维持辈分位置），但不绘制卡片。
-        // 连线需绕过已故节点：配偶连线任一方已故则跳过；亲子连线指向已故子节点则跳过，
-        // 已故父节点的可见子女改连到最近的可见祖先，保证树不断开。
-        const hideDeceased = FT.state.hideDeceased;
-
-        // 布局坐标 → 布局节点 映射（用于从连线端点反查节点数据）
-        const posToLayout = new Map();
-        layoutNodes.forEach(function (ln) {
-            posToLayout.set(ln.x + ',' + ln.y, ln);
-        });
-
-        // 可见节点集合 & 已故节点集合（快速查找）
-        const visibleSet = new Set();
-        const deceasedSet = new Set();
-        layoutNodes.forEach(function (ln) {
-            var key = ln.x + ',' + ln.y;
-            if (isNodeVisible(ln.data)) {
-                visibleSet.add(key);
-            } else {
-                deceasedSet.add(key);
-            }
-        });
-
-        // 构建 子节点位置 → 父节点位置 映射（从树结构遍历，覆盖 spouses 与 children）
-        const childToParentPos = new Map();
-        function buildParentMap(nodes, parentPos) {
-            nodes.forEach(function (child) {
-                var childLayout = posToLayout.get(child.x + ',' + child.y);
-                if (!childLayout) { return; }
-                var childKey = child.x + ',' + child.y;
-                if (parentPos) {
-                    childToParentPos.set(childKey, parentPos);
-                }
-                // 配偶的父 = 本节点
-                (child.spouses || []).forEach(function (sp) {
-                    childToParentPos.set(sp.x + ',' + sp.y, childKey);
-                });
-                // 子女的父 = 本节点
-                buildParentMap(child.children || [], childKey);
+        // 「只看健在」模式下，已故父节点到子节点的连线不显示
+        var processedLinks;
+        if (FT.state.hideDeceased) {
+            var nodeById = new Map();
+            layoutNodes.forEach(function (ln) {
+                nodeById.set(ln.data.id, ln.data);
             });
-        }
-        if (hideDeceased) {
-            var displayRoots = FT.state.treeData || [];
-            buildParentMap(displayRoots, null);
-        }
-
-        // 向上查找最近的可见祖先位置
-        function findNearestVisibleAncestor(posKey) {
-            var current = posKey;
-            var safety = 50;
-            while (current && safety-- > 0) {
-                var parentPos = childToParentPos.get(current);
-                if (!parentPos) { return null; }
-                if (visibleSet.has(parentPos)) { return parentPos; }
-                current = parentPos;
-            }
-            return null;
-        }
-
-        // 位置 → 坐标（用于重定向时取祖先的屏幕坐标）
-        var posToCoords = new Map();
-        layoutNodes.forEach(function (ln) {
-            posToCoords.set(ln.x + ',' + ln.y, { x: ln.x, y: ln.y });
-        });
-
-        // 处理连线：过滤 + 重定向
-        var processedLinks = [];
-        var addedRedirects = new Set(); // 去重：同一祖先到同一子女只连一次
-
-        links.forEach(function (link) {
-            var fromKey = link.x1 + ',' + link.y1;
-            var toKey = link.x2 + ',' + link.y2;
-
-            if (link.type === 'spouse') {
-                // 配偶连线：任一方已故则跳过（已故方无卡片）
-                if (hideDeceased && (!visibleSet.has(fromKey) || !visibleSet.has(toKey))) {
-                    return;
-                }
-                processedLinks.push(link);
-            } else {
-                // 亲子连线
-                var childVisible = visibleSet.has(toKey);
-                var parentVisible = visibleSet.has(fromKey);
-
-                if (hideDeceased && !childVisible) {
-                    // 子节点已故 → 不画线（无卡片可连）
-                    return;
-                }
-                if (hideDeceased && !parentVisible && childVisible) {
-                    // 父节点已故、子节点可见 → 重定向到最近的可见祖先
-                    var ancestorPos = findNearestVisibleAncestor(fromKey);
-                    if (ancestorPos) {
-                        var redirectKey = ancestorPos + '->' + toKey;
-                        if (addedRedirects.has(redirectKey)) { return; }
-                        addedRedirects.add(redirectKey);
-                        var ancestorCoords = posToCoords.get(ancestorPos);
-                        if (ancestorCoords) {
-                            processedLinks.push(Object.assign({}, link, {
-                                x1: ancestorCoords.x,
-                                y1: ancestorCoords.y
-                            }));
-                        }
+            processedLinks = links.filter(function (link) {
+                if (link.type !== 'spouse' && link.fromNodeId != null) {
+                    var parentData = nodeById.get(link.fromNodeId);
+                    if (parentData && !isNodeVisible(parentData)) {
+                        return false;
                     }
-                    // 无可见祖先 → 不画线
-                    return;
                 }
-                processedLinks.push(link);
-            }
-        });
+                return true;
+            });
+        } else {
+            processedLinks = links.slice();
+        }
 
         // 绘制连线（使用处理后的连线列表）
         processedLinks.forEach(function (link) {
@@ -338,7 +261,7 @@
                 // 细连线（爱心下方垫底）：前配偶/离异灰虚线；已故墨灰实线；在婚浅红
                 var strokeColor = (link.divorced || former) ? '#c4c0b4' : (deceased ? '#a9a499' : '#d8b4ad');
                 var dashArray = (link.divorced || former) ? '3,3' : 'none';
-                gMain.append('line')
+                const spouseLine = gMain.append('line')
                     .attr('x1', link.x1 + startX)
                     .attr('y1', link.y1 + startY)
                     .attr('x2', link.x2 + startX)
@@ -348,58 +271,112 @@
                     .attr('stroke-dasharray', dashArray)
                     .attr('stroke-opacity', (deceased && !link.divorced && !former) ? 0.7 : 1);
 
+                // 隐形加宽点击区域
+                gMain.append('line')
+                    .attr('class', 'link-hit-area')
+                    .attr('x1', link.x1 + startX)
+                    .attr('y1', link.y1 + startY)
+                    .attr('x2', link.x2 + startX)
+                    .attr('y2', link.y2 + startY)
+                    .attr('stroke', 'transparent')
+                    .attr('stroke-width', 12)
+                    .style('cursor', 'pointer')
+                    .on('mouseover', function () {
+                        spouseLine.attr('stroke-width', 2.5).attr('stroke-opacity', 1);
+                    })
+                    .on('mouseout', function () {
+                        spouseLine.attr('stroke-width', 1.2).attr('stroke-opacity', (deceased && !link.divorced && !former) ? 0.7 : 1);
+                    })
+                    .on('click', function (event) {
+                        event.stopPropagation();
+                        animateSpouseLine(this);
+                    });
+
                 // 爱心（24x24 → 缩放到约 16px，居中于连线中点）
                 drawHeartMarker(midX, midY, link.divorced || former, deceased);
             } else if (horiz) {
                 // 横向布局：水平 S 曲线（控制点取中点 x）
                 const midX = (link.x1 + link.x2) / 2;
-                gMain.append('path')
+                const pathD = 'M' + (link.x1 + startX) + ',' + (link.y1 + startY) +
+                    ' C' + (midX + startX) + ',' + (link.y1 + startY) +
+                    ' ' + (midX + startX) + ',' + (link.y2 + startY) +
+                    ' ' + (link.x2 + startX) + ',' + (link.y2 + startY);
+                const horizPath = gMain.append('path')
                     .attr('class', 'link-parent')
                     .attr('fill', 'none')
                     .attr('stroke', '#a89877')
                     .attr('stroke-width', 1.6)
-                    .attr('d', 'M' + (link.x1 + startX) + ',' + (link.y1 + startY) +
-                        ' C' + (midX + startX) + ',' + (link.y1 + startY) +
-                        ' ' + (midX + startX) + ',' + (link.y2 + startY) +
-                        ' ' + (link.x2 + startX) + ',' + (link.y2 + startY));
+                    .attr('d', pathD);
+                // 隐形加宽点击区域
+                gMain.append('path')
+                    .attr('class', 'link-hit-area')
+                    .attr('fill', 'none')
+                    .attr('stroke', 'transparent')
+                    .attr('stroke-width', 12)
+                    .attr('d', pathD)
+                    .style('cursor', 'pointer')
+                    .on('mouseover', function () {
+                        horizPath.attr('stroke', '#c2703d').attr('stroke-width', 2.4);
+                    })
+                    .on('mouseout', function () {
+                        horizPath.attr('stroke', '#a89877').attr('stroke-width', 1.6);
+                    })
+                    .on('click', function (event) {
+                        event.stopPropagation();
+                        animateParentChildPath(this);
+                    });
             } else {
                 // 纵向布局：垂直 S 曲线（控制点取中点 y）
                 const midY = (link.y1 + link.y2) / 2;
-                gMain.append('path')
+                const pathD = 'M' + (link.x1 + startX) + ',' + (link.y1 + startY) +
+                    ' C' + (link.x1 + startX) + ',' + (midY + startY) +
+                    ' ' + (link.x2 + startX) + ',' + (midY + startY) +
+                    ' ' + (link.x2 + startX) + ',' + (link.y2 + startY);
+                const vertPath = gMain.append('path')
                     .attr('class', 'link-parent')
                     .attr('fill', 'none')
                     .attr('stroke', '#a89877')
                     .attr('stroke-width', 1.6)
-                    .attr('d', 'M' + (link.x1 + startX) + ',' + (link.y1 + startY) +
-                        ' C' + (link.x1 + startX) + ',' + (midY + startY) +
-                        ' ' + (link.x2 + startX) + ',' + (midY + startY) +
-                        ' ' + (link.x2 + startX) + ',' + (link.y2 + startY));
+                    .attr('d', pathD);
+                // 隐形加宽点击区域
+                gMain.append('path')
+                    .attr('class', 'link-hit-area')
+                    .attr('fill', 'none')
+                    .attr('stroke', 'transparent')
+                    .attr('stroke-width', 12)
+                    .attr('d', pathD)
+                    .style('cursor', 'pointer')
+                    .on('mouseover', function () {
+                        vertPath.attr('stroke', '#c2703d').attr('stroke-width', 2.4);
+                    })
+                    .on('mouseout', function () {
+                        vertPath.attr('stroke', '#a89877').attr('stroke-width', 1.6);
+                    })
+                    .on('click', function (event) {
+                        event.stopPropagation();
+                        animateParentChildPath(this);
+                    });
             }
         });
 
         // 跨分支夫妻连线（血亲配偶，如表兄妹结婚）：
         // 双方各自保留在原生分支，仅在两卡片间画一条弧线 + 爱心，按 relationId 去重。
-        // 预建 id→节点 索引（仅可见节点），避免每个血亲配偶都线性扫描 layoutNodes。
+        // 预建 id→节点 索引，避免每个血亲配偶都线性扫描 layoutNodes。
         const layoutNodeById = new Map();
         layoutNodes.forEach(function (ln) {
-            if (isNodeVisible(ln.data)) {
-                layoutNodeById.set(ln.data.id, ln);
-            }
+            layoutNodeById.set(ln.data.id, ln);
         });
 
         const drawnBloodRelations = {};
         layoutNodes.forEach(function (n) {
-            // 「只看健在」模式下跳过已故节点的血亲配偶连线
-            if (hideDeceased && !isNodeVisible(n.data)) { return; }
             const bloodSpouses = (n.data && n.data.bloodSpouses) || [];
             bloodSpouses.forEach(function (bs) {
-                if (hideDeceased && FT.isDeceased(bs)) { return; }
                 if (bs.relationId != null) {
                     if (drawnBloodRelations[bs.relationId]) { return; }
                     drawnBloodRelations[bs.relationId] = true;
                 }
                 const other = layoutNodeById.get(bs.id);
-                if (!other) { return; } // 对方未渲染（如「只看健在」已过滤），跳过
+                if (!other) { return; }
                 drawBloodSpouseLink(n, other, bs.divorced || false, startX, startY);
             });
         });
@@ -430,8 +407,11 @@
                 group.classed('node-self', true);
             }
 
+            // 内层视觉容器：搜索定位等 CSS 缩放动画作用于此，不影响外层定位 transform
+            const inner = group.append('g').attr('class', 'node-inner');
+
             // 外层卡片
-            group.append('rect')
+            inner.append('rect')
                 .attr('class', 'node-rect')
                 .attr('width', FT.NODE_WIDTH)
                 .attr('height', FT.NODE_HEIGHT)
@@ -441,7 +421,7 @@
                 .attr('stroke-width', 1.6);
 
             // 内层线框（古典双线框）
-            group.append('rect')
+            inner.append('rect')
                 .attr('x', 3.5).attr('y', 3.5)
                 .attr('width', FT.NODE_WIDTH - 7)
                 .attr('height', FT.NODE_HEIGHT - 7)
@@ -452,7 +432,7 @@
                 .attr('opacity', 0.55);
 
             // 顶部绶带（强调色）
-            group.append('rect')
+            inner.append('rect')
                 .attr('x', 3.5).attr('y', 3.5)
                 .attr('width', FT.NODE_WIDTH - 7)
                 .attr('height', 6)
@@ -463,7 +443,7 @@
             // 优先显示辈分管理里配置的辈分名，未配置则回退为"第X世"。
             if (n.data.generation != null) {
                 const genLabel = FT.state.generationNames[n.data.generation] || ('第' + n.data.generation + '世');
-                group.append('text')
+                inner.append('text')
                     .attr('class', 'node-gen')
                     .attr('x', FT.NODE_WIDTH / 2)
                     .attr('y', 17.5)
@@ -483,7 +463,7 @@
             const nameBlockH = chars.length * charH;
             const nameStartY = nameAreaTop + (nameAreaH - nameBlockH) / 2 + charH / 2;
             chars.forEach(function (ch, i) {
-                group.append('text')
+                inner.append('text')
                     .attr('class', 'node-name')
                     .attr('x', FT.NODE_WIDTH / 2)
                     .attr('y', nameStartY + i * charH)
@@ -500,7 +480,7 @@
             const info = ((n.data.gender === 1 ? '♂' : n.data.gender === 2 ? '♀' : '') +
                 (n.data.birthDate ? ' ' + n.data.birthDate.substring(0, 4) : '')).trim();
             if (info) {
-                group.append('text')
+                inner.append('text')
                     .attr('class', 'node-info')
                     .attr('x', FT.NODE_WIDTH / 2)
                     .attr('y', FT.NODE_HEIGHT - 11)
@@ -513,7 +493,7 @@
 
             // 同胞排次徽标（左上角）
             if (n.data.birthOrder != null) {
-                const badge = group.append('g').attr('class', 'birth-order-badge');
+                const badge = inner.append('g').attr('class', 'birth-order-badge');
                 badge.append('circle')
                     .attr('r', 9)
                     .attr('fill', '#c2703d')
@@ -530,7 +510,7 @@
 
             // "我"标记徽章（右上角）：标识当前登录用户在族谱中的位置
             if (isSelf) {
-                const selfBadge = group.append('g').attr('class', 'self-badge');
+                const selfBadge = inner.append('g').attr('class', 'self-badge');
                 selfBadge.append('circle')
                     .attr('cx', FT.NODE_WIDTH - 2)
                     .attr('cy', 2)
@@ -560,7 +540,7 @@
                 } else {
                     btnTransform = 'translate(' + (FT.NODE_WIDTH / 2) + ',' + FT.NODE_HEIGHT + ')';
                 }
-                const btnGroup = group.append('g')
+                const btnGroup = inner.append('g')
                     .attr('class', 'collapse-btn')
                     .attr('transform', btnTransform)
                     .style('cursor', 'pointer');
@@ -609,12 +589,217 @@
                     FT.showContextMenu(event.clientX, event.clientY);
                 });
 
-                // 单击打开详情
-                group.on('click', function () {
-                    FT.showDetailModal(n.data);
+                // 单击选中（高亮自身 + 配偶），双击打开详情
+                var clickTimer = null;
+                group.on('click', function (event) {
+                    event.stopPropagation();
+                    if (clickTimer) {
+                        // 第二次点击 → 双击，取消单击定时器，打开详情
+                        clearTimeout(clickTimer);
+                        clickTimer = null;
+                        FT.showDetailModal(n.data);
+                    } else {
+                        // 第一次点击，等待判断是否有第二次
+                        clickTimer = setTimeout(function () {
+                            clickTimer = null;
+                            selectNode(n.data);
+                        }, 250);
+                    }
                 });
             }
         });
+    }
+
+    // 选中节点：高亮自身 + 配偶节点
+    function selectNode(nodeData) {
+        // 清除之前的选中/配偶高亮
+        d3.selectAll('.node-selected').classed('node-selected', false);
+        d3.selectAll('.spouse-highlight').classed('spouse-highlight', false);
+
+        // 高亮被点击的节点自身
+        var selfEl = document.querySelector('g[data-id="' + nodeData.id + '"]');
+        if (selfEl) {
+            selfEl.classList.add('node-selected');
+        }
+
+        // 收集所有配偶 ID 并高亮
+        var spouseIds = [];
+        (nodeData.spouses || []).forEach(function (s) { if (s.id != null) spouseIds.push(s.id); });
+        (nodeData.formerSpouses || []).forEach(function (s) { if (s.id != null) spouseIds.push(s.id); });
+        (nodeData.bloodSpouses || []).forEach(function (s) { if (s.id != null) spouseIds.push(s.id); });
+
+        spouseIds.forEach(function (sid) {
+            var el = document.querySelector('g[data-id="' + sid + '"]');
+            if (el) {
+                el.classList.add('spouse-highlight');
+            }
+        });
+    }
+
+    // ========== 连线点击动画 ==========
+    var BASE_DOT_COUNT = 5;     // 基础光点数量
+    var DOT_PER_10PX = 1;       // 每 10px 额外增加的光点数
+    var STAGGER = 300;          // 光点间隔(ms)
+    var PC_DURATION = 800;      // 父子单点流动时长(ms)
+    var SP_DURATION = 600;      // 配偶单点流动时长(ms)
+
+    // 当前活跃的连线动画状态：再次点击同一条线取消，点击不同线则先取消再启动
+    var activeLineAnim = null;  // { hitEl, cancelled, elements[] }
+
+    // 停止当前活跃的连线动画（移除所有光点元素）
+    function stopLineAnimation() {
+        if (!activeLineAnim) return;
+        activeLineAnim.cancelled = true;
+        activeLineAnim.elements.forEach(function (el) { el.remove(); });
+        activeLineAnim = null;
+    }
+
+    // 根据线段长度计算光点数量：基础5个 + 每10px增加1个
+    function calcDotCount(lineLength) {
+        return BASE_DOT_COUNT + Math.floor(lineLength / 10) * DOT_PER_10PX;
+    }
+
+    // 父子连线点击：光点依次从父端沿贝塞尔路径流向子端（走马灯）
+    function animateParentChildPath(hitPathEl) {
+        // 再次点击同一条线 → 取消动画
+        if (activeLineAnim && activeLineAnim.hitEl === hitPathEl) {
+            stopLineAnimation();
+            return;
+        }
+        // 点击不同线 → 先取消上一条线的动画
+        stopLineAnimation();
+
+        var gMain = FT.state.gMain;
+        var pathNode = hitPathEl.previousSibling;
+        if (!pathNode || !pathNode.getTotalLength) return;
+
+        var totalLength = pathNode.getTotalLength();
+        var dotCount = calcDotCount(totalLength);
+        var startTime = performance.now();
+        var elements = [];
+        var animState = { hitEl: hitPathEl, cancelled: false, elements: elements };
+        activeLineAnim = animState;
+
+        // 预创建光点 + 拖尾光晕
+        var dots = [], glows = [];
+        for (var i = 0; i < dotCount; i++) {
+            var d = gMain.append('circle')
+                .attr('r', 3.5).attr('fill', '#c2703d')
+                .attr('stroke', '#fff').attr('stroke-width', 1).attr('opacity', 0);
+            var g = gMain.append('circle')
+                .attr('r', 6).attr('fill', '#c2703d').attr('opacity', 0);
+            dots.push(d);
+            glows.push(g);
+            elements.push(d, g);
+        }
+
+        function step(now) {
+            if (animState.cancelled) return;
+            var elapsed = now - startTime;
+            var allDone = true;
+            for (var i = 0; i < dotCount; i++) {
+                var dotElapsed = elapsed - i * STAGGER;
+                if (dotElapsed < 0) { allDone = false; continue; }
+                var t = Math.min(dotElapsed / PC_DURATION, 1);
+                if (t < 1) { allDone = false; }
+                var ease = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+                var pt = pathNode.getPointAtLength(ease * totalLength);
+                var fade = t > 0.85 ? (1 - t) / 0.15 : 1;
+                dots[i].attr('cx', pt.x).attr('cy', pt.y).attr('opacity', fade);
+                glows[i].attr('cx', pt.x).attr('cy', pt.y).attr('opacity', 0.25 * fade);
+            }
+            if (!allDone) {
+                requestAnimationFrame(step);
+            } else {
+                elements.forEach(function (el) { el.remove(); });
+                if (activeLineAnim === animState) { activeLineAnim = null; }
+            }
+        }
+        requestAnimationFrame(step);
+    }
+
+    // 配偶连线点击：光点从中点沿线向两侧依次跑出（走马灯）
+    function animateSpouseLine(hitEl) {
+        // 再次点击同一条线 → 取消动画
+        if (activeLineAnim && activeLineAnim.hitEl === hitEl) {
+            stopLineAnimation();
+            return;
+        }
+        // 点击不同线 → 先取消上一条线的动画
+        stopLineAnimation();
+
+        var gMain = FT.state.gMain;
+        var lineNode = hitEl.previousSibling;
+        if (!lineNode || !lineNode.getTotalLength) return;
+
+        var totalLength = lineNode.getTotalLength();
+        var midLen = totalLength / 2;
+        var dotCount = calcDotCount(totalLength);
+        var startTime = performance.now();
+        var elements = [];
+        var animState = { hitEl: hitEl, cancelled: false, elements: elements };
+        activeLineAnim = animState;
+
+        // 中点坐标（起始光晕用）
+        var midPoint = lineNode.getPointAtLength(midLen);
+        var centerGlow = gMain.append('circle')
+            .attr('cx', midPoint.x).attr('cy', midPoint.y)
+            .attr('r', 4).attr('fill', '#d8b4ad').attr('opacity', 0.8);
+        elements.push(centerGlow);
+
+        // 预创建向左 + 向右的光点 + 拖尾光晕
+        var dotsL = [], glowsL = [], dotsR = [], glowsR = [];
+        for (var i = 0; i < dotCount; i++) {
+            var dl = gMain.append('circle')
+                .attr('r', 3.5).attr('fill', '#c2703d')
+                .attr('stroke', '#fff').attr('stroke-width', 0.8).attr('opacity', 0);
+            var gl = gMain.append('circle')
+                .attr('r', 5).attr('fill', '#c2703d').attr('opacity', 0);
+            var dr = gMain.append('circle')
+                .attr('r', 3.5).attr('fill', '#c2703d')
+                .attr('stroke', '#fff').attr('stroke-width', 0.8).attr('opacity', 0);
+            var gr = gMain.append('circle')
+                .attr('r', 5).attr('fill', '#c2703d').attr('opacity', 0);
+            dotsL.push(dl); glowsL.push(gl);
+            dotsR.push(dr); glowsR.push(gr);
+            elements.push(dl, gl, dr, gr);
+        }
+
+        function step(now) {
+            if (animState.cancelled) return;
+            var elapsed = now - startTime;
+            var tCenter = Math.min(elapsed / 300, 1);
+            centerGlow.attr('opacity', 0.8 * (1 - tCenter)).attr('r', 4 + 8 * tCenter);
+
+            var allDone = true;
+            for (var i = 0; i < dotCount; i++) {
+                var dotElapsed = elapsed - i * STAGGER;
+                if (dotElapsed < 0) { allDone = false; continue; }
+                var t = Math.min(dotElapsed / SP_DURATION, 1);
+                if (t < 1) { allDone = false; }
+                var ease = 1 - Math.pow(1 - t, 3); // easeOutCubic
+                var fade = t > 0.85 ? (1 - t) / 0.15 : 1;
+
+                // 向左/上端：从 midLen 向 0
+                var leftLen = midLen * (1 - ease);
+                var leftPt = lineNode.getPointAtLength(leftLen);
+                dotsL[i].attr('cx', leftPt.x).attr('cy', leftPt.y).attr('opacity', fade);
+                glowsL[i].attr('cx', leftPt.x).attr('cy', leftPt.y).attr('opacity', 0.2 * fade);
+
+                // 向右/下端：从 midLen 向 totalLength
+                var rightLen = midLen + midLen * ease;
+                var rightPt = lineNode.getPointAtLength(Math.min(rightLen, totalLength));
+                dotsR[i].attr('cx', rightPt.x).attr('cy', rightPt.y).attr('opacity', fade);
+                glowsR[i].attr('cx', rightPt.x).attr('cy', rightPt.y).attr('opacity', 0.2 * fade);
+            }
+            if (!allDone) {
+                requestAnimationFrame(step);
+            } else {
+                elements.forEach(function (el) { el.remove(); });
+                if (activeLineAnim === animState) { activeLineAnim = null; }
+            }
+        }
+        requestAnimationFrame(step);
     }
 
     function toggleCollapse(nodeId) {
@@ -685,16 +870,37 @@
         const strokeColor = divorced ? '#9a968c' : (deceased ? '#a9a499' : '#a63a2b');
         const dash = divorced ? '4,4' : (deceased ? 'none' : '6,4');
 
-        FT.state.gMain.append('path')
-            .attr('d', 'M' + x1 + ',' + y1 +
-                ' C' + x1 + ',' + (y1 - lift) +
-                ' ' + x2 + ',' + (y2 - lift) +
-                ' ' + x2 + ',' + y2)
+        const arcD = 'M' + x1 + ',' + y1 +
+            ' C' + x1 + ',' + (y1 - lift) +
+            ' ' + x2 + ',' + (y2 - lift) +
+            ' ' + x2 + ',' + y2;
+
+        const bloodPath = FT.state.gMain.append('path')
+            .attr('d', arcD)
             .attr('fill', 'none')
             .attr('stroke', strokeColor)
             .attr('stroke-width', 1.5)
             .attr('stroke-dasharray', dash)
             .attr('stroke-opacity', deceased && !divorced ? 0.6 : 0.85);
+
+        // 隐形加宽点击区域
+        FT.state.gMain.append('path')
+            .attr('class', 'link-hit-area')
+            .attr('fill', 'none')
+            .attr('stroke', 'transparent')
+            .attr('stroke-width', 12)
+            .attr('d', arcD)
+            .style('cursor', 'pointer')
+            .on('mouseover', function () {
+                bloodPath.attr('stroke-width', 2.8).attr('stroke-opacity', 1);
+            })
+            .on('mouseout', function () {
+                bloodPath.attr('stroke-width', 1.5).attr('stroke-opacity', deceased && !divorced ? 0.6 : 0.85);
+            })
+            .on('click', function (event) {
+                event.stopPropagation();
+                animateSpouseLine(this);
+            });
 
         // 爱心位于弧线顶点（三次贝塞尔 t=0.5 处）
         const heartX = (x1 + x2) / 2;
@@ -704,27 +910,44 @@
 
     /**
      * 定位到指定节点：居中显示并高亮闪烁
+     * 使用 getCTM() 获取节点在 SVG 视口中的绝对坐标，再反推其在 gMain 坐标系中的位置，
+     * 避免 getBBox() 仅返回局部坐标导致的定位偏移。
      */
     function focusNode(nodeId) {
         var nodeEl = document.querySelector('g[data-id="' + nodeId + '"]');
         if (!nodeEl) return;
 
         var transform = d3.zoomTransform(svg.node());
-        var bbox = nodeEl.getBBox();
-        var cx = bbox.x + bbox.width / 2;
-        var cy = bbox.y + bbox.height / 2;
+        var k = transform.k;
+
+        // getCTM() 返回从节点局部坐标到 SVG 视口的完整变换矩阵，
+        // 包含了 gMain 的 zoom transform 和节点自身的 translate。
+        // 由于 node 直接挂在 gMain 下，CTM = zoomTransform ∘ nodeTranslate，
+        // 因此 e/k、f/k 即为节点原点在 gMain 坐标系中的 (x, y)。
+        var ctm = nodeEl.getCTM();
+        if (!ctm) return;
+
+        var gx = ctm.e / k;
+        var gy = ctm.f / k;
+        var cx = gx + FT.NODE_WIDTH / 2;
+        var cy = gy + FT.NODE_HEIGHT / 2;
 
         // 保持当前缩放级别，仅平移居中
         var newTransform = d3.zoomIdentity
-            .translate(container.clientWidth / 2 - cx * transform.k, container.clientHeight / 2 - cy * transform.k)
-            .scale(transform.k);
+            .translate(container.clientWidth / 2 - cx * k, container.clientHeight / 2 - cy * k)
+            .scale(k);
 
         svg.transition().duration(600)
             .call(FT.state.zoom.transform, newTransform);
 
-        // 高亮闪烁效果
-        nodeEl.classList.add('search-focus');
-        setTimeout(function () { nodeEl.classList.remove('search-focus'); }, 2000);
+        // 平移动画结束后触发脉冲放大特效（600ms 与 transition.duration 一致）
+        var innerEl = nodeEl.querySelector('.node-inner');
+        if (innerEl) {
+            setTimeout(function () {
+                innerEl.classList.add('search-focus');
+                setTimeout(function () { innerEl.classList.remove('search-focus'); }, 1500);
+            }, 620);
+        }
     }
 
     FT.setupScrollOverlay = setupScrollOverlay;

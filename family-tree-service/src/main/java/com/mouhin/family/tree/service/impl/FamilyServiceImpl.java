@@ -434,6 +434,8 @@ public class FamilyServiceImpl implements FamilyService {
         dto.setCreateTime(family.getCreateTime());
         dto.setHallName(family.getHallName());
         dto.setAncestralHome(family.getAncestralHome());
+        dto.setGenerationCols(family.getGenerationCols() != null ? family.getGenerationCols() : 5);
+        dto.setGenerationRows(family.getGenerationRows() != null ? family.getGenerationRows() : 5);
         return dto;
     }
 
@@ -473,6 +475,8 @@ public class FamilyServiceImpl implements FamilyService {
                 dto.setCreateTime(family.getCreateTime());
                 dto.setHallName(family.getHallName());
                 dto.setAncestralHome(family.getAncestralHome());
+                dto.setGenerationCols(family.getGenerationCols() != null ? family.getGenerationCols() : 5);
+                dto.setGenerationRows(family.getGenerationRows() != null ? family.getGenerationRows() : 5);
                 result.add(dto);
             }
         }
@@ -492,5 +496,21 @@ public class FamilyServiceImpl implements FamilyService {
         familyMapper.update(null, update);
 
         logger.info("Updated family info for family={} by user={}", familyId, operatorUserId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateGenerationLayout(Long familyId, Long operatorUserId, Integer cols, Integer rows) {
+        checkManager(familyId, operatorUserId);
+
+        LambdaUpdateWrapper<FamilyDO> update = new LambdaUpdateWrapper<>();
+        update.eq(FamilyDO::getId, familyId)
+                .set(FamilyDO::getGenerationCols, cols)
+                .set(FamilyDO::getGenerationRows, rows)
+                .set(FamilyDO::getUpdateTime, LocalDateTime.now());
+        familyMapper.update(null, update);
+
+        logger.info("Updated generation layout for family={} cols={} rows={} by user={}",
+                familyId, cols, rows, operatorUserId);
     }
 }

@@ -271,15 +271,41 @@ body {
     font-size: 13px;
 }
 
-/* 搜索定位高亮闪烁 */
+/* 搜索定位脉冲放大特效：节点先放大再回弹，配合朱红光晕吸引注意力 */
 @keyframes search-focus-pulse {
-    0% { filter: drop-shadow(0 0 0px var(--cinnabar)); }
-    30% { filter: drop-shadow(0 0 12px var(--cinnabar)); }
-    100% { filter: drop-shadow(0 0 0px var(--cinnabar)); }
+    0% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 0px rgba(194, 112, 61, 0));
+    }
+    15% {
+        transform: scale(1.28);
+        filter: drop-shadow(0 0 16px rgba(194, 112, 61, 0.9));
+    }
+    30% {
+        transform: scale(0.94);
+        filter: drop-shadow(0 0 6px rgba(194, 112, 61, 0.5));
+    }
+    45% {
+        transform: scale(1.14);
+        filter: drop-shadow(0 0 12px rgba(194, 112, 61, 0.7));
+    }
+    65% {
+        transform: scale(0.98);
+        filter: drop-shadow(0 0 4px rgba(194, 112, 61, 0.3));
+    }
+    80% {
+        transform: scale(1.04);
+        filter: drop-shadow(0 0 2px rgba(194, 112, 61, 0.15));
+    }
+    100% {
+        transform: scale(1);
+        filter: drop-shadow(0 0 0px rgba(194, 112, 61, 0));
+    }
 }
 
 .search-focus {
-    animation: search-focus-pulse 2s ease-out;
+    animation: search-focus-pulse 1.5s ease-out;
+    transform-origin: 0 0;
 }
 
 .btn-sm {
@@ -582,6 +608,11 @@ body.toolbar-hidden .tree-container {
     stroke-width: 1.6;
 }
 
+/* 连线隐形点击区域 */
+.link-hit-area {
+    pointer-events: stroke;
+}
+
 .link-spouse {
     fill: none;
     stroke: var(--cinnabar);
@@ -634,6 +665,7 @@ body.toolbar-hidden .tree-container {
 }
 
 .modal {
+    position: relative;
     background: var(--paper-card);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -645,6 +677,30 @@ body.toolbar-hidden .tree-container {
     box-shadow: 0 20px 60px rgba(43, 38, 34, 0.3);
 }
 
+/* 右上角关闭按钮 */
+.modal-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ink-light);
+    font-size: 20px;
+    line-height: 28px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    z-index: 1;
+}
+
+.modal-close:hover {
+    background: rgba(43, 38, 34, 0.08);
+    color: var(--ink);
+}
+
 .modal.modal-wide {
     width: 640px;
 }
@@ -654,9 +710,45 @@ body.toolbar-hidden .tree-container {
 }
 
 /* ========== 辈分管理网格 ========== */
+.gen-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    background: #f7f3ea;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+.gen-matrix-info {
+    font-size: 12px;
+    color: var(--ink-faint);
+    font-family: var(--font-kai);
+}
+
+.gen-toolbar-btns {
+    display: flex;
+    gap: 6px;
+}
+
+.gen-toolbar-btns .btn-sm {
+    font-size: 12px;
+    padding: 3px 10px;
+}
+
+.gen-toolbar-btns .btn-sm:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.gen-cell-configured {
+    background: #faf5e8;
+    border-color: #d4c9a8;
+}
+
 .gen-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
     gap: 4px;
 }
 
@@ -1160,6 +1252,14 @@ body.toolbar-hidden .tree-container {
     background: #845926;
 }
 
+.offering-btn--flower {
+    background: #b8a88a;
+}
+
+.offering-btn--flower:hover {
+    background: #a0907a;
+}
+
 .offering-stats {
     display: flex;
     flex-direction: column;
@@ -1180,6 +1280,14 @@ body.toolbar-hidden .tree-container {
 
 .offering-stat--paper {
     border-left-color: #9c6b30;
+}
+
+.offering-stat--flower {
+    border-left-color: #b8a88a;
+}
+
+.offering-stat--worship {
+    border-left-color: #c2703d;
 }
 
 .offering-stat-head {
@@ -1402,6 +1510,178 @@ body.toolbar-hidden .tree-container {
     transform: rotate(-4deg);
 }
 
+/* ===== 送鲜花（白菊 / 黄菊）动效 ===== */
+.fx-petal {
+    position: absolute;
+    opacity: 0;
+    animation: petal-fall 2.4s ease-in forwards;
+    pointer-events: none;
+}
+
+/* 白菊 */
+.fx-petal--1 {
+    left: 12%; top: -10%; width: 20px; height: 20px; animation-delay: 0s;
+    background:
+        radial-gradient(circle, #e8c840 0%, #e8c840 14%, transparent 14%),
+        conic-gradient(#fff 0deg 18deg, transparent 18deg 22.5deg, #fff 22.5deg 40.5deg, transparent 40.5deg 45deg, #fff 45deg 63deg, transparent 63deg 67.5deg, #fff 67.5deg 85.5deg, transparent 85.5deg 90deg, #fff 90deg 108deg, transparent 108deg 112.5deg, #fff 112.5deg 130.5deg, transparent 130.5deg 135deg, #fff 135deg 153deg, transparent 153deg 157.5deg, #fff 157.5deg 175.5deg, transparent 175.5deg 180deg, #fff 180deg 198deg, transparent 198deg 202.5deg, #fff 202.5deg 220.5deg, transparent 220.5deg 225deg, #fff 225deg 243deg, transparent 243deg 247.5deg, #fff 247.5deg 265.5deg, transparent 265.5deg 270deg, #fff 270deg 288deg, transparent 288deg 292.5deg, #fff 292.5deg 310.5deg, transparent 310.5deg 315deg, #fff 315deg 333deg, transparent 333deg 337.5deg, #fff 337.5deg 355.5deg, transparent 355.5deg 360deg);
+}
+/* 黄菊 */
+.fx-petal--2 {
+    left: 32%; top: -14%; width: 16px; height: 16px; animation-delay: 0.3s;
+    background:
+        radial-gradient(circle, #b8860b 0%, #b8860b 14%, transparent 14%),
+        conic-gradient(#f0c040 0deg 18deg, transparent 18deg 22.5deg, #f0c040 22.5deg 40.5deg, transparent 40.5deg 45deg, #f0c040 45deg 63deg, transparent 63deg 67.5deg, #f0c040 67.5deg 85.5deg, transparent 85.5deg 90deg, #f0c040 90deg 108deg, transparent 108deg 112.5deg, #f0c040 112.5deg 130.5deg, transparent 130.5deg 135deg, #f0c040 135deg 153deg, transparent 153deg 157.5deg, #f0c040 157.5deg 175.5deg, transparent 175.5deg 180deg, #f0c040 180deg 198deg, transparent 198deg 202.5deg, #f0c040 202.5deg 220.5deg, transparent 220.5deg 225deg, #f0c040 225deg 243deg, transparent 243deg 247.5deg, #f0c040 247.5deg 265.5deg, transparent 265.5deg 270deg, #f0c040 270deg 288deg, transparent 288deg 292.5deg, #f0c040 292.5deg 310.5deg, transparent 310.5deg 315deg, #f0c040 315deg 333deg, transparent 333deg 337.5deg, #f0c040 337.5deg 355.5deg, transparent 355.5deg 360deg);
+}
+/* 白菊 */
+.fx-petal--3 {
+    left: 55%; top: -8%; width: 18px; height: 18px; animation-delay: 0.55s;
+    background:
+        radial-gradient(circle, #e8c840 0%, #e8c840 14%, transparent 14%),
+        conic-gradient(#faf5e4 0deg 18deg, transparent 18deg 22.5deg, #faf5e4 22.5deg 40.5deg, transparent 40.5deg 45deg, #faf5e4 45deg 63deg, transparent 63deg 67.5deg, #faf5e4 67.5deg 85.5deg, transparent 85.5deg 90deg, #faf5e4 90deg 108deg, transparent 108deg 112.5deg, #faf5e4 112.5deg 130.5deg, transparent 130.5deg 135deg, #faf5e4 135deg 153deg, transparent 153deg 157.5deg, #faf5e4 157.5deg 175.5deg, transparent 175.5deg 180deg, #faf5e4 180deg 198deg, transparent 198deg 202.5deg, #faf5e4 202.5deg 220.5deg, transparent 220.5deg 225deg, #faf5e4 225deg 243deg, transparent 243deg 247.5deg, #faf5e4 247.5deg 265.5deg, transparent 265.5deg 270deg, #faf5e4 270deg 288deg, transparent 288deg 292.5deg, #faf5e4 292.5deg 310.5deg, transparent 310.5deg 315deg, #faf5e4 315deg 333deg, transparent 333deg 337.5deg, #faf5e4 337.5deg 355.5deg, transparent 355.5deg 360deg);
+}
+/* 黄菊 */
+.fx-petal--4 {
+    left: 75%; top: -12%; width: 15px; height: 15px; animation-delay: 0.15s;
+    background:
+        radial-gradient(circle, #b8860b 0%, #b8860b 14%, transparent 14%),
+        conic-gradient(#ecc83c 0deg 18deg, transparent 18deg 22.5deg, #ecc83c 22.5deg 40.5deg, transparent 40.5deg 45deg, #ecc83c 45deg 63deg, transparent 63deg 67.5deg, #ecc83c 67.5deg 85.5deg, transparent 85.5deg 90deg, #ecc83c 90deg 108deg, transparent 108deg 112.5deg, #ecc83c 112.5deg 130.5deg, transparent 130.5deg 135deg, #ecc83c 135deg 153deg, transparent 153deg 157.5deg, #ecc83c 157.5deg 175.5deg, transparent 175.5deg 180deg, #ecc83c 180deg 198deg, transparent 198deg 202.5deg, #ecc83c 202.5deg 220.5deg, transparent 220.5deg 225deg, #ecc83c 225deg 243deg, transparent 243deg 247.5deg, #ecc83c 247.5deg 265.5deg, transparent 265.5deg 270deg, #ecc83c 270deg 288deg, transparent 288deg 292.5deg, #ecc83c 292.5deg 310.5deg, transparent 310.5deg 315deg, #ecc83c 315deg 333deg, transparent 333deg 337.5deg, #ecc83c 337.5deg 355.5deg, transparent 355.5deg 360deg);
+}
+/* 白菊 */
+.fx-petal--5 {
+    left: 22%; top: -16%; width: 14px; height: 14px; animation-delay: 0.7s;
+    background:
+        radial-gradient(circle, #e8c840 0%, #e8c840 14%, transparent 14%),
+        conic-gradient(#fff 0deg 18deg, transparent 18deg 22.5deg, #fff 22.5deg 40.5deg, transparent 40.5deg 45deg, #fff 45deg 63deg, transparent 63deg 67.5deg, #fff 67.5deg 85.5deg, transparent 85.5deg 90deg, #fff 90deg 108deg, transparent 108deg 112.5deg, #fff 112.5deg 130.5deg, transparent 130.5deg 135deg, #fff 135deg 153deg, transparent 153deg 157.5deg, #fff 157.5deg 175.5deg, transparent 175.5deg 180deg, #fff 180deg 198deg, transparent 198deg 202.5deg, #fff 202.5deg 220.5deg, transparent 220.5deg 225deg, #fff 225deg 243deg, transparent 243deg 247.5deg, #fff 247.5deg 265.5deg, transparent 265.5deg 270deg, #fff 270deg 288deg, transparent 288deg 292.5deg, #fff 292.5deg 310.5deg, transparent 310.5deg 315deg, #fff 315deg 333deg, transparent 333deg 337.5deg, #fff 337.5deg 355.5deg, transparent 355.5deg 360deg);
+}
+/* 黄菊 */
+.fx-petal--6 {
+    left: 65%; top: -9%; width: 17px; height: 17px; animation-delay: 0.4s;
+    background:
+        radial-gradient(circle, #b8860b 0%, #b8860b 14%, transparent 14%),
+        conic-gradient(#f0c040 0deg 18deg, transparent 18deg 22.5deg, #f0c040 22.5deg 40.5deg, transparent 40.5deg 45deg, #f0c040 45deg 63deg, transparent 63deg 67.5deg, #f0c040 67.5deg 85.5deg, transparent 85.5deg 90deg, #f0c040 90deg 108deg, transparent 108deg 112.5deg, #f0c040 112.5deg 130.5deg, transparent 130.5deg 135deg, #f0c040 135deg 153deg, transparent 153deg 157.5deg, #f0c040 157.5deg 175.5deg, transparent 175.5deg 180deg, #f0c040 180deg 198deg, transparent 198deg 202.5deg, #f0c040 202.5deg 220.5deg, transparent 220.5deg 225deg, #f0c040 225deg 243deg, transparent 243deg 247.5deg, #f0c040 247.5deg 265.5deg, transparent 265.5deg 270deg, #f0c040 270deg 288deg, transparent 288deg 292.5deg, #f0c040 292.5deg 310.5deg, transparent 310.5deg 315deg, #f0c040 315deg 333deg, transparent 333deg 337.5deg, #f0c040 337.5deg 355.5deg, transparent 355.5deg 360deg);
+}
+/* 白菊 */
+.fx-petal--7 {
+    left: 45%; top: -13%; width: 19px; height: 19px; animation-delay: 0.85s;
+    background:
+        radial-gradient(circle, #e8c840 0%, #e8c840 14%, transparent 14%),
+        conic-gradient(#faf5e4 0deg 18deg, transparent 18deg 22.5deg, #faf5e4 22.5deg 40.5deg, transparent 40.5deg 45deg, #faf5e4 45deg 63deg, transparent 63deg 67.5deg, #faf5e4 67.5deg 85.5deg, transparent 85.5deg 90deg, #faf5e4 90deg 108deg, transparent 108deg 112.5deg, #faf5e4 112.5deg 130.5deg, transparent 130.5deg 135deg, #faf5e4 135deg 153deg, transparent 153deg 157.5deg, #faf5e4 157.5deg 175.5deg, transparent 175.5deg 180deg, #faf5e4 180deg 198deg, transparent 198deg 202.5deg, #faf5e4 202.5deg 220.5deg, transparent 220.5deg 225deg, #faf5e4 225deg 243deg, transparent 243deg 247.5deg, #faf5e4 247.5deg 265.5deg, transparent 265.5deg 270deg, #faf5e4 270deg 288deg, transparent 288deg 292.5deg, #faf5e4 292.5deg 310.5deg, transparent 310.5deg 315deg, #faf5e4 315deg 333deg, transparent 333deg 337.5deg, #faf5e4 337.5deg 355.5deg, transparent 355.5deg 360deg);
+}
+/* 黄菊 */
+.fx-petal--8 {
+    left: 85%; top: -7%; width: 13px; height: 13px; animation-delay: 0.6s;
+    background:
+        radial-gradient(circle, #b8860b 0%, #b8860b 14%, transparent 14%),
+        conic-gradient(#ecc83c 0deg 18deg, transparent 18deg 22.5deg, #ecc83c 22.5deg 40.5deg, transparent 40.5deg 45deg, #ecc83c 45deg 63deg, transparent 63deg 67.5deg, #ecc83c 67.5deg 85.5deg, transparent 85.5deg 90deg, #ecc83c 90deg 108deg, transparent 108deg 112.5deg, #ecc83c 112.5deg 130.5deg, transparent 130.5deg 135deg, #ecc83c 135deg 153deg, transparent 153deg 157.5deg, #ecc83c 157.5deg 175.5deg, transparent 175.5deg 180deg, #ecc83c 180deg 198deg, transparent 198deg 202.5deg, #ecc83c 202.5deg 220.5deg, transparent 220.5deg 225deg, #ecc83c 225deg 243deg, transparent 243deg 247.5deg, #ecc83c 247.5deg 265.5deg, transparent 265.5deg 270deg, #ecc83c 270deg 288deg, transparent 288deg 292.5deg, #ecc83c 292.5deg 310.5deg, transparent 310.5deg 315deg, #ecc83c 315deg 333deg, transparent 333deg 337.5deg, #ecc83c 337.5deg 355.5deg, transparent 355.5deg 360deg);
+}
+
+@keyframes petal-fall {
+    0% {
+        opacity: 0;
+        transform: translateY(0) rotate(0deg) scale(0.5);
+    }
+    12% {
+        opacity: 0.95;
+        transform: translateY(18px) rotate(35deg) scale(1);
+    }
+    50% {
+        opacity: 0.8;
+        transform: translateY(55px) rotate(150deg) translateX(6px) scale(0.9);
+    }
+    80% {
+        opacity: 0.45;
+        transform: translateY(88px) rotate(270deg) translateX(-4px) scale(0.7);
+    }
+    100% {
+        opacity: 0;
+        transform: translateY(115px) rotate(360deg) translateX(2px) scale(0.4);
+    }
+}
+
+/* 菊花绽放效果：多层白菊 + 黄菊 */
+.fx-flower-bloom {
+    position: absolute;
+    bottom: 18%;
+    left: 50%;
+    width: 40px;
+    height: 40px;
+    transform: translateX(-50%) scale(0);
+    opacity: 0;
+    animation: flower-bloom 2s ease-out 0.3s forwards;
+    pointer-events: none;
+    /* 白菊花 */
+    background:
+        radial-gradient(circle, #e8c840 0%, #e8c840 10%, transparent 10%),
+        conic-gradient(#fff 0deg 12deg, transparent 12deg 18deg, #fff 18deg 30deg, transparent 30deg 36deg, #fff 36deg 48deg, transparent 48deg 54deg, #fff 54deg 66deg, transparent 66deg 72deg, #fff 72deg 84deg, transparent 84deg 90deg, #fff 90deg 102deg, transparent 102deg 108deg, #fff 108deg 120deg, transparent 120deg 126deg, #fff 126deg 138deg, transparent 138deg 144deg, #fff 144deg 156deg, transparent 156deg 162deg, #fff 162deg 174deg, transparent 174deg 180deg, #fff 180deg 192deg, transparent 192deg 198deg, #fff 198deg 210deg, transparent 210deg 216deg, #fff 216deg 228deg, transparent 228deg 234deg, #fff 234deg 246deg, transparent 246deg 252deg, #fff 252deg 264deg, transparent 264deg 270deg, #fff 270deg 282deg, transparent 282deg 288deg, #fff 288deg 300deg, transparent 300deg 306deg, #fff 306deg 318deg, transparent 318deg 324deg, #fff 324deg 336deg, transparent 336deg 342deg, #fff 342deg 354deg, transparent 354deg 360deg);
+    border-radius: 50%;
+}
+
+/* 旁边一朵小黄菊 */
+.fx-flower-bloom::before {
+    content: '';
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    top: -6px;
+    right: -10px;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle, #b8860b 0%, #b8860b 12%, transparent 12%),
+        conic-gradient(#f0c040 0deg 15deg, transparent 15deg 20deg, #f0c040 20deg 35deg, transparent 35deg 40deg, #f0c040 40deg 55deg, transparent 55deg 60deg, #f0c040 60deg 75deg, transparent 75deg 80deg, #f0c040 80deg 95deg, transparent 95deg 100deg, #f0c040 100deg 115deg, transparent 115deg 120deg, #f0c040 120deg 135deg, transparent 135deg 140deg, #f0c040 140deg 155deg, transparent 155deg 160deg, #f0c040 160deg 175deg, transparent 175deg 180deg, #f0c040 180deg 195deg, transparent 195deg 200deg, #f0c040 200deg 215deg, transparent 215deg 220deg, #f0c040 220deg 235deg, transparent 235deg 240deg, #f0c040 240deg 255deg, transparent 255deg 260deg, #f0c040 260deg 275deg, transparent 275deg 280deg, #f0c040 280deg 295deg, transparent 295deg 300deg, #f0c040 300deg 315deg, transparent 315deg 320deg, #f0c040 320deg 335deg, transparent 335deg 340deg, #f0c040 340deg 355deg, transparent 355deg 360deg);
+}
+
+/* 另一朵小白菊 */
+.fx-flower-bloom::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    bottom: -4px;
+    left: -8px;
+    border-radius: 50%;
+    background:
+        radial-gradient(circle, #e8c840 0%, #e8c840 12%, transparent 12%),
+        conic-gradient(#faf5e4 0deg 15deg, transparent 15deg 20deg, #faf5e4 20deg 35deg, transparent 35deg 40deg, #faf5e4 40deg 55deg, transparent 55deg 60deg, #faf5e4 60deg 75deg, transparent 75deg 80deg, #faf5e4 80deg 95deg, transparent 95deg 100deg, #faf5e4 100deg 115deg, transparent 115deg 120deg, #faf5e4 120deg 135deg, transparent 135deg 140deg, #faf5e4 140deg 155deg, transparent 155deg 160deg, #faf5e4 160deg 175deg, transparent 175deg 180deg, #faf5e4 180deg 195deg, transparent 195deg 200deg, #faf5e4 200deg 215deg, transparent 215deg 220deg, #faf5e4 220deg 235deg, transparent 235deg 240deg, #faf5e4 240deg 255deg, transparent 255deg 260deg, #faf5e4 260deg 275deg, transparent 275deg 280deg, #faf5e4 280deg 295deg, transparent 295deg 300deg, #faf5e4 300deg 315deg, transparent 315deg 320deg, #faf5e4 320deg 335deg, transparent 335deg 340deg, #faf5e4 340deg 355deg, transparent 355deg 360deg);
+}
+
+@keyframes flower-bloom {
+    0% {
+        opacity: 0;
+        transform: translateX(-50%) scale(0) rotate(-30deg);
+    }
+    40% {
+        opacity: 1;
+        transform: translateX(-50%) scale(1.2) rotate(10deg);
+    }
+    70% {
+        opacity: 0.8;
+        transform: translateX(-50%) scale(1) rotate(0deg);
+    }
+    100% {
+        opacity: 0;
+        transform: translateX(-50%) scale(0.8) rotate(5deg);
+    }
+}
+
+/* 敬献 / 鲜花 浮字样式 */
+.fx-text--worship {
+    color: #c2703d;
+}
+
+.fx-text--flower {
+    color: #b8a88a;
+}
+
+/* 敬献迷你纸钱效果（缩小版） */
+.fx-paper--mini {
+    position: absolute;
+    bottom: 15%;
+    left: 50%;
+    transform: translateX(-50%) scale(0.7);
+    width: 50px;
+    height: 40px;
+}
+
 /* 关联现有配偶 弹窗 */
 .link-spouse-tip {
     margin-bottom: 14px;
@@ -1622,6 +1902,36 @@ body.toolbar-hidden .tree-container {
 /* "我"徽章悬停提示 */
 .self-badge {
     cursor: default;
+}
+
+/* 选中节点：赭石边框 + 柔光 */
+.node-group.node-selected .node-rect {
+    stroke: #c2703d !important;
+    stroke-width: 2.6 !important;
+}
+
+.node-group.node-selected {
+    filter: drop-shadow(0 0 6px rgba(194, 112, 61, 0.8));
+}
+
+/* 配偶高亮：点击节点时，其配偶节点显示柔光脉冲 */
+.node-group.spouse-highlight .node-rect {
+    stroke: #d8b4ad !important;
+    stroke-width: 2.4 !important;
+}
+
+.node-group.spouse-highlight {
+    filter: drop-shadow(0 0 8px rgba(216, 180, 173, 0.9));
+    animation: spouse-glow 1.8s ease-in-out infinite;
+}
+
+@keyframes spouse-glow {
+    0%, 100% {
+        filter: drop-shadow(0 0 6px rgba(216, 180, 173, 0.7));
+    }
+    50% {
+        filter: drop-shadow(0 0 12px rgba(216, 180, 173, 1));
+    }
 }
 
 /* 卷轴轴头（上下端帽）：赭金色圆帽 */

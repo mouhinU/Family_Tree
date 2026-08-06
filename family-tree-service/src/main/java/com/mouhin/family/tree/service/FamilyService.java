@@ -109,4 +109,14 @@ public interface FamilyService {
      * @param ancestralHome  籍贯（可为null）
      */
     void updateFamilyInfo(Long familyId, Long operatorUserId, String hallName, String ancestralHome);
+
+    /**
+     * 更新辈分管理行列布局
+     *
+     * @param familyId       家族ID
+     * @param operatorUserId 操作者用户ID
+     * @param cols           列数
+     * @param rows           行数
+     */
+    void updateGenerationLayout(Long familyId, Long operatorUserId, Integer cols, Integer rows);
 }

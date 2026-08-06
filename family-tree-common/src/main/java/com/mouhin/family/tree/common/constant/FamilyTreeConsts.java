@@ -15,7 +15,7 @@ public final class FamilyTreeConsts {
     public static final int DEFAULT_GENERATION = 1;
 
     /** 最大世代层级深度 */
-    public static final int MAX_GENERATION_DEPTH = 50;
+    public static final int MAX_GENERATION_DEPTH = 100;
 
     /** 节点名称最大长度 */
     public static final int MAX_NAME_LENGTH = 50;

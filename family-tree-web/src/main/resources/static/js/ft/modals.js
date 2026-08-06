@@ -14,8 +14,9 @@
     // ========== 模态框基座 ==========
     function showModal(html, wide) {
         const sizeClass = typeof wide === 'string' ? wide : (wide ? 'modal-wide' : '');
+        const closeBtn = '<button class="modal-close" onclick="window._closeModal()" title="关闭">&times;</button>';
         const modalContainer = document.getElementById('modal-container');
-        modalContainer.innerHTML = '<div class="modal-overlay"><div class="modal' + (sizeClass ? ' ' + sizeClass : '') + '">' + html + '</div></div>';
+        modalContainer.innerHTML = '<div class="modal-overlay"><div class="modal' + (sizeClass ? ' ' + sizeClass : '') + '">' + closeBtn + html + '</div></div>';
         modalContainer.querySelector('.modal-overlay').addEventListener('click', function (e) {
             if (e.target === this) closeModal();
         });
@@ -349,52 +350,138 @@
     }
 
     // ========== 辈分管理 ==========
-    // 辈分管理弹窗：10 行 × 5 列网格（共 50 世），紧凑布局一屏展示
+    // 辈分管理弹窗：支持自定义行列矩阵，初始从后端加载，可加行加列，上限 100 世
     function showGenerationModal() {
         const counts = FT.collectGenerationCounts(FT.state.treeData, {});
         const generationNames = FT.state.generationNames;
-        const TOTAL = 50;
+        const MAX_TOTAL = 100;
 
-        let cells = '';
-        for (let g = 1; g <= TOTAL; g++) {
-            const count = counts[g] || 0;
-            cells += '<div class="gen-cell">' +
-                '<div class="gen-cell-head"><span>第' + g + '世</span>' +
-                (count > 0 ? '<span class="gen-count">' + count + '人</span>' : '') +
-                '</div>' +
-                '<input type="text" class="gen-input" data-gen="' + g + '" maxlength="10" ' +
-                'value="' + FT.escapeAttr(generationNames[g] || '') + '" placeholder="辈分名">' +
-                '</div>';
+        // 从 state 读取当前布局
+        let genCols = FT.state.generationCols || 5;
+        let genRows = FT.state.generationRows || 5;
+
+        // 计算已配置辈分名的最大世代号，确保矩阵能覆盖
+        let maxConfigured = 0;
+        for (let g = 1; g <= MAX_TOTAL; g++) {
+            if (generationNames[g]) { maxConfigured = g; }
+        }
+        // 若已配置辈分超出当前矩阵范围，自动扩展行数
+        while (genCols * genRows < maxConfigured && genCols * genRows < MAX_TOTAL) {
+            genRows++;
         }
 
-        const totalCount = Object.values(counts).reduce(function (s, v) { return s + v; }, 0);
-
-        showModal(
-            '<h3 style="margin-bottom:10px;">辈分管理 <span style="font-weight:normal;font-size:13px;color:#888;">共 ' + totalCount + ' 人</span></h3>' +
-            '<div class="gen-grid">' + cells + '</div>' +
-            '<div class="modal-actions" style="margin-top:10px;">' +
-            '<button class="btn-cancel" onclick="window._closeModal()">取消</button>' +
-            '<button class="btn-confirm" id="gen-save">保存</button></div>',
-            true
-        );
-
-        document.getElementById('gen-save').addEventListener('click', async function () {
-            const payload = [];
-            for (let g = 1; g <= TOTAL; g++) {
-                const input = document.querySelector('.gen-input[data-gen="' + g + '"]');
-                payload.push({generation: g, name: input ? input.value.trim() : ''});
+        function buildContentHtml() {
+            const total = Math.min(genCols * genRows, MAX_TOTAL);
+            let cells = '';
+            for (let g = 1; g <= total; g++) {
+                const count = counts[g] || 0;
+                const hasName = !!generationNames[g];
+                cells += '<div class="gen-cell' + (hasName ? ' gen-cell-configured' : '') + '">' +
+                    '<div class="gen-cell-head"><span>第' + g + '世</span>' +
+                    (count > 0 ? '<span class="gen-count">' + count + '人</span>' : '') +
+                    '</div>' +
+                    '<input type="text" class="gen-input" data-gen="' + g + '" maxlength="10" ' +
+                    'value="' + FT.escapeAttr(generationNames[g] || '') + '" placeholder="辈分名">' +
+                    '</div>';
             }
-            const res = await FT.api('/api/generation', {
-                method: 'PUT',
-                body: JSON.stringify(payload)
+
+            const totalCount = Object.values(counts).reduce(function (s, v) { return s + v; }, 0);
+            const canAddRow = (genCols * (genRows + 1)) <= MAX_TOTAL;
+            const canAddCol = ((genCols + 1) * genRows) <= MAX_TOTAL;
+
+            return '<h3 style="margin-bottom:8px;">辈分管理 <span style="font-weight:normal;font-size:13px;color:#888;">共 ' + totalCount + ' 人</span></h3>' +
+                '<div class="gen-toolbar">' +
+                '<span class="gen-matrix-info">' + genCols + ' 列 × ' + genRows + ' 行（' + total + ' 世）</span>' +
+                '<div class="gen-toolbar-btns">' +
+                '<button class="btn-sm" id="gen-add-row" ' + (canAddRow ? '' : 'disabled title="已达上限"') + '>+ 加一行</button>' +
+                '<button class="btn-sm" id="gen-add-col" ' + (canAddCol ? '' : 'disabled title="已达上限"') + '>+ 加一列</button>' +
+                '</div>' +
+                '</div>' +
+                '<div class="gen-grid" style="grid-template-columns:repeat(' + genCols + ',1fr);">' + cells + '</div>' +
+                '<div class="modal-actions" style="margin-top:10px;">' +
+                '<button class="btn-cancel" onclick="window._closeModal()">取消</button>' +
+                '<button class="btn-confirm" id="gen-save">保存</button></div>';
+        }
+
+        // 首次用 showModal 打开弹框
+        showModal(buildContentHtml(), true);
+
+        function bindEvents() {
+            // 加一行
+            var addRowBtn = document.getElementById('gen-add-row');
+            if (addRowBtn) {
+                addRowBtn.addEventListener('click', function () {
+                    saveCurrentInputs();
+                    genRows++;
+                    refreshGrid();
+                });
+            }
+            // 加一列
+            var addColBtn = document.getElementById('gen-add-col');
+            if (addColBtn) {
+                addColBtn.addEventListener('click', function () {
+                    saveCurrentInputs();
+                    genCols++;
+                    refreshGrid();
+                });
+            }
+            // 保存
+            var saveBtn = document.getElementById('gen-save');
+            if (saveBtn) {
+                saveBtn.addEventListener('click', async function () {
+                    var total = Math.min(genCols * genRows, MAX_TOTAL);
+                    var payload = [];
+                    // 收集当前矩阵内的输入
+                    for (var g = 1; g <= total; g++) {
+                        var input = document.querySelector('.gen-input[data-gen="' + g + '"]');
+                        payload.push({generation: g, name: input ? input.value.trim() : ''});
+                    }
+                    // 超出当前矩阵但已配置的辈分也要提交（防止丢失）
+                    for (var g2 = total + 1; g2 <= MAX_TOTAL; g2++) {
+                        if (generationNames[g2]) {
+                            payload.push({generation: g2, name: generationNames[g2]});
+                        }
+                    }
+                    // 保存辈分名
+                    var res = await FT.api('/api/generation', {
+                        method: 'PUT',
+                        body: JSON.stringify(payload)
+                    });
+                    if (res.code !== 200) {
+                        FT.toast(res.message || '保存失败');
+                        return;
+                    }
+                    // 保存行列布局
+                    await FT.api('/api/generation/layout', {
+                        method: 'PUT',
+                        body: JSON.stringify({cols: genCols, rows: genRows})
+                    });
+                    // 更新 state
+                    FT.state.generationCols = genCols;
+                    FT.state.generationRows = genRows;
+                    closeModal();
+                    await FT.loadTree();
+                });
+            }
+        }
+
+        // 保存当前输入值到 generationNames（临时，用于矩阵重排时保留）
+        function saveCurrentInputs() {
+            document.querySelectorAll('.gen-input[data-gen]').forEach(function (inp) {
+                var g = parseInt(inp.getAttribute('data-gen'), 10);
+                generationNames[g] = inp.value.trim();
             });
-            if (res.code === 200) {
-                closeModal();
-                await FT.loadTree();
-            } else {
-                FT.toast(res.message || '保存失败');
-            }
-        });
+        }
+
+        // 刷新网格内容（加行/加列后调用）
+        function refreshGrid() {
+            var modal = document.querySelector('.modal');
+            if (!modal) return;
+            modal.innerHTML = buildContentHtml();
+            bindEvents();
+        }
+
+        bindEvents();
     }
 
     // ========== 祭奠（香烛缅怀） ==========
@@ -451,18 +538,22 @@
             '</div>';
     }
 
-    // 依据后端统计渲染祭奠面板：上香烛 / 烧纸按钮 + 各自的总次数
+    // 依据后端统计渲染祭奠面板：敬献（香烛+烧纸合一）/ 送鲜花 按钮 + 各自的总次数
     function buildOfferingPanelHtml(nodeId, stats) {
+        const escId = FT.escapeAttr(nodeId);
         let html = '<div class="offering-actions">' +
-            '<button class="offering-btn offering-btn--incense js-offering-btn" data-node-id="' + FT.escapeAttr(nodeId) + '" data-type="1">上香烛</button>' +
-            '<button class="offering-btn offering-btn--paper js-offering-btn" data-node-id="' + FT.escapeAttr(nodeId) + '" data-type="2">烧纸</button>' +
+            '<button class="offering-btn offering-btn--incense js-offering-btn" data-node-id="' + escId + '" data-type="4">敬献</button>' +
+            '<button class="offering-btn offering-btn--flower js-offering-btn" data-node-id="' + escId + '" data-type="3">送鲜花</button>' +
             '</div>';
+        const statClassMap = {3: 'flower', 4: 'worship'};
+        const emptyTextMap = {3: '暂无人送鲜花', 4: '暂无人敬献'};
         html += '<div class="offering-stats">';
         (stats || []).forEach(function (stat) {
-            const isIncense = stat.offeringType === 1;
-            const emptyText = isIncense ? '暂无人上香烛' : '暂无人烧纸';
+            if (stat.offeringType === 1 || stat.offeringType === 2) return;
+            const cssClass = statClassMap[stat.offeringType] || 'incense';
+            const emptyText = emptyTextMap[stat.offeringType] || '暂无记录';
             const countText = stat.totalCount > 0 ? stat.totalCount + ' 次' : emptyText;
-            html += '<div class="offering-stat offering-stat--' + (isIncense ? 'incense' : 'paper') + '">' +
+            html += '<div class="offering-stat offering-stat--' + cssClass + '">' +
                 '<div class="offering-stat-head">' +
                 '<span class="offering-stat-name">' + FT.escapeHtml(stat.typeName) + '</span>' +
                 '<span class="offering-stat-count">' + countText + '</span>' +
@@ -488,22 +579,22 @@
         wireOfferingButtons(nodeId);
     }
 
-    // 绑定上香烛 / 烧纸按钮：每次点击记录一次，成功后刷新统计
+    // 绑定敬献 / 送鲜花按钮：每次点击记录一次，成功后刷新统计
     function wireOfferingButtons(nodeId) {
         document.querySelectorAll('.js-offering-btn').forEach(function (btn) {
             btn.addEventListener('click', async function () {
-                const type = parseInt(btn.dataset.type, 10);
+                var offeringType = parseInt(btn.dataset.type, 10);
                 btn.disabled = true;
-                const res = await FT.api('/api/offering', {
+                var res = await FT.api('/api/offering', {
                     method: 'POST',
-                    body: JSON.stringify({nodeId: nodeId, offeringType: type})
+                    body: JSON.stringify({nodeId: nodeId, offeringType: offeringType})
                 });
                 btn.disabled = false;
                 if (res.code !== 200) {
                     FT.toast(res.message || '操作失败');
                     return;
                 }
-                playOfferingEffect(type);
+                playOfferingEffect(offeringType);
                 await loadOfferingPanel(nodeId);
             });
         });
@@ -518,11 +609,34 @@
         }
         const fx = document.createElement('div');
         fx.className = 'offering-fx';
-        fx.innerHTML = type === 1 ? buildIncenseFxHtml() : buildPaperFxHtml();
+        if (type === 4) {
+            fx.innerHTML = buildWorshipFxHtml();
+        } else if (type === 3) {
+            fx.innerHTML = buildFlowerFxHtml();
+        } else if (type === 1) {
+            fx.innerHTML = buildIncenseFxHtml();
+        } else {
+            fx.innerHTML = buildPaperFxHtml();
+        }
         scene.appendChild(fx);
         setTimeout(function () {
             fx.remove();
         }, FT.OFFERING_FX_DURATION);
+    }
+
+    // 敬献动效（香烛+烧纸合一）：金光 + 火苗 + 青烟 + 浮字
+    function buildWorshipFxHtml() {
+        return '<div class="fx-glow"></div>' +
+            '<span class="fx-smoke fx-smoke--1"></span>' +
+            '<span class="fx-smoke fx-smoke--2"></span>' +
+            '<span class="fx-smoke fx-smoke--3"></span>' +
+            '<div class="fx-paper fx-paper--mini">' +
+            '<span class="fx-flame fx-flame--1"></span>' +
+            '<span class="fx-flame fx-flame--2"></span>' +
+            '<span class="fx-ember fx-ember--1"></span>' +
+            '<span class="fx-ember fx-ember--2"></span>' +
+            '</div>' +
+            '<div class="fx-text fx-text--worship">祭品已敬上</div>';
     }
 
     // 上香烛动效：香炉泛起金光、青烟缭绕升起、浮字"香烛已敬上"
@@ -548,6 +662,20 @@
             '</div>' +
             '<span class="fx-smoke fx-smoke--paper"></span>' +
             '<div class="fx-text fx-text--paper">纸钱已焚化</div>';
+    }
+
+    // 送鲜花动效：花瓣从上方飘落、浮字"鲜花已敬献"
+    function buildFlowerFxHtml() {
+        return '<span class="fx-petal fx-petal--1"></span>' +
+            '<span class="fx-petal fx-petal--2"></span>' +
+            '<span class="fx-petal fx-petal--3"></span>' +
+            '<span class="fx-petal fx-petal--4"></span>' +
+            '<span class="fx-petal fx-petal--5"></span>' +
+            '<span class="fx-petal fx-petal--6"></span>' +
+            '<span class="fx-petal fx-petal--7"></span>' +
+            '<span class="fx-petal fx-petal--8"></span>' +
+            '<div class="fx-flower-bloom"></div>' +
+            '<div class="fx-text fx-text--flower">鲜花已敬献</div>';
     }
 
     // ========== 节点详情 ==========
@@ -711,13 +839,56 @@
             '<input type="date" id="marriage-date" value="' + FT.escapeAttr(currentMarriageDate || '') + '"></div>' +
             '<div class="form-group"><label>离异日期（选填）</label>' +
             '<input type="date" id="divorce-date" value="' + FT.escapeAttr(currentDivorceDate || '') + '"></div>' +
-            '<p style="font-size:13px;color:#999;margin-bottom:12px;">日期均为选填。「标记离异」可不填日期直接标记；「标记丧偶」表示配偶一方已去世；「恢复在婚」将清除离异和丧偶状态。</p>' +
-            '<div class="modal-actions">' +
+            '<div class="modal-actions" style="position:relative;">' +
             '<button class="btn-cancel" onclick="window._closeModal()">取消</button>' +
-            '<button class="btn-sm danger" id="divorce-clear">恢复在婚</button>' +
-            '<button class="btn-sm" id="widowed-save" style="background:#6d597a;border-color:#6d597a;">标记丧偶</button>' +
-            '<button class="btn-confirm" id="divorce-save">标记离异</button></div>'
+            '<button class="btn-confirm" id="date-only-save" style="background:#4a7c59;border-color:#4a7c59;">保存日期</button>' +
+            '<div style="position:relative;display:inline-block;margin-left:8px;">' +
+            '<button class="btn-sm" id="btn-more-marriage">更多 ▾</button>' +
+            '<div class="marriage-more-dropdown" id="marriage-more-dropdown" style="display:none;position:absolute;bottom:100%;right:0;margin-bottom:4px;min-width:120px;background:#faf5e6;border:1px solid #d8cba8;border-radius:6px;box-shadow:0 -4px 12px rgba(0,0,0,0.1);z-index:1000;overflow:hidden;">' +
+            '<div class="marriage-more-item" id="divorce-clear" style="padding:8px 16px;font-size:13px;cursor:pointer;color:#a63a2b;border-bottom:1px solid rgba(216,203,168,0.4);">恢复在婚</div>' +
+            '<div class="marriage-more-item" id="widowed-save" style="padding:8px 16px;font-size:13px;cursor:pointer;color:#6d597a;border-bottom:1px solid rgba(216,203,168,0.4);">标记丧偶</div>' +
+            '<div class="marriage-more-item" id="divorce-save" style="padding:8px 16px;font-size:13px;cursor:pointer;color:#2b2622;">标记离异</div>' +
+            '</div></div></div>'
         , 'modal-medium');
+
+        // 更多按钮下拉切换
+        var btnMoreMarriage = document.getElementById('btn-more-marriage');
+        var marriageDropdown = document.getElementById('marriage-more-dropdown');
+        btnMoreMarriage.addEventListener('click', function (e) {
+            e.stopPropagation();
+            var isVisible = marriageDropdown.style.display !== 'none';
+            marriageDropdown.style.display = isVisible ? 'none' : 'block';
+        });
+        // 点击空白处关闭下拉
+        document.addEventListener('click', function (e) {
+            if (!btnMoreMarriage.contains(e.target) && !marriageDropdown.contains(e.target)) {
+                marriageDropdown.style.display = 'none';
+            }
+        });
+        // 下拉项点击后关闭
+        marriageDropdown.querySelectorAll('.marriage-more-item').forEach(function (item) {
+            item.addEventListener('click', function () {
+                marriageDropdown.style.display = 'none';
+            });
+            item.addEventListener('mouseenter', function () { this.style.background = '#d8cba8'; });
+            item.addEventListener('mouseleave', function () { this.style.background = ''; });
+        });
+
+        // 仅保存日期（不改变离异/丧偶状态）
+        document.getElementById('date-only-save').addEventListener('click', async function () {
+            const marriageDate = document.getElementById('marriage-date').value || null;
+            const divorceDate = document.getElementById('divorce-date').value || null;
+            const res = await FT.api('/api/relation', {
+                method: 'PUT',
+                body: JSON.stringify({id: relationId, marriageDate: marriageDate, divorceDate: divorceDate})
+            });
+            if (res.code === 200) {
+                closeModal();
+                await FT.loadTree();
+            } else {
+                FT.toast(res.message || '保存失败');
+            }
+        });
 
         // 标记离异：日期非必填，同时清除丧偶状态
         document.getElementById('divorce-save').addEventListener('click', async function () {

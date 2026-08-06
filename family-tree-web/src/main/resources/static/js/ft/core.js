@@ -69,6 +69,9 @@
         collapsedNodes: new Set(),
         // 世代号 → 辈分名（字辈）映射，loadTree 时刷新
         generationNames: {},
+        // 辈分管理行列布局
+        generationCols: 5,
+        generationRows: 5,
         // 当前被点击高亮的辈分（世代号），null 表示未高亮
         highlightedGeneration: null,
         // 只看健在（隐藏已故节点）开关

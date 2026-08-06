@@ -41,6 +41,29 @@
                 familyNameEl.textContent = res.data.familyName || '';
             }
 
+            // 卷轴封面动态显示家族名称（如：蒙氏族谱、嬴氏族谱）
+            var scrollSealEl = document.getElementById('scroll-seal-text');
+            if (scrollSealEl && res.data.familyName) {
+                var familyName = res.data.familyName;
+                var sealText = '族谱';
+                // 如果家族名称格式为"X氏家族"，提取X
+                if (familyName.length >= 2 && familyName.charAt(1) === '氏') {
+                    sealText = familyName.charAt(0) + '氏族谱';
+                } else if (familyName.length >= 3 && familyName.indexOf('氏家族') >= 0) {
+                    // 如果包含"氏家族"，提取"氏"前面的字
+                    var idx = familyName.indexOf('氏');
+                    if (idx > 0) {
+                        sealText = familyName.charAt(idx - 1) + '氏族谱';
+                    } else {
+                        sealText = familyName + '族谱';
+                    }
+                } else {
+                    // 其他情况直接使用家族名称
+                    sealText = familyName + '族谱';
+                }
+                scrollSealEl.textContent = sealText;
+            }
+
             // 族长/管理员标识
             var role = res.data.familyRole;
             if (role === 'OWNER' || role === 'ADMIN') {

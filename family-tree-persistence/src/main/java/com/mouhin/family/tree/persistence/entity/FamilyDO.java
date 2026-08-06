@@ -35,6 +35,12 @@ public class FamilyDO {
     /** 籍贯 */
     private String ancestralHome;
 
+    /** 辈分管理列数 */
+    private Integer generationCols;
+
+    /** 辈分管理行数 */
+    private Integer generationRows;
+
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

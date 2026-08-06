@@ -31,7 +31,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * 祭奠服务实现类（上香烛 / 烧纸）
+ * 祭奠服务实现类（上香烛 / 烧纸 / 送鲜花）
  *
  * @author Family-Tree
  * @date 2026-08-01
@@ -67,7 +67,7 @@ public class FamilyOfferingServiceImpl implements FamilyOfferingService {
 
         FamilyNodeDO node = familyNodeMapper.selectById(dto.getNodeId());
         if (node.getDeathDate() == null) {
-            throw new BusinessException("只能为已故长辈上香烛或烧纸");
+            throw new BusinessException("只能为已故长辈敬献祭品");
         }
 
         // 后端校验：目标必须是登录人的长辈（世代数更小，更靠近始祖）
@@ -76,7 +76,7 @@ public class FamilyOfferingServiceImpl implements FamilyOfferingService {
             FamilyNodeDO userNode = familyNodeMapper.selectById(currentUser.getNodeId());
             if (userNode != null && node.getGeneration() != null && userNode.getGeneration() != null
                     && node.getGeneration() >= userNode.getGeneration()) {
-                throw new BusinessException("只能为已故长辈上香烛或烧纸");
+                throw new BusinessException("只能为已故长辈敬献祭品");
             }
         }
 
@@ -104,8 +104,8 @@ public class FamilyOfferingServiceImpl implements FamilyOfferingService {
         Map<Long, String> nicknameMap = buildNicknameMap(records);
 
         List<OfferingStatVO> stats = new ArrayList<>(OfferingTypeEnum.values().length);
-        stats.add(buildStat(OfferingTypeEnum.INCENSE, records, nicknameMap));
-        stats.add(buildStat(OfferingTypeEnum.PAPER, records, nicknameMap));
+        stats.add(buildStat(OfferingTypeEnum.FLOWER, records, nicknameMap));
+        stats.add(buildStat(OfferingTypeEnum.WORSHIP, records, nicknameMap));
         return stats;
     }
 

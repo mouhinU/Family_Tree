@@ -182,6 +182,7 @@
                     // 横向布局：父节点右缘 → 子节点左缘
                     links.push({
                         type: 'parent',
+                        fromNodeId: node.id,
                         x1: nx + FT.NODE_WIDTH, y1: ny + FT.NODE_HEIGHT / 2,
                         x2: childNode.x, y2: childNode.y + FT.NODE_HEIGHT / 2
                     });
@@ -189,6 +190,7 @@
                     // 纵向布局：父节点底缘 → 子节点顶缘
                     links.push({
                         type: 'parent',
+                        fromNodeId: node.id,
                         x1: nx + FT.NODE_WIDTH / 2, y1: ny + FT.NODE_HEIGHT,
                         x2: childNode.x + FT.NODE_WIDTH / 2, y2: childNode.y
                     });
@@ -200,7 +202,69 @@
         return {cross: crossStart + usedCross, node: selfLayoutNode};
     }
 
+    // 「只看健在」子女重挂：
+    // 1. 已故主节点 → 子女挂到健在配偶/前配偶，已故主节点降为卫星占位。
+    // 2. 离异主节点 → 子女挂到健在前配偶，原主节点降为卫星占位。
+    // 已故/降级的节点保留布局位置，连线经过但不显示卡片。
+    // 生成新对象，不修改原始 treeData。
+    function buildHideDeceasedReassignTree(nodes) {
+        return nodes.map(function (node) {
+            var processedChildren = buildHideDeceasedReassignTree(node.children || []);
+            var isMainDeceased = FT.isDeceased(node);
+
+            if (isMainDeceased) {
+                // 主节点已故 → 找健在配偶或前配偶顶替主节点位置
+                var livingSpouse = null;
+                (node.spouses || []).forEach(function (sp) {
+                    if (!livingSpouse && !FT.isDeceased(sp)) { livingSpouse = sp; }
+                });
+                if (!livingSpouse) {
+                    (node.formerSpouses || []).forEach(function (sp) {
+                        if (!livingSpouse && !FT.isDeceased(sp)) { livingSpouse = sp; }
+                    });
+                }
+                if (livingSpouse) {
+                    return promoteSpouse(node, livingSpouse, processedChildren);
+                }
+                // 无健在配偶 → 保持原结构（已故主节点保留占位，子女在其下）
+                return Object.assign({}, node, { children: processedChildren });
+            }
+
+            // 主节点健在 → 检查是否有离异且健在的前配偶，若有则子女挂到前配偶
+            var livingFormerSpouse = null;
+            (node.formerSpouses || []).forEach(function (sp) {
+                if (!livingFormerSpouse && !FT.isDeceased(sp) && Boolean(sp.divorced)) { livingFormerSpouse = sp; }
+            });
+            if (livingFormerSpouse) {
+                return promoteSpouse(node, livingFormerSpouse, processedChildren);
+            }
+
+            // 主节点健在且无需重挂 → 保持原结构，递归处理子女
+            return Object.assign({}, node, { children: processedChildren });
+        });
+    }
+
+    /**
+     * 将配偶提升为主节点，原主节点降为卫星占位。
+     */
+    function promoteSpouse(originalMain, promotedSpouse, children) {
+        var otherSatellites = [];
+        (originalMain.spouses || []).forEach(function (sp) {
+            if (sp !== promotedSpouse) { otherSatellites.push(sp); }
+        });
+        (originalMain.formerSpouses || []).forEach(function (sp) {
+            if (sp !== promotedSpouse) { otherSatellites.push(sp); }
+        });
+        return Object.assign({}, promotedSpouse, {
+            spouses: otherSatellites.filter(function (sp) { return !FT.isDeceased(sp); }),
+            formerSpouses: otherSatellites.filter(function (sp) { return FT.isDeceased(sp); }),
+            bloodSpouses: originalMain.bloodSpouses || [],
+            children: children
+        });
+    }
+
     FT.buildLivingTree = buildLivingTree;
     FT.buildHideMarryOutTree = buildHideMarryOutTree;
+    FT.buildHideDeceasedReassignTree = buildHideDeceasedReassignTree;
     FT.layoutSubTree = layoutSubTree;
 })();

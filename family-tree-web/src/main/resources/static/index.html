@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>族谱管理系统</title>
-    <link rel="stylesheet" href="/css/style.css?v=20260804c">
+    <link rel="stylesheet" href="/css/style.css?v=20260805h">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -24,7 +24,7 @@
         <div class="scroll-rod rod-left"></div>
         <div class="scroll-rod rod-right"></div>
         <div class="scroll-center">
-            <div class="scroll-seal">蒙氏族谱</div>
+            <div class="scroll-seal" id="scroll-seal-text">族谱</div>
             <div class="scroll-subtitle">木有本 · 水有源 · 世代相传</div>
             <button type="button" class="scroll-open-btn" id="btn-open-scroll">开启卷轴</button>
         </div>
@@ -40,7 +40,6 @@
             <button class="btn-sm" id="btn-family">家族管理</button>
             <button class="btn-sm" id="btn-timeline" title="家族时间线">时间线</button>
             <button class="btn-sm" id="btn-relation-path" title="关系路径分析">关系路径</button>
-            <button class="btn-sm" id="btn-death-anniversary" title="忌日提醒">忌日提醒</button>
         </div>
         <div class="header-search">
             <input type="text" id="search-input" placeholder="搜索族人..." autocomplete="off">
@@ -53,6 +52,7 @@
                 <div class="header-more-dropdown" id="header-more-dropdown" style="display:none;">
                     <div class="header-more-item" id="btn-profile" title="维护个人信息">个人信息</div>
                     <div class="header-more-item" id="btn-family-switch" title="切换家族">切换家族</div>
+                    <div class="header-more-item" id="btn-death-anniversary" title="忌日提醒">忌日提醒</div>
                     <div class="header-more-item" id="btn-operation-log" style="display:none;">操作日志</div>
                 </div>
             </div>
@@ -124,13 +124,13 @@
     <div id="modal-container"></div>
 
     <!-- 前端模块化拆分：core 定义命名空间/常量/状态，main 启动应用，顺序不可调换 -->
-    <script src="/js/ft/core.js?v=20260804b"></script>
-    <script src="/js/ft/api.js?v=20260804b"></script>
-    <script src="/js/ft/layout.js?v=20260804b"></script>
-    <script src="/js/ft/render.js?v=20260804b"></script>
+    <script src="/js/ft/core.js?v=20260804c"></script>
+    <script src="/js/ft/api.js?v=20260804c"></script>
+    <script src="/js/ft/layout.js?v=20260805c"></script>
+    <script src="/js/ft/render.js?v=20260805j"></script>
     <script src="/js/ft/export.js?v=20260804b"></script>
-    <script src="/js/ft/modals.js?v=20260804d"></script>
+    <script src="/js/ft/modals.js?v=20260805d"></script>
     <script src="/js/ft/context-menu.js?v=20260804b"></script>
-    <script src="/js/ft/main.js?v=20260804c"></script>
+    <script src="/js/ft/main.js?v=20260804e"></script>
 </body>
 </html>
