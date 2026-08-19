@@ -12,6 +12,8 @@ import com.mouhin.family.tree.persistence.entity.FamilyRelationDO;
 import com.mouhin.family.tree.persistence.mapper.FamilyNodeMapper;
 import com.mouhin.family.tree.persistence.mapper.FamilyRelationMapper;
 import com.mouhin.family.tree.service.FamilyTreeService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -40,6 +42,7 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
 
     private final FamilyNodeMapper familyNodeMapper;
     private final FamilyRelationMapper familyRelationMapper;
+    private final Counter treeBuildCounter;
 
     /** 树缓存最大家族数：家庭内部系统，远超实际规模，仅作内存保护 */
     private static final int MAX_CACHED_FAMILIES = 200;
@@ -52,16 +55,26 @@ public class FamilyTreeServiceImpl implements FamilyTreeService {
     private final Cache<Long, List<TreeNodeVO>> fullTreeCache = Caffeine.newBuilder()
             .maximumSize(MAX_CACHED_FAMILIES)
             .expireAfterWrite(TREE_CACHE_TTL)
+            .recordStats()
             .build();
 
-    public FamilyTreeServiceImpl(FamilyNodeMapper familyNodeMapper, FamilyRelationMapper familyRelationMapper) {
+    public FamilyTreeServiceImpl(FamilyNodeMapper familyNodeMapper,
+                                 FamilyRelationMapper familyRelationMapper,
+                                 MeterRegistry meterRegistry) {
         this.familyNodeMapper = familyNodeMapper;
         this.familyRelationMapper = familyRelationMapper;
+        this.treeBuildCounter = Counter.builder("family.tree.build")
+                .description("族谱树构建次数")
+                .tag("type", "full")
+                .register(meterRegistry);
     }
 
     @Override
     public List<TreeNodeVO> getFullTree(Long familyId) {
-        return fullTreeCache.get(familyId, fid -> buildFullTree(fid));
+        return fullTreeCache.get(familyId, fid -> {
+            treeBuildCounter.increment();
+            return buildFullTree(fid);
+        });
     }
 
     @Override

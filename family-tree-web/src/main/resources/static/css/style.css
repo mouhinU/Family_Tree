@@ -264,6 +264,12 @@ body {
     margin-top: 2px;
 }
 
+.search-subtitle {
+    font-size: 11px;
+    color: var(--ink-light, #7a756e);
+    margin-top: 1px;
+}
+
 .search-empty {
     padding: 12px 14px;
     text-align: center;

@@ -1,6 +1,8 @@
 package com.mouhin.family.tree.web.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
+import com.mouhin.family.tree.common.dto.PageResult;
 import com.mouhin.family.tree.common.result.Result;
 import com.mouhin.family.tree.persistence.entity.FamilyNodeDO;
 import com.mouhin.family.tree.persistence.entity.FamilyRelationDO;
@@ -24,7 +26,7 @@ import java.util.Map;
  * 家族动态时间线控制器
  *
  * @author Family-Tree
- * @date 2026-08-04
+ * @date 2026-08-09
  */
 @RestController
 @RequestMapping("/api/timeline")
@@ -42,13 +44,19 @@ public class TimelineController extends BaseController {
     }
 
     /**
-     * 获取家族时间线事件列表
+     * 获取家族时间线事件列表（分页）
      *
-     * @param year 指定年份（可选，不传则返回全部）
+     * @param year  指定年份（可选，不传则返回全部年份的事件）
+     * @param page  当前页码，默认1
+     * @param size  每页大小，默认50
+     * @param session HTTP会话
+     * @return 分页后的时间线事件
      */
     @GetMapping
-    public Result<List<Map<String, Object>>> getTimeline(
+    public Result<PageResult<Map<String, Object>>> getTimeline(
             @RequestParam(required = false) Integer year,
+            @RequestParam(defaultValue = "" + FamilyTreeConsts.DEFAULT_PAGE) int page,
+            @RequestParam(defaultValue = "" + FamilyTreeConsts.DEFAULT_PAGE_SIZE) int size,
             HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
 
@@ -57,7 +65,7 @@ public class TimelineController extends BaseController {
         List<FamilyNodeDO> nodes = familyNodeMapper.selectList(nodeQuery);
 
         // 构建节点名映射
-        Map<Long, String> nodeNameMap = new HashMap<>();
+        Map<Long, String> nodeNameMap = new HashMap<>(nodes.size());
         for (FamilyNodeDO node : nodes) {
             nodeNameMap.put(node.getId(), node.getName());
         }
@@ -110,6 +118,21 @@ public class TimelineController extends BaseController {
         // 按日期排序
         events.sort(Comparator.comparing(e -> (String) e.get("date")));
 
-        return Result.success(events);
+        // 分页处理
+        long total = events.size();
+        int fromIndex = (page - 1) * size;
+        List<Map<String, Object>> pageRecords;
+        if (fromIndex >= total) {
+            pageRecords = new ArrayList<>();
+        } else {
+            int toIndex = (int) Math.min(fromIndex + size, total);
+            pageRecords = new ArrayList<>(events.subList(fromIndex, toIndex));
+        }
+
+        logger.info("Timeline query: familyId={}, year={}, page={}, size={}, totalEvents={}",
+                familyId, year, page, size, total);
+
+        PageResult<Map<String, Object>> pageResult = new PageResult<>(pageRecords, total, page, size);
+        return Result.success(pageResult);
     }
 }

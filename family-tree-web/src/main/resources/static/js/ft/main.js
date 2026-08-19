@@ -265,9 +265,25 @@
                 if (n.generation) meta.push('第' + n.generation + '世');
                 if (n.gender === 1) meta.push('男');
                 else if (n.gender === 2) meta.push('女');
+                // 传统名字字段（字、号、讳）
+                var traditionalNames = [];
+                if (n.hui) traditionalNames.push('讳' + n.hui);
+                if (n.zi) traditionalNames.push('字' + n.zi);
+                if (n.hao) traditionalNames.push('号' + n.hao);
+                if (traditionalNames.length > 0) meta.push(traditionalNames.join(' '));
                 if (n.birthDate) meta.push(n.birthDate);
+                var nameDisplay = escapeHtml(n.name);
+                var subtitle = '';
+                if (n.hui || n.zi || n.hao) {
+                    var parts = [];
+                    if (n.hui) parts.push('讳' + escapeHtml(n.hui));
+                    if (n.zi) parts.push('字' + escapeHtml(n.zi));
+                    if (n.hao) parts.push('号' + escapeHtml(n.hao));
+                    subtitle = '<div class="search-subtitle">' + parts.join(' · ') + '</div>';
+                }
                 return '<div class="search-item" data-node-id="' + n.id + '">'
-                    + '<div class="search-name">' + escapeHtml(n.name) + '</div>'
+                    + '<div class="search-name">' + nameDisplay + '</div>'
+                    + subtitle
                     + (meta.length ? '<div class="search-meta">' + meta.join(' · ') + '</div>' : '')
                     + '</div>';
             }).join('');

@@ -8,9 +8,9 @@ import com.mouhin.family.tree.persistence.entity.FamilyNodeDO;
 import com.mouhin.family.tree.persistence.entity.FamilyRelationDO;
 import com.mouhin.family.tree.persistence.mapper.FamilyNodeMapper;
 import com.mouhin.family.tree.persistence.mapper.FamilyRelationMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -51,8 +51,12 @@ class FamilyTreeServiceImplTest {
     @Mock
     private FamilyRelationMapper familyRelationMapper;
 
-    @InjectMocks
     private FamilyTreeServiceImpl familyTreeService;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        familyTreeService = new FamilyTreeServiceImpl(familyNodeMapper, familyRelationMapper, new SimpleMeterRegistry());
+    }
 
     // ========== 数据构造辅助 ==========
 

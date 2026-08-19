@@ -25,6 +25,9 @@ public class PageResult<T> {
     /** 每页大小 */
     private int size;
 
+    /** 总页数 */
+    private int totalPages;
+
     public PageResult() {
     }
 
@@ -33,5 +36,10 @@ public class PageResult<T> {
         this.total = total;
         this.page = page;
         this.size = size;
+        this.totalPages = size > 0 ? (int) Math.ceil((double) total / size) : 0;
+    }
+
+    public int getTotalPages() {
+        return totalPages;
     }
 }

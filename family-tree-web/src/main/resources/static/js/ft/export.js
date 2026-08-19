@@ -3,7 +3,7 @@
  * 全量布局计算与 PDF 导出：宣纸背景 + 辈分水印 + 全量族谱 → 栅格化 → 单页 PDF。
  *
  * @author Family-Tree
- * @date 2026-08-02
+ * @date 2026-08-09
  */
 (function () {
     'use strict';
@@ -161,48 +161,127 @@
         });
     }
 
+    /**
+     * 创建导出进度全屏蒙层，返回蒙层元素及更新消息的方法。
+     *
+     * @returns {{overlay: HTMLElement, setMessage: function(string): void, remove: function(): void}}
+     */
+    function createProgressOverlay() {
+        var overlay = document.createElement('div');
+        overlay.id = 'export-progress-overlay';
+        overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;'
+            + 'background:rgba(0,0,0,0.55);z-index:99999;'
+            + 'display:flex;align-items:center;justify-content:center;';
+
+        var box = document.createElement('div');
+        box.style.cssText = 'background:#f0e8d2;border-radius:8px;padding:32px 48px;'
+            + 'text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.3);';
+
+        var msg = document.createElement('div');
+        msg.id = 'export-progress-msg';
+        msg.style.cssText = 'font-family:"KaiTi","楷体",serif;font-size:18px;color:#2b2622;'
+            + 'margin-bottom:12px;';
+        msg.textContent = '正在生成族谱…';
+
+        var dots = document.createElement('div');
+        dots.style.cssText = 'display:flex;justify-content:center;gap:6px;';
+        for (var i = 0; i < 3; i++) {
+            var dot = document.createElement('span');
+            dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:#a63a2b;'
+                + 'animation:exportPulse 1.2s infinite ease-in-out;';
+            dot.style.animationDelay = (i * 0.2) + 's';
+            dots.appendChild(dot);
+        }
+
+        box.appendChild(msg);
+        box.appendChild(dots);
+        overlay.appendChild(box);
+
+        // 注入脉冲动画样式（仅注入一次）
+        if (!document.getElementById('export-progress-style')) {
+            var style = document.createElement('style');
+            style.id = 'export-progress-style';
+            style.textContent = '@keyframes exportPulse{'
+                + '0%,80%,100%{transform:scale(0.4);opacity:0.3;}'
+                + '40%{transform:scale(1);opacity:1;}'
+                + '}';
+            document.head.appendChild(style);
+        }
+
+        document.body.appendChild(overlay);
+
+        return {
+            overlay: overlay,
+            setMessage: function (text) {
+                msg.textContent = text;
+            },
+            remove: function () {
+                if (overlay.parentNode) {
+                    overlay.parentNode.removeChild(overlay);
+                }
+            }
+        };
+    }
+
     // 导出族谱 PDF：全量渲染 → 栅格化 → 单页自定义尺寸 PDF 下载。
+    // 导出过程中显示全屏进度蒙层，各阶段更新提示文字。
     async function exportToPdf() {
-        const btn = document.getElementById('btn-export');
-        const originalText = btn.textContent;
+        var btn = document.getElementById('btn-export');
+        var originalText = btn.textContent;
         btn.disabled = true;
         btn.textContent = '导出中…';
+
+        var progress = createProgressOverlay();
+
         try {
             // 龙纹内联为 base64（SVG 作为图片加载时不允许外部资源）
-            const dragonDataUrl = await fetchAsDataUrl('/img/longwen.png');
-            const built = buildExportSvg(dragonDataUrl);
+            var dragonDataUrl = await fetchAsDataUrl('/img/longwen.png');
 
-            const svgStr = new XMLSerializer().serializeToString(built.svgEl);
-            const svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
-            const img = await loadImage(svgUrl);
+            // 阶段一：渲染族谱 SVG
+            progress.setMessage('正在渲染族谱…');
+            var built = buildExportSvg(dragonDataUrl);
 
-            // 栅格化：放大以提升清晰度，同时限制画布总尺寸避免超出浏览器上限
-            const scale = Math.min(2, 8000 / Math.max(built.width, built.height));
-            const canvas = document.createElement('canvas');
+            var svgStr = new XMLSerializer().serializeToString(built.svgEl);
+            var svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
+            var img = await loadImage(svgUrl);
+
+            // 阶段二：栅格化为位图
+            progress.setMessage('正在生成图片…');
+            // 放大以提升清晰度，同时限制画布总尺寸避免超出浏览器上限（6000px）
+            var scale = Math.min(2, 6000 / Math.max(built.width, built.height));
+            var canvas = document.createElement('canvas');
             canvas.width = Math.round(built.width * scale);
             canvas.height = Math.round(built.height * scale);
-            const ctx = canvas.getContext('2d');
+            var ctx = canvas.getContext('2d');
             ctx.fillStyle = '#f0e8d2';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            const pngUrl = canvas.toDataURL('image/png');
+            var pngUrl = canvas.toDataURL('image/png');
 
+            // 释放中间对象，避免大族谱导出时内存占用过高
+            img.src = '';
+            canvas.width = 0;
+            canvas.height = 0;
+
+            // 阶段三：生成 PDF
+            progress.setMessage('正在生成 PDF…');
             // 单页 PDF，页面尺寸按族谱实际比例（px → pt）
-            const wPt = built.width * 0.75;
-            const hPt = built.height * 0.75;
-            const pdf = new window.jspdf.jsPDF({
+            var wPt = built.width * 0.75;
+            var hPt = built.height * 0.75;
+            var pdf = new window.jspdf.jsPDF({
                 orientation: wPt >= hPt ? 'landscape' : 'portrait',
                 unit: 'pt',
                 format: [wPt, hPt],
                 compress: true
             });
             pdf.addImage(pngUrl, 'PNG', 0, 0, wPt, hPt);
-            const d = new Date();
-            const stamp = d.getFullYear() + ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2);
+            var d = new Date();
+            var stamp = d.getFullYear() + ('0' + (d.getMonth() + 1)).slice(-2) + ('0' + d.getDate()).slice(-2);
             pdf.save('族谱_' + stamp + '.pdf');
         } catch (e) {
             FT.toast('导出失败：' + (e && e.message ? e.message : e));
         } finally {
+            progress.remove();
             btn.disabled = false;
             btn.textContent = originalText;
         }

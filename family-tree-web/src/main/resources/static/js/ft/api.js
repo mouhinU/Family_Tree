@@ -25,15 +25,40 @@
         if (csrfToken) {
             headers['X-CSRF-TOKEN'] = csrfToken;
         }
-        const res = await fetch(url, Object.assign({headers: headers}, options));
+        var res;
+        try {
+            res = await fetch(url, Object.assign({headers: headers}, options));
+        } catch (networkErr) {
+            FT.toast('网络连接失败，请检查网络后重试', 'error');
+            throw new Error('network.error');
+        }
         if (res.status === 401) {
+            FT.toast('登录已过期，请重新登录', 'warning');
             window.location.href = '/login.html';
             throw new Error('unauthorized');
         }
         if (res.status === 403) {
-            // CSRF 校验失败，跳转登录页重新获取 token
+            FT.toast('安全校验失败，页面将刷新', 'warning');
             window.location.href = '/login.html';
             throw new Error('csrf.invalid');
+        }
+        if (res.status === 429) {
+            var retryAfter = res.headers.get('Retry-After') || '60';
+            FT.toast('操作过于频繁，请 ' + retryAfter + ' 秒后重试', 'warning');
+            throw new Error('rate_limited');
+        }
+        if (!res.ok) {
+            var errMsg = '请求失败 (' + res.status + ')';
+            try {
+                var errBody = await res.json();
+                if (errBody && errBody.message) {
+                    errMsg = errBody.message;
+                }
+            } catch (parseErr) {
+                // 非 JSON 响应，使用默认错误信息
+            }
+            FT.toast(errMsg, 'error');
+            throw new Error(errMsg);
         }
         return res.json();
     }

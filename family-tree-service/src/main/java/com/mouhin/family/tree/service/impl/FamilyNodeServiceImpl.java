@@ -320,24 +320,52 @@ public class FamilyNodeServiceImpl implements FamilyNodeService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void syncDescendantGenerations(Long familyId, Long nodeId, Integer generation) {
+        // 一次性加载该家族所有亲子关系到内存，避免 BFS 中逐节点查询的 N+1 问题
+        LambdaQueryWrapper<FamilyRelationDO> allChildQuery = new LambdaQueryWrapper<>();
+        allChildQuery.eq(FamilyRelationDO::getFamilyId, familyId)
+                .eq(FamilyRelationDO::getRelationType, RelationTypeEnum.PARENT_CHILD.getCode());
+        List<FamilyRelationDO> allChildRelations = familyRelationMapper.selectList(allChildQuery);
+
+        // 构建邻接表：parentId -> [childId, ...]
+        java.util.Map<Long, List<Long>> childrenMap = new java.util.HashMap<>();
+        for (FamilyRelationDO rel : allChildRelations) {
+            childrenMap.computeIfAbsent(rel.getFromNodeId(), k -> new java.util.ArrayList<>())
+                    .add(rel.getToNodeId());
+        }
+
+        // 一次性加载该家族所有配偶关系到内存，避免 syncSpouseGeneration 中逐节点查询
+        LambdaQueryWrapper<FamilyRelationDO> spouseQuery = new LambdaQueryWrapper<>();
+        spouseQuery.eq(FamilyRelationDO::getFamilyId, familyId)
+                .eq(FamilyRelationDO::getRelationType, RelationTypeEnum.SPOUSE.getCode());
+        List<FamilyRelationDO> allSpouseRelations = familyRelationMapper.selectList(spouseQuery);
+
+        // 构建配偶邻接表：nodeId -> [spouseId, ...]
+        java.util.Map<Long, List<Long>> spouseMap = new java.util.HashMap<>();
+        for (FamilyRelationDO rel : allSpouseRelations) {
+            spouseMap.computeIfAbsent(rel.getFromNodeId(), k -> new java.util.ArrayList<>())
+                    .add(rel.getToNodeId());
+            spouseMap.computeIfAbsent(rel.getToNodeId(), k -> new java.util.ArrayList<>())
+                    .add(rel.getFromNodeId());
+        }
+
+        // BFS：使用内存邻接表遍历，收集需要更新的节点
         Set<Long> visited = new HashSet<>();
         Deque<long[]> queue = new ArrayDeque<>();
         queue.offer(new long[]{nodeId, generation});
         visited.add(nodeId);
+
+        // 收集待更新：childId -> childGen
+        java.util.Map<Long, Integer> pendingUpdates = new java.util.HashMap<>();
+        // 收集需要同步配偶的节点：childId -> childGen
+        java.util.Map<Long, Integer> pendingSpouseSyncs = new java.util.HashMap<>();
 
         while (!queue.isEmpty()) {
             long[] current = queue.poll();
             long currentId = current[0];
             int currentGen = (int) current[1];
 
-            LambdaQueryWrapper<FamilyRelationDO> childQuery = new LambdaQueryWrapper<>();
-            childQuery.eq(FamilyRelationDO::getFamilyId, familyId)
-                    .eq(FamilyRelationDO::getFromNodeId, currentId)
-                    .eq(FamilyRelationDO::getRelationType, RelationTypeEnum.PARENT_CHILD.getCode());
-            List<FamilyRelationDO> childRelations = familyRelationMapper.selectList(childQuery);
-
-            for (FamilyRelationDO rel : childRelations) {
-                Long childId = rel.getToNodeId();
+            List<Long> childIds = childrenMap.getOrDefault(currentId, java.util.Collections.emptyList());
+            for (Long childId : childIds) {
                 if (visited.contains(childId)) {
                     continue;
                 }
@@ -347,19 +375,39 @@ public class FamilyNodeServiceImpl implements FamilyNodeService {
                     throw new BusinessException("世代层级不能超过"
                             + FamilyTreeConsts.MAX_GENERATION_DEPTH + "世");
                 }
-                LambdaUpdateWrapper<FamilyNodeDO> childUpdate = new LambdaUpdateWrapper<>();
-                childUpdate.eq(FamilyNodeDO::getId, childId)
-                        .eq(FamilyNodeDO::getFamilyId, familyId)
-                        .set(FamilyNodeDO::getGeneration, childGen)
-                        .set(FamilyNodeDO::getUpdateTime, LocalDateTime.now());
-                familyNodeMapper.update(null, childUpdate);
-
-                syncSpouseGeneration(familyId, childId, childGen);
+                pendingUpdates.put(childId, childGen);
+                pendingSpouseSyncs.put(childId, childGen);
                 queue.offer(new long[]{childId, childGen});
             }
         }
-        logger.info("Synced descendant generations from node={} gen={} for family={}",
-                nodeId, generation, familyId);
+
+        // 批量更新子节点辈分
+        for (java.util.Map.Entry<Long, Integer> entry : pendingUpdates.entrySet()) {
+            LambdaUpdateWrapper<FamilyNodeDO> childUpdate = new LambdaUpdateWrapper<>();
+            childUpdate.eq(FamilyNodeDO::getId, entry.getKey())
+                    .eq(FamilyNodeDO::getFamilyId, familyId)
+                    .set(FamilyNodeDO::getGeneration, entry.getValue())
+                    .set(FamilyNodeDO::getUpdateTime, LocalDateTime.now());
+            familyNodeMapper.update(null, childUpdate);
+        }
+
+        // 批量同步配偶辈分（使用内存中的配偶邻接表）
+        for (java.util.Map.Entry<Long, Integer> entry : pendingSpouseSyncs.entrySet()) {
+            Long childId = entry.getKey();
+            int childGen = entry.getValue();
+            List<Long> spouseIds = spouseMap.getOrDefault(childId, java.util.Collections.emptyList());
+            for (Long spouseId : spouseIds) {
+                LambdaUpdateWrapper<FamilyNodeDO> spouseUpdate = new LambdaUpdateWrapper<>();
+                spouseUpdate.eq(FamilyNodeDO::getId, spouseId)
+                        .eq(FamilyNodeDO::getFamilyId, familyId)
+                        .set(FamilyNodeDO::getGeneration, childGen)
+                        .set(FamilyNodeDO::getUpdateTime, LocalDateTime.now());
+                familyNodeMapper.update(null, spouseUpdate);
+            }
+        }
+
+        logger.info("Synced descendant generations from node={} gen={} for family={} ({} nodes updated)",
+                nodeId, generation, familyId, pendingUpdates.size());
 
         familyTreeService.evictFamilyTree(familyId);
     }
@@ -403,9 +451,13 @@ public class FamilyNodeServiceImpl implements FamilyNodeService {
         if (keyword == null || keyword.isBlank()) {
             return List.of();
         }
+        String kw = keyword.trim();
         LambdaQueryWrapper<FamilyNodeDO> query = new LambdaQueryWrapper<>();
         query.eq(FamilyNodeDO::getFamilyId, familyId)
-                .like(FamilyNodeDO::getName, keyword.trim())
+                .and(w -> w.like(FamilyNodeDO::getName, kw)
+                        .or().like(FamilyNodeDO::getZi, kw)
+                        .or().like(FamilyNodeDO::getHao, kw)
+                        .or().like(FamilyNodeDO::getHui, kw))
                 .orderByAsc(FamilyNodeDO::getGeneration)
                 .orderByAsc(FamilyNodeDO::getId)
                 .last("LIMIT 20");

@@ -47,10 +47,11 @@ public class SecurityHeadersFilter implements Filter {
         // 禁用浏览器 XSS 过滤器（现代浏览器推荐依赖 CSP）
         httpResp.setHeader("X-XSS-Protection", "0");
 
-        // 内容安全策略：允许同源资源 + 内联样式/脚本（前端使用内联 SVG）+ CDN（D3.js / jsPDF）
+        // 内容安全策略：允许同源资源 + CDN（D3.js / jsPDF），不使用 unsafe-inline
+        // script-src 已移除 unsafe-inline：所有动态按钮通过 data-* 属性 + addEventListener 绑定
         httpResp.setHeader("Content-Security-Policy",
                 "default-src 'self'; "
-                        + "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; "
+                        + "script-src 'self' https://cdnjs.cloudflare.com; "
                         + "style-src 'self' 'unsafe-inline'; "
                         + "img-src 'self' data:; "
                         + "font-src 'self' data:; "
