@@ -10,7 +10,7 @@ COPY family-tree-common/pom.xml family-tree-common/
 COPY family-tree-persistence/pom.xml family-tree-persistence/
 COPY family-tree-service/pom.xml family-tree-service/
 COPY family-tree-web/pom.xml family-tree-web/
-RUN ./mvnw dependency:go-offline -B
+RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
 
 # 复制源码并构建
 COPY family-tree-common/src family-tree-common/src
