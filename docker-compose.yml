@@ -1,0 +1,86 @@
+# 族谱管理系统 Docker Compose 部署配置
+#
+# 快速启动（H2 内嵌数据库，适合试用/小规模使用）：
+#   docker compose up -d
+#
+# 生产部署（MySQL 外部数据库）：
+#   1. 复制 .env.example 为 .env 并填写数据库凭据
+#   2. docker compose --profile mysql up -d
+#
+version: '3.8'
+
+services:
+  # ========== H2 模式（默认） ==========
+  family-tree:
+    image: ghcr.io/mouhinu/family-tree:latest
+    container_name: family-tree
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8090}:8090"
+    volumes:
+      - family-tree-data:/app/data
+      - family-tree-logs:/app/logs
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
+      - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8090/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ========== MySQL 模式（--profile mysql 激活） ==========
+  mysql:
+    image: mysql:8.0
+    container_name: family-tree-mysql
+    restart: unless-stopped
+    profiles:
+      - mysql
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-family_tree}
+      - MYSQL_USER=${DB_USERNAME:-family_tree_app}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MySQL 模式下的应用服务（覆盖上面的默认服务）
+  family-tree-mysql:
+    image: ghcr.io/mouhinu/family-tree:latest
+    container_name: family-tree-app
+    restart: unless-stopped
+    profiles:
+      - mysql
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8090}:8090"
+    volumes:
+      - family-tree-logs:/app/logs
+    environment:
+      - SPRING_PROFILES_ACTIVE=mysql
+      - DB_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-family_tree}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+      - DB_USERNAME=${DB_USERNAME:-family_tree_app}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8090/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  family-tree-data:
+  family-tree-logs:
+  mysql-data:
