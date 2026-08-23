@@ -3,6 +3,9 @@ FROM eclipse-temurin:21-jdk AS builder
 
 WORKDIR /build
 
+# 安装 unzip（Maven Wrapper 下载 Maven 时需要解压）
+RUN apt-get update && apt-get install -y --no-install-recommends unzip && rm -rf /var/lib/apt/lists/*
+
 # 先复制 Maven Wrapper 和 POM，利用 Docker 缓存加速依赖下载
 COPY mvnw pom.xml ./
 COPY .mvn .mvn
