@@ -48,12 +48,29 @@
 | 删除     | `remove` / `delete`          |
 | 修改     | `update`                     |
 
-### 1.6 领域模型命名
+### 1.6 数据对象与领域模型命名
+
+**基础数据对象：**
 
 - 数据对象：`xxxDO`（xxx 为数据表名）
 - 数据传输对象：`xxxDTO`（xxx 为业务领域名称）
 - 展示对象：`xxxVO`（xxx 为网页名称）
 - 禁止命名成 `xxxPOJO`。
+
+**DDD 领域模型命名（适用于领域层模块）：**
+
+| 概念 | 后缀 | 正例 |
+|------|------|------|
+| 领域实体（Entity） | 直接用业务名词，或后缀 `Entity` | `Person`、`PersonEntity` |
+| 值对象（Value Object） | `ValueObject` | `GenerationalValueObject` |
+| 聚合根（Aggregate Root） | 直接用业务名词，类注释中标识 | `FamilyTree` |
+| 领域服务（Domain Service） | `DomainService` | `GenerationalCalculatorDomainService` |
+| 仓储接口（Repository） | `Repository` | `PersonRepository` |
+| 仓储实现 | `RepositoryImpl` | `PersonRepositoryImpl` |
+| 应用服务 | `ApplicationService` | `PersonApplicationService` |
+| 工厂（Factory） | `Factory` | `PersonFactory` |
+| 领域事件（Domain Event） | `Event`（过去式） | `PersonAddedEvent` |
+| 转换器（Converter） | `Converter` / `Assembler` | `PersonConverter` |
 
 ### 1.7 设计模式命名
 
@@ -208,7 +225,7 @@ public ThreadPoolExecutor familyTreeExecutor() {
 /**
  * 用户服务实现类
  *
- * @author mouhinU
+ * @author Family-Tree
  * @date 2026-06-30
  */
 @Service
@@ -287,6 +304,7 @@ private static final Logger logger = LoggerFactory.getLogger(XxxService.class);
 - 语句覆盖率目标 70%，核心模块 100%。
 - 遵循 BCDE 原则：Border（边界值）、Correct（正确输入）、Design（结合设计）、Error（错误输入）。
 - 数据库相关测试使用程序插入数据，设定自动回滚机制。
+- MyBatis-Plus 3.5.9 的 `BaseMapper` 存在重载方法（如 `insert(T)` / `insert(Collection<T>)`），Mockito 测试中须使用显式泛型 `ArgumentMatchers.<EntityDO>any()` 避免编译歧义。
 
 ---
 
@@ -352,43 +370,95 @@ private static final Logger logger = LoggerFactory.getLogger(XxxService.class);
 
 ---
 
-## 十四、工程结构
+## 十四、工程结构与领域驱动设计
 
-### 14.1 本项目分层架构
+### 14.1 当前项目模块结构
 
 ```
-family-tree-web        → Web 层（Controller、会话认证、全局异常处理、静态资源/前端页面）
-family-tree-service    → 业务层（节点、关系、树形结构、辈分、用户服务）
-family-tree-persistence→ DAO 层（MyBatis-Plus Mapper + DO 实体）
-family-tree-common     → 公共模块（DTO/VO、Result、常量、枚举、业务异常）
+family-tree-web          → 表现层（Controller、会话认证、全局异常、安全过滤器、静态资源）
+family-tree-service      → 服务层（Service 接口 + 实现、业务逻辑）
+family-tree-persistence  → 持久层（MyBatis-Plus Mapper + DO 实体）
+family-tree-common       → 公共模块（工具、常量、枚举、DTO/VO、异常基类）
 ```
 
-各业务模块统一采用 **接口 + impl** 分层模式：
+### 14.2 各层职责与编码规范
 
-- 接口定义在 `tree.service` 包（如 `com.mouhin.family.tree.service.UserService`）
-- 实现类在 `tree.service.impl` 包（如 `com.mouhin.family.tree.service.impl.UserServiceImpl`）
-- Controller 注入接口类型，Spring 自动匹配实现
+| 层级 | 职责 | 依赖方向 |
+|------|------|----------|
+| 表现层（Web） | 处理 HTTP 请求/响应，基本参数校验，会话管理，调用 Service 层，返回 `Result<VO>`。不包含业务逻辑。 | → 服务层 |
+| 服务层（Service） | 业务逻辑实现，事务控制（`@Transactional`），参数校验，调用持久层。业务校验失败抛出 `BusinessException`。 | → 持久层 + 公共模块 |
+| 持久层（Persistence） | 数据访问，MyBatis-Plus Mapper 接口 + DO 实体。不捕获异常，向上抛出。 | → 公共模块 |
+| 公共模块（Common） | 通用工具、常量、枚举、异常基类、DTO/VO。不依赖任何业务模块。 | 被全局依赖 |
 
-### 14.2 分层依赖规则
+**分层异常处理：**
 
-- 上层依赖下层，不允许反向依赖。
-- `web` → `service` → `persistence` → `common`。
-- `common` 模块不依赖任何业务模块。
+- **持久层**：不捕获异常，由 MyBatis-Plus / Spring 向上抛出。
+- **服务层**：业务校验失败抛出 `BusinessException`；系统异常必须记录出错日志到磁盘，带上参数信息。
+- **表现层**：不继续往上抛异常，由 `GlobalExceptionHandler` 统一转化为 `Result`（错误码 + 错误信息）返回。
 
-### 14.3 分层异常处理
+### 14.3 领域模型分布
 
-- **DAO 层**（persistence）：不捕获异常，由 MyBatis-Plus / Spring 向上抛出。
-- **Service 层**：业务校验失败抛出 `BusinessException`；系统异常必须记录出错日志到磁盘，带上参数信息。
-- **Web 层**：不继续往上抛异常，由 `GlobalExceptionHandler` 统一转化为 `Result`（错误码 + 错误信息）返回。
+| 模型 | 说明 | 所在模块 |
+|------|------|----------|
+| DO | 与数据库表一一对应 | `family-tree-persistence` |
+| DTO | 数据传输对象（请求入参） | `family-tree-common` |
+| VO | 展示层对象（响应出参） | `family-tree-common` |
+| Query | 查询对象（超过 2 个参数禁止用 Map 传输） | 各层接收 |
 
-### 14.4 领域模型
+### 14.4 DDD 演进规范
 
-| 模型    | 说明                       | 所在模块                                          |
-|-------|--------------------------|-----------------------------------------------|
-| DO    | 与数据库表一一对应                | `family-tree-persistence`                     |
-| DTO   | 数据传输对象                   | `family-tree-common`                          |
-| VO    | 展示层对象                    | `family-tree-common`                          |
-| Query | 查询对象（超过 2 个参数禁止用 Map 传输） | 各层接收                                          |
+> 当前项目采用 Service + Mapper 的扁平分层。当业务复杂度增长需要引入新模块时，按以下 DDD 规范拆分。
+
+**模块拆分目标：**
+
+```
+family-tree-web            → 表现层（不变）
+family-tree-application    → 应用层（用例编排、事务管理、权限校验、领域事件发布）
+family-tree-domain         → 领域层（实体、值对象、聚合、领域服务、仓储接口、工厂、领域事件）
+family-tree-infrastructure → 基础设施层（Repository 实现、DO ↔ 领域对象转换、外部服务）
+family-tree-common         → 公共模块（不变）
+```
+
+**依赖方向：** Web → Application → Domain ← Infrastructure，Common 被全局依赖。
+
+**领域层编码规范：**
+
+- **实体 / 聚合根**：属性为 `private`，通过有业务含义的方法修改状态（禁止 `@Data`，推荐 `@Getter` + 构造器）。须基于 ID 重写 `equals` / `hashCode`。业务行为应体现在实体方法中，避免逻辑外泄到服务层。
+- **值对象**：声明为 `final` 类，属性 `final`，无 setter；重写 `equals` / `hashCode` 基于所有属性；可提供工厂方法（如 `of`、`valueOf`）。不可变，通过属性值整体替换。
+- **仓储接口**：定义在 `domain.repository` 包，参数和返回值均为领域对象，严禁出现 DO 或 DTO。方法命名使用领域术语（如 `findById`、`save`、`findByFamilyTreeId`）。
+- **领域服务**：处理跨实体/聚合的业务逻辑，无状态，方法命名体现业务意图（如 `calculateGenerationalLevel`）。纯业务逻辑，若无外部依赖可直接 `@Service` 管理。
+- **工厂**：复杂聚合构建时提供工厂类或聚合根内的静态构造方法，放在 `domain.factory` 包。
+- **领域事件**：放在 `domain.event` 包，实现 `DomainEvent` 标记接口。命名使用过去式（如 `PersonAddedEvent`）。聚合根中记录事件，由应用服务在事务提交前发布（推荐 Spring `ApplicationEventPublisher`）。
+
+**应用层编码规范：**
+
+- 类名以 `ApplicationService` 结尾。每个方法对应一个用户用例，使用 `@Transactional` 控制事务。
+- 主要职责：参数校验、权限检查、调用领域服务/仓储、返回值转换、发布领域事件。
+- 禁止直接操作 DAO 或 Mapper，必须通过仓储接口。不包含业务规则。
+
+**基础设施层编码规范：**
+
+- 仓储实现类以 `RepositoryImpl` 结尾，实现领域层定义的仓储接口。
+- 使用 `Converter` / `Assembler`（放在 `infrastructure.converter` 包）进行 DO ↔ 领域对象转换。
+- 不得包含业务规则，只负责技术实现。
+
+**聚合设计原则：**
+
+- 聚合根是唯一对外暴露的入口，外部只能通过聚合根访问聚合内的实体。
+- 聚合内保持强一致性，事务边界控制在单个聚合内。
+- 跨聚合的最终一致性通过领域事件或应用层协调实现。
+- 聚合根负责校验自身及内部实体的业务不变量。
+
+**事务与并发：**
+
+- 事务边界在应用层，一个应用服务方法代表一个事务单元。
+- 聚合内并发修改由基础设施层通过乐观锁/悲观锁实现。
+- 跨聚合事务通过领域事件和最终一致性解决。
+
+**依赖注入：**
+
+- 所有 Spring Bean 注入面向接口（应用服务注入领域服务接口和仓储接口）。
+- 领域层保持纯净，不引用基础设施注解（允许 `@Service` 管理领域服务，前提是不依赖基础设施）。
 
 ---
 
@@ -415,8 +485,8 @@ family-tree-common     → 公共模块（DTO/VO、Result、常量、枚举、�
 - 及时清理不再使用的代码段或配置信息。
 - 不要在视图模板中加入复杂逻辑。
 - `Math.random()` 返回 `double`（0 ≤ x < 1），获取整数随机数用 `Random.nextInt()` / `nextLong()`。
-- 作者信息统一填写 `@author Family-Tree` + `@date`
-- 自动新增.gitignore文件
+- 作者信息统一填写 `@author Family-Tree` + `@date`。
+- 自动新增 `.gitignore` 文件。
 
 ---
 
@@ -434,6 +504,8 @@ family-tree-common     → 公共模块（DTO/VO、Result、常量、枚举、�
 
 AI 生成代码时，逐条自检：
 
+**基础规范：**
+
 1. 命名是否符合驼峰规范？常量是否全大写下划线分隔？
 2. 是否存在魔法值？
 3. 代码格式是否 4 空格缩进？单行是否超过 120 字符？
@@ -448,3 +520,14 @@ AI 生成代码时，逐条自检：
 12. 异常是否被正确处理？是否存在空 `catch`？
 13. 安全校验是否到位（权限、参数校验、SQL 注入防护）？
 14. 表是否包含 `id`、`create_time`、`update_time` 三字段？
+
+**领域设计（当涉及 DDD 模块时）：**
+
+15. 领域模型是否放在 `domain` 模块？DO 与领域对象是否分离？
+16. 实体是否通过业务方法修改状态，而非直接 setter？
+17. 值对象是否不可变（`final` 类 + `final` 属性 + 无 setter）？
+18. 仓储接口是否定义在领域层、实现在基础设施层？
+19. 仓储接口的参数和返回值是否均为领域对象（不含 DO / DTO）？
+20. 应用服务是否只做编排（不含业务规则），事务边界是否在应用层？
+21. 跨聚合通信是否通过领域事件（避免直接调用）？
+22. 领域对象转换是否通过 `Converter` / `Assembler` 完成？
