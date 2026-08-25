@@ -11,7 +11,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * @date 2026-07-30
  */
 @SpringBootApplication(scanBasePackages = "com.mouhin.family.tree")
-@MapperScan("com.mouhin.family.tree.persistence.mapper")
+@MapperScan("com.mouhin.family.tree.infrastructure.persistence.mapper")
 public class FamilyTreeApplication {
 
     public static void main(String[] args) {

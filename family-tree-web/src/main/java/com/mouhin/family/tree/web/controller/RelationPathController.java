@@ -1,5 +1,7 @@
 package com.mouhin.family.tree.web.controller;
 
+import com.mouhin.family.tree.application.service.FamilyNodeApplicationService;
+import com.mouhin.family.tree.application.service.FamilyRelationApplicationService;
 import com.mouhin.family.tree.common.result.Result;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
@@ -32,11 +34,11 @@ public class RelationPathController extends BaseController {
 
     private static final Logger logger = LoggerFactory.getLogger(RelationPathController.class);
 
-    private final com.mouhin.family.tree.service.FamilyRelationService familyRelationService;
-    private final com.mouhin.family.tree.service.FamilyNodeService familyNodeService;
+    private final FamilyRelationApplicationService familyRelationService;
+    private final FamilyNodeApplicationService familyNodeService;
 
-    public RelationPathController(com.mouhin.family.tree.service.FamilyRelationService familyRelationService,
-                                  com.mouhin.family.tree.service.FamilyNodeService familyNodeService) {
+    public RelationPathController(FamilyRelationApplicationService familyRelationService,
+                                  FamilyNodeApplicationService familyNodeService) {
         this.familyRelationService = familyRelationService;
         this.familyNodeService = familyNodeService;
     }

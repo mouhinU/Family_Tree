@@ -6,7 +6,7 @@ import com.mouhin.family.tree.common.dto.FamilyJoinDTO;
 import com.mouhin.family.tree.common.dto.FamilyMemberDTO;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.result.Result;
-import com.mouhin.family.tree.service.FamilyService;
+import com.mouhin.family.tree.application.service.FamilyApplicationService;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,9 +31,9 @@ import java.util.Map;
 @RequestMapping("/api/family")
 public class FamilyController extends BaseController {
 
-    private final FamilyService familyService;
+    private final FamilyApplicationService familyService;
 
-    public FamilyController(FamilyService familyService) {
+    public FamilyController(FamilyApplicationService familyService) {
         this.familyService = familyService;
     }
 

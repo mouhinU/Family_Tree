@@ -83,6 +83,10 @@
         }
         bindEvents();
         await FT.loadTree();
+        // 初始化留言轮播
+        if (FT.initMessageCarousel) {
+            FT.initMessageCarousel();
+        }
     }
 
     // ========== 事件绑定 ==========

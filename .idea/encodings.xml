@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="Encoding">
+    <file url="file://$PROJECT_DIR$/family-tree-application/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/family-tree-common/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/family-tree-domain/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/family-tree-infrastructure/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/family-tree-persistence/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/family-tree-service/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/family-tree-web/src/main/java" charset="UTF-8" />

@@ -2,12 +2,7 @@ package com.mouhin.family.tree.web.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mouhin.family.tree.common.result.Result;
-import jakarta.servlet.Filter;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.FilterConfig;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.ServletRequest;
-import jakarta.servlet.ServletResponse;
+import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -33,10 +28,14 @@ public class CsrfFilter implements Filter {
 
     private static final Logger logger = LoggerFactory.getLogger(CsrfFilter.class);
 
-    /** Session 中存储 CSRF Token 的 key */
+    /**
+     * Session 中存储 CSRF Token 的 key
+     */
     public static final String CSRF_TOKEN_SESSION_KEY = "CSRF_TOKEN";
 
-    /** 前端回传 CSRF Token 的请求头名称 */
+    /**
+     * 前端回传 CSRF Token 的请求头名称
+     */
     public static final String CSRF_TOKEN_HEADER = "X-CSRF-TOKEN";
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -74,12 +73,10 @@ public class CsrfFilter implements Filter {
         String headerToken = httpReq.getHeader(CSRF_TOKEN_HEADER);
 
         if (sessionToken == null || !sessionToken.equals(headerToken)) {
-            logger.warn("CSRF token validation failed: path={}, method={}, ip={}",
-                    path, method, httpReq.getRemoteAddr());
+            logger.warn("CSRF token validation failed: path={}, method={}, ip={}", path, method, httpReq.getRemoteAddr());
             httpResp.setStatus(HttpServletResponse.SC_FORBIDDEN);
             httpResp.setContentType("application/json;charset=UTF-8");
-            httpResp.getWriter().write(OBJECT_MAPPER.writeValueAsString(
-                    Result.fail(403, "CSRF 校验失败，请刷新页面后重试")));
+            httpResp.getWriter().write(OBJECT_MAPPER.writeValueAsString(Result.fail(403, "CSRF 校验失败，请刷新页面后重试")));
             return;
         }
 

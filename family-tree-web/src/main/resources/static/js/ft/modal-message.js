@@ -106,6 +106,7 @@
             });
             if (submitRes.code === 200) {
                 FT.toast('留言成功');
+                if (FT.refreshMessageCarousel) FT.refreshMessageCarousel();
                 showMessageModal(1);
             } else {
                 FT.toast(submitRes.message || '发布失败');
@@ -129,6 +130,7 @@
                 var delRes = await FT.api('/api/message/' + msgId, { method: 'DELETE' });
                 if (delRes.code === 200) {
                     FT.toast('已删除');
+                    if (FT.refreshMessageCarousel) FT.refreshMessageCarousel();
                     showMessageModal(page);
                 } else {
                     FT.toast(delRes.message || '删除失败');

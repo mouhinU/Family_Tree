@@ -2742,3 +2742,105 @@ body.toolbar-hidden .tree-container {
     font-size: 12px;
     color: var(--ink-faint);
 }
+
+/* ===== 留言轮播 ===== */
+.msg-carousel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 38px;
+    background: linear-gradient(to right, rgba(240, 232, 210, 0.95), rgba(245, 238, 218, 0.95));
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    z-index: 100;
+    overflow: hidden;
+    box-shadow: 0 -1px 4px rgba(43, 38, 34, 0.06);
+}
+
+.msg-carousel-label {
+    flex-shrink: 0;
+    padding: 0 12px 0 14px;
+    font-family: var(--font-kai);
+    font-size: 14px;
+    color: var(--cinnabar);
+    font-weight: 600;
+    letter-spacing: 2px;
+    border-right: 1px solid var(--border);
+    height: 100%;
+    display: flex;
+    align-items: center;
+    background: rgba(166, 58, 43, 0.04);
+}
+
+.msg-carousel-track {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    mask-image: linear-gradient(to right, transparent 0, #000 40px, #000 calc(100% - 40px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 40px, #000 calc(100% - 40px), transparent 100%);
+}
+
+.msg-carousel-inner {
+    display: flex;
+    gap: 32px;
+    white-space: nowrap;
+    will-change: transform;
+    animation: msg-carousel-scroll var(--msg-carousel-duration, 30s) linear infinite;
+    padding-left: 16px;
+}
+
+.msg-carousel:hover .msg-carousel-inner {
+    animation-play-state: paused;
+}
+
+.msg-carousel-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--ink);
+    cursor: default;
+    line-height: 1.4;
+}
+
+.msg-carousel-text {
+    color: var(--ink-light);
+    max-width: 400px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.msg-carousel-close {
+    flex-shrink: 0;
+    width: 28px;
+    height: 100%;
+    border: none;
+    border-left: 1px solid var(--border);
+    background: rgba(166, 58, 43, 0.04);
+    color: var(--ink-light);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s, color 0.2s;
+}
+
+.msg-carousel-close:hover {
+    background: rgba(166, 58, 43, 0.12);
+    color: var(--cinnabar);
+}
+
+@keyframes msg-carousel-scroll {
+    0% {
+        transform: translateX(0);
+    }
+    100% {
+        transform: translateX(-50%);
+    }
+}

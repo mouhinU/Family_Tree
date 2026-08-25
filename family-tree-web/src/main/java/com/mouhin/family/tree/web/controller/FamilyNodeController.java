@@ -5,8 +5,8 @@ import com.mouhin.family.tree.common.dto.ColorUpdateDTO;
 import com.mouhin.family.tree.common.dto.FamilyNodeDTO;
 import com.mouhin.family.tree.common.dto.NodeCreateDTO;
 import com.mouhin.family.tree.common.result.Result;
-import com.mouhin.family.tree.service.FamilyNodeService;
-import com.mouhin.family.tree.service.OperationLogService;
+import com.mouhin.family.tree.application.service.FamilyNodeApplicationService;
+import com.mouhin.family.tree.application.service.OperationLogApplicationService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
@@ -34,11 +34,11 @@ import java.util.Map;
 @RequestMapping("/api/node")
 public class FamilyNodeController extends BaseController {
 
-    private final FamilyNodeService familyNodeService;
-    private final OperationLogService operationLogService;
+    private final FamilyNodeApplicationService familyNodeService;
+    private final OperationLogApplicationService operationLogService;
 
-    public FamilyNodeController(FamilyNodeService familyNodeService,
-                                OperationLogService operationLogService) {
+    public FamilyNodeController(FamilyNodeApplicationService familyNodeService,
+                                OperationLogApplicationService operationLogService) {
         this.familyNodeService = familyNodeService;
         this.operationLogService = operationLogService;
     }

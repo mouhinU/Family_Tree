@@ -20,8 +20,9 @@
 
     <modules>
         <module>family-tree-common</module>
-        <module>family-tree-persistence</module>
-        <module>family-tree-service</module>
+        <module>family-tree-domain</module>
+        <module>family-tree-infrastructure</module>
+        <module>family-tree-application</module>
         <module>family-tree-web</module>
     </modules>
 
@@ -44,12 +45,17 @@
             </dependency>
             <dependency>
                 <groupId>com.mouhin.family</groupId>
-                <artifactId>family-tree-persistence</artifactId>
+                <artifactId>family-tree-domain</artifactId>
                 <version>${family-tree.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.mouhin.family</groupId>
-                <artifactId>family-tree-service</artifactId>
+                <artifactId>family-tree-infrastructure</artifactId>
+                <version>${family-tree.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mouhin.family</groupId>
+                <artifactId>family-tree-application</artifactId>
                 <version>${family-tree.version}</version>
             </dependency>
 

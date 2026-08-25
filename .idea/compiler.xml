@@ -6,17 +6,25 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
-        <module name="family-tree-persistence" />
-        <module name="family-tree-service" />
         <module name="family-tree-common" />
+        <module name="family-tree-domain" />
+        <module name="family-tree-application" />
+        <module name="family-tree-infrastructure" />
         <module name="family-tree-web" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="family-tree-persistence" target="21" />
+      <module name="family-tree-service" target="21" />
+    </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
       <module name="family-tree" options="-parameters" />
+      <module name="family-tree-application" options="-parameters" />
       <module name="family-tree-common" options="-parameters" />
+      <module name="family-tree-domain" options="-parameters" />
+      <module name="family-tree-infrastructure" options="-parameters" />
       <module name="family-tree-persistence" options="-parameters" />
       <module name="family-tree-service" options="-parameters" />
       <module name="family-tree-web" options="-parameters" />

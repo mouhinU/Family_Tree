@@ -1,13 +1,12 @@
 package com.mouhin.family.tree.web.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.mouhin.family.tree.application.service.FamilyNodeApplicationService;
+import com.mouhin.family.tree.application.service.FamilyRelationApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
+import com.mouhin.family.tree.common.dto.FamilyNodeDTO;
+import com.mouhin.family.tree.common.dto.FamilyRelationDTO;
 import com.mouhin.family.tree.common.dto.PageResult;
 import com.mouhin.family.tree.common.result.Result;
-import com.mouhin.family.tree.persistence.entity.FamilyNodeDO;
-import com.mouhin.family.tree.persistence.entity.FamilyRelationDO;
-import com.mouhin.family.tree.persistence.mapper.FamilyNodeMapper;
-import com.mouhin.family.tree.persistence.mapper.FamilyRelationMapper;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,13 +33,13 @@ public class TimelineController extends BaseController {
 
     private static final Logger logger = LoggerFactory.getLogger(TimelineController.class);
 
-    private final FamilyNodeMapper familyNodeMapper;
-    private final FamilyRelationMapper familyRelationMapper;
+    private final FamilyNodeApplicationService familyNodeService;
+    private final FamilyRelationApplicationService familyRelationService;
 
-    public TimelineController(FamilyNodeMapper familyNodeMapper,
-                              FamilyRelationMapper familyRelationMapper) {
-        this.familyNodeMapper = familyNodeMapper;
-        this.familyRelationMapper = familyRelationMapper;
+    public TimelineController(FamilyNodeApplicationService familyNodeService,
+                              FamilyRelationApplicationService familyRelationService) {
+        this.familyNodeService = familyNodeService;
+        this.familyRelationService = familyRelationService;
     }
 
     /**
@@ -60,33 +59,33 @@ public class TimelineController extends BaseController {
             HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
 
-        LambdaQueryWrapper<FamilyNodeDO> nodeQuery = new LambdaQueryWrapper<>();
-        nodeQuery.eq(FamilyNodeDO::getFamilyId, familyId);
-        List<FamilyNodeDO> nodes = familyNodeMapper.selectList(nodeQuery);
+        List<FamilyNodeDTO> nodes = familyNodeService.listNodes(familyId);
 
         // 构建节点名映射
-        Map<Long, String> nodeNameMap = new HashMap<>(nodes.size());
-        for (FamilyNodeDO node : nodes) {
+        Map<Long, String> nodeNameMap = new HashMap<>((int) (nodes.size() / 0.75) + 1);
+        for (FamilyNodeDTO node : nodes) {
             nodeNameMap.put(node.getId(), node.getName());
         }
 
         List<Map<String, Object>> events = new ArrayList<>();
 
-        for (FamilyNodeDO node : nodes) {
-            if (node.getBirthDate() != null) {
-                if (year == null || node.getBirthDate().getYear() == year) {
-                    Map<String, Object> event = new HashMap<>();
-                    event.put("date", node.getBirthDate().toString());
+        for (FamilyNodeDTO node : nodes) {
+            if (node.getBirthDate() != null && !node.getBirthDate().isBlank()) {
+                int birthYear = parseYear(node.getBirthDate());
+                if (birthYear > 0 && (year == null || birthYear == year)) {
+                    Map<String, Object> event = new HashMap<>(8);
+                    event.put("date", node.getBirthDate());
                     event.put("type", "BIRTH");
                     event.put("description", node.getName() + " 出生");
                     event.put("nodeId", node.getId());
                     events.add(event);
                 }
             }
-            if (node.getDeathDate() != null) {
-                if (year == null || node.getDeathDate().getYear() == year) {
-                    Map<String, Object> event = new HashMap<>();
-                    event.put("date", node.getDeathDate().toString());
+            if (node.getDeathDate() != null && !node.getDeathDate().isBlank()) {
+                int deathYear = parseYear(node.getDeathDate());
+                if (deathYear > 0 && (year == null || deathYear == year)) {
+                    Map<String, Object> event = new HashMap<>(8);
+                    event.put("date", node.getDeathDate());
                     event.put("type", "DEATH");
                     event.put("description", node.getName() + " 去世");
                     event.put("nodeId", node.getId());
@@ -96,22 +95,21 @@ public class TimelineController extends BaseController {
         }
 
         // 婚姻关系事件（仅 SPOUSE 类型，relationType=2）
-        LambdaQueryWrapper<FamilyRelationDO> relQuery = new LambdaQueryWrapper<>();
-        relQuery.eq(FamilyRelationDO::getFamilyId, familyId)
-                .eq(FamilyRelationDO::getRelationType, 2)
-                .isNotNull(FamilyRelationDO::getMarriageDate);
-        List<FamilyRelationDO> relations = familyRelationMapper.selectList(relQuery);
-
-        for (FamilyRelationDO rel : relations) {
-            if (year == null || rel.getMarriageDate().getYear() == year) {
-                String fromName = nodeNameMap.getOrDefault(rel.getFromNodeId(), "未知");
-                String toName = nodeNameMap.getOrDefault(rel.getToNodeId(), "未知");
-                Map<String, Object> event = new HashMap<>();
-                event.put("date", rel.getMarriageDate().toString());
-                event.put("type", "MARRIAGE");
-                event.put("description", fromName + " 与 " + toName + " 结婚");
-                event.put("relationId", rel.getId());
-                events.add(event);
+        List<FamilyRelationDTO> allRelations = familyRelationService.listAllRelations(familyId);
+        for (FamilyRelationDTO rel : allRelations) {
+            if (rel.getRelationType() != null && rel.getRelationType() == 2
+                    && rel.getMarriageDate() != null) {
+                int marriageYear = rel.getMarriageDate().getYear();
+                if (year == null || marriageYear == year) {
+                    String fromName = nodeNameMap.getOrDefault(rel.getFromNodeId(), "未知");
+                    String toName = nodeNameMap.getOrDefault(rel.getToNodeId(), "未知");
+                    Map<String, Object> event = new HashMap<>(8);
+                    event.put("date", rel.getMarriageDate().toString());
+                    event.put("type", "MARRIAGE");
+                    event.put("description", fromName + " 与 " + toName + " 结婚");
+                    event.put("relationId", rel.getId());
+                    events.add(event);
+                }
             }
         }
 
@@ -134,5 +132,22 @@ public class TimelineController extends BaseController {
 
         PageResult<Map<String, Object>> pageResult = new PageResult<>(pageRecords, total, page, size);
         return Result.success(pageResult);
+    }
+
+    /**
+     * 从日期字符串中解析年份（支持 yyyy-MM-dd 格式）
+     *
+     * @param dateStr 日期字符串
+     * @return 年份，解析失败返回 -1
+     */
+    private int parseYear(String dateStr) {
+        if (dateStr != null && dateStr.length() >= 4) {
+            try {
+                return Integer.parseInt(dateStr.substring(0, 4));
+            } catch (NumberFormatException e) {
+                return -1;
+            }
+        }
+        return -1;
     }
 }

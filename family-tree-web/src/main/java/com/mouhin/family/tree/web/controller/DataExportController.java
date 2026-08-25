@@ -3,8 +3,8 @@ package com.mouhin.family.tree.web.controller;
 import com.mouhin.family.tree.common.dto.FamilyNodeDTO;
 import com.mouhin.family.tree.common.dto.FamilyRelationDTO;
 import com.mouhin.family.tree.common.result.Result;
-import com.mouhin.family.tree.service.FamilyNodeService;
-import com.mouhin.family.tree.service.FamilyRelationService;
+import com.mouhin.family.tree.application.service.FamilyNodeApplicationService;
+import com.mouhin.family.tree.application.service.FamilyRelationApplicationService;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,11 +30,11 @@ public class DataExportController extends BaseController {
 
     private static final Logger logger = LoggerFactory.getLogger(DataExportController.class);
 
-    private final FamilyNodeService familyNodeService;
-    private final FamilyRelationService familyRelationService;
+    private final FamilyNodeApplicationService familyNodeService;
+    private final FamilyRelationApplicationService familyRelationService;
 
-    public DataExportController(FamilyNodeService familyNodeService,
-                                FamilyRelationService familyRelationService) {
+    public DataExportController(FamilyNodeApplicationService familyNodeService,
+                                FamilyRelationApplicationService familyRelationService) {
         this.familyNodeService = familyNodeService;
         this.familyRelationService = familyRelationService;
     }

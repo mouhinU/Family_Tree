@@ -1,7 +1,7 @@
 package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.common.result.Result;
-import com.mouhin.family.tree.service.DeathAnniversaryService;
+import com.mouhin.family.tree.application.service.DeathAnniversaryApplicationService;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,9 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/death-anniversary")
 public class DeathAnniversaryController extends BaseController {
 
-    private final DeathAnniversaryService deathAnniversaryService;
+    private final DeathAnniversaryApplicationService deathAnniversaryService;
 
-    public DeathAnniversaryController(DeathAnniversaryService deathAnniversaryService) {
+    public DeathAnniversaryController(DeathAnniversaryApplicationService deathAnniversaryService) {
         this.deathAnniversaryService = deathAnniversaryService;
     }
 

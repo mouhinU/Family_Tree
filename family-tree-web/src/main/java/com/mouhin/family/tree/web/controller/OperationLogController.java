@@ -4,7 +4,9 @@ import com.mouhin.family.tree.common.dto.OperationLogDTO;
 import com.mouhin.family.tree.common.dto.PageResult;
 import com.mouhin.family.tree.common.enums.FamilyMemberRoleEnum;
 import com.mouhin.family.tree.common.result.Result;
-import com.mouhin.family.tree.service.OperationLogService;
+import com.mouhin.family.tree.application.service.FamilyApplicationService;
+import com.mouhin.family.tree.application.service.OperationLogApplicationService;
+import com.mouhin.family.tree.common.dto.FamilyDTO;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,11 +23,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/operation-log")
 public class OperationLogController extends BaseController {
 
-    private final OperationLogService operationLogService;
-    private final com.mouhin.family.tree.service.FamilyService familyService;
+    private final OperationLogApplicationService operationLogService;
+    private final FamilyApplicationService familyService;
 
-    public OperationLogController(OperationLogService operationLogService,
-                                  com.mouhin.family.tree.service.FamilyService familyService) {
+    public OperationLogController(OperationLogApplicationService operationLogService,
+                                  FamilyApplicationService familyService) {
         this.operationLogService = operationLogService;
         this.familyService = familyService;
     }
@@ -47,7 +49,7 @@ public class OperationLogController extends BaseController {
         Long userId = getCurrentUserId(session);
 
         // 校验权限：仅族长和管理员可查询
-        com.mouhin.family.tree.common.dto.FamilyDTO family = familyService.getCurrentFamily(userId);
+        FamilyDTO family = familyService.getCurrentFamily(userId);
         if (family == null) {
             return Result.fail(403, "请先加入家族");
         }

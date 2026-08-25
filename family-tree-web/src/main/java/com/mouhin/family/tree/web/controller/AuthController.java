@@ -8,9 +8,9 @@ import com.mouhin.family.tree.common.dto.ProfileUpdateDTO;
 import com.mouhin.family.tree.common.dto.RegisterDTO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.common.result.Result;
-import com.mouhin.family.tree.service.FamilyService;
-import com.mouhin.family.tree.service.OperationLogService;
-import com.mouhin.family.tree.service.UserService;
+import com.mouhin.family.tree.application.service.FamilyApplicationService;
+import com.mouhin.family.tree.application.service.OperationLogApplicationService;
+import com.mouhin.family.tree.application.service.UserAuthApplicationService;
 import com.mouhin.family.tree.web.filter.CsrfFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -39,12 +39,12 @@ public class AuthController extends BaseController {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
 
-    private final UserService userService;
-    private final FamilyService familyService;
-    private final OperationLogService operationLogService;
+    private final UserAuthApplicationService userService;
+    private final FamilyApplicationService familyService;
+    private final OperationLogApplicationService operationLogService;
 
-    public AuthController(UserService userService, FamilyService familyService,
-                          OperationLogService operationLogService) {
+    public AuthController(UserAuthApplicationService userService, FamilyApplicationService familyService,
+                          OperationLogApplicationService operationLogService) {
         this.userService = userService;
         this.familyService = familyService;
         this.operationLogService = operationLogService;

@@ -3,8 +3,8 @@ package com.mouhin.family.tree.web.controller;
 import com.mouhin.family.tree.common.dto.FamilyGenerationDTO;
 import com.mouhin.family.tree.common.dto.GenerationLayoutDTO;
 import com.mouhin.family.tree.common.result.Result;
-import com.mouhin.family.tree.service.FamilyGenerationService;
-import com.mouhin.family.tree.service.FamilyService;
+import com.mouhin.family.tree.application.service.FamilyGenerationApplicationService;
+import com.mouhin.family.tree.application.service.FamilyApplicationService;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -24,11 +24,11 @@ import java.util.List;
 @RequestMapping("/api/generation")
 public class FamilyGenerationController extends BaseController {
 
-    private final FamilyGenerationService familyGenerationService;
-    private final FamilyService familyService;
+    private final FamilyGenerationApplicationService familyGenerationService;
+    private final FamilyApplicationService familyService;
 
-    public FamilyGenerationController(FamilyGenerationService familyGenerationService,
-                                      FamilyService familyService) {
+    public FamilyGenerationController(FamilyGenerationApplicationService familyGenerationService,
+                                      FamilyApplicationService familyService) {
         this.familyGenerationService = familyGenerationService;
         this.familyService = familyService;
     }

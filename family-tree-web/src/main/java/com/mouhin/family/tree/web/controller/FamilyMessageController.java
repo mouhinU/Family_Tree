@@ -5,7 +5,7 @@ import com.mouhin.family.tree.common.dto.MessageCreateDTO;
 import com.mouhin.family.tree.common.dto.MessageVO;
 import com.mouhin.family.tree.common.dto.PageResult;
 import com.mouhin.family.tree.common.result.Result;
-import com.mouhin.family.tree.service.FamilyMessageService;
+import com.mouhin.family.tree.application.service.FamilyMessageApplicationService;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,9 +19,9 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/message")
 public class FamilyMessageController extends BaseController {
 
-    private final FamilyMessageService messageService;
+    private final FamilyMessageApplicationService messageService;
 
-    public FamilyMessageController(FamilyMessageService messageService) {
+    public FamilyMessageController(FamilyMessageApplicationService messageService) {
         this.messageService = messageService;
     }
 
