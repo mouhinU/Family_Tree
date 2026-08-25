@@ -30,7 +30,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 族谱留言服务单元测试。
- * 覆盖：发布留言（正常/空内容/超长）、分页查询（空/有数据/own标记）、删除（正常/非本人/不存在）。
+ * 覆盖：发布留言（正常/空内容/超长/null用户名）、分页查询（空/有数据/own标记）、删除（正常/非本人/不存在）。
  *
  * @author Family-Tree
  * @date 2026-08-25
@@ -70,7 +70,24 @@ class FamilyMessageServiceImplTest {
         assertEquals(USER_ID, saved.getUserId());
         assertEquals("测试用户", saved.getUsername());
         assertEquals("你好，世界", saved.getContent());
-        assertEquals(0, saved.getDeleted());
+    }
+
+    @Test
+    void postMessage_nullUsername_fallback() {
+        MessageCreateDTO dto = new MessageCreateDTO();
+        dto.setContent("测试内容");
+
+        doAnswer(invocation -> {
+            FamilyMessageDO msg = invocation.getArgument(0);
+            msg.setId(11L);
+            return 1;
+        }).when(messageMapper).insert(ArgumentMatchers.<FamilyMessageDO>any());
+
+        messageService.postMessage(FAMILY_ID, USER_ID, null, dto);
+
+        ArgumentCaptor<FamilyMessageDO> captor = ArgumentCaptor.forClass(FamilyMessageDO.class);
+        verify(messageMapper).insert(captor.capture());
+        assertEquals("匿名", captor.getValue().getUsername());
     }
 
     @Test
@@ -127,13 +144,10 @@ class FamilyMessageServiceImplTest {
     void deleteMessage_success() {
         FamilyMessageDO msg = buildMessage(10L, USER_ID, "测试用户", "内容");
         when(messageMapper.selectById(10L)).thenReturn(msg);
-        when(messageMapper.updateById(ArgumentMatchers.<FamilyMessageDO>any())).thenReturn(1);
 
         messageService.deleteMessage(10L, USER_ID);
 
-        ArgumentCaptor<FamilyMessageDO> captor = ArgumentCaptor.forClass(FamilyMessageDO.class);
-        verify(messageMapper).updateById(captor.capture());
-        assertEquals(1, captor.getValue().getDeleted());
+        verify(messageMapper).deleteById(ArgumentMatchers.<Long>any());
     }
 
     @Test
@@ -142,7 +156,7 @@ class FamilyMessageServiceImplTest {
         when(messageMapper.selectById(10L)).thenReturn(msg);
 
         assertThrows(BusinessException.class, () -> messageService.deleteMessage(10L, USER_ID));
-        verify(messageMapper, never()).updateById(ArgumentMatchers.<FamilyMessageDO>any());
+        verify(messageMapper, never()).deleteById(ArgumentMatchers.<Long>any());
     }
 
     @Test
@@ -150,17 +164,7 @@ class FamilyMessageServiceImplTest {
         when(messageMapper.selectById(999L)).thenReturn(null);
 
         assertThrows(BusinessException.class, () -> messageService.deleteMessage(999L, USER_ID));
-        verify(messageMapper, never()).updateById(ArgumentMatchers.<FamilyMessageDO>any());
-    }
-
-    @Test
-    void deleteMessage_alreadyDeleted_throws() {
-        FamilyMessageDO msg = buildMessage(10L, USER_ID, "测试用户", "内容");
-        msg.setDeleted(1);
-        when(messageMapper.selectById(10L)).thenReturn(msg);
-
-        assertThrows(BusinessException.class, () -> messageService.deleteMessage(10L, USER_ID));
-        verify(messageMapper, never()).updateById(ArgumentMatchers.<FamilyMessageDO>any());
+        verify(messageMapper, never()).deleteById(ArgumentMatchers.<Long>any());
     }
 
     // ========== 辅助方法 ==========
@@ -174,7 +178,6 @@ class FamilyMessageServiceImplTest {
         msg.setContent(content);
         msg.setCreateTime(LocalDateTime.now());
         msg.setUpdateTime(LocalDateTime.now());
-        msg.setDeleted(0);
         return msg;
     }
 }

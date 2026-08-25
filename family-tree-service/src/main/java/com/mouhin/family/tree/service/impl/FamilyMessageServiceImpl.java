@@ -50,11 +50,10 @@ public class FamilyMessageServiceImpl implements FamilyMessageService {
         FamilyMessageDO message = new FamilyMessageDO();
         message.setFamilyId(familyId);
         message.setUserId(userId);
-        message.setUsername(username);
+        message.setUsername(username != null ? username : "匿名");
         message.setContent(content.trim());
         message.setCreateTime(LocalDateTime.now());
         message.setUpdateTime(LocalDateTime.now());
-        message.setDeleted(0);
 
         messageMapper.insert(message);
         logger.info("用户 {} 在家族 {} 发布留言: id={}", userId, familyId, message.getId());
@@ -64,8 +63,7 @@ public class FamilyMessageServiceImpl implements FamilyMessageService {
     public PageResult<MessageVO> listMessages(Long familyId, Long currentUserId, int page, int size) {
         // 查询总数
         LambdaQueryWrapper<FamilyMessageDO> countWrapper = new LambdaQueryWrapper<>();
-        countWrapper.eq(FamilyMessageDO::getFamilyId, familyId)
-                .eq(FamilyMessageDO::getDeleted, 0);
+        countWrapper.eq(FamilyMessageDO::getFamilyId, familyId);
         long total = messageMapper.selectCount(countWrapper);
 
         if (total == 0) {
@@ -75,7 +73,6 @@ public class FamilyMessageServiceImpl implements FamilyMessageService {
         // 分页查询（按创建时间倒序）
         LambdaQueryWrapper<FamilyMessageDO> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(FamilyMessageDO::getFamilyId, familyId)
-                .eq(FamilyMessageDO::getDeleted, 0)
                 .orderByDesc(FamilyMessageDO::getCreateTime)
                 .last("LIMIT " + size + " OFFSET " + (page - 1) * size);
 
@@ -100,16 +97,14 @@ public class FamilyMessageServiceImpl implements FamilyMessageService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteMessage(Long messageId, Long userId) {
         FamilyMessageDO message = messageMapper.selectById(messageId);
-        if (message == null || message.getDeleted() == 1) {
+        if (message == null) {
             throw new BusinessException("留言不存在");
         }
         if (!Objects.equals(message.getUserId(), userId)) {
             throw new BusinessException("只能删除自己的留言");
         }
 
-        message.setDeleted(1);
-        message.setUpdateTime(LocalDateTime.now());
-        messageMapper.updateById(message);
+        messageMapper.deleteById(messageId);
         logger.info("用户 {} 删除留言: id={}", userId, messageId);
     }
 }

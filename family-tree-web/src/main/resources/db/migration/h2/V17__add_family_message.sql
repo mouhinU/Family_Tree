@@ -6,8 +6,7 @@ CREATE TABLE IF NOT EXISTS family_message (
     username    VARCHAR(50)     NOT NULL,
     content     VARCHAR(500)    NOT NULL,
     create_time TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
-    update_time TIMESTAMP       DEFAULT CURRENT_TIMESTAMP,
-    deleted     TINYINT         DEFAULT 0
+    update_time TIMESTAMP       DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_message_family_create ON family_message(family_id, create_time DESC);
