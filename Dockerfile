@@ -22,8 +22,8 @@ COPY family-tree-service/src family-tree-service/src
 COPY family-tree-web/src family-tree-web/src
 RUN ./mvnw package -DskipTests -B
 
-# ============ 运行阶段 ============
-FROM eclipse-temurin:21-jre
+# ============ 运行阶段（Distroless 最小化攻击面） ============
+FROM gcr.io/distroless/java21-debian12
 
 LABEL maintainer="Family-Tree"
 LABEL description="族谱管理系统"
@@ -39,13 +39,11 @@ VOLUME ["/app/data"]
 # 日志目录
 VOLUME ["/app/logs"]
 
-# 配置文件可选挂载
-# VOLUME ["/app/config"]
-
 EXPOSE 8090
 
 # JVM 参数：容器感知 + 默认使用 prod profile
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
 ENV SPRING_PROFILES_ACTIVE=prod
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+# Distroless 镜像仅包含 Java 运行时，无 shell
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]

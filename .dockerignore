@@ -21,3 +21,9 @@ Thumbs.db
 
 # Docs
 *.md
+
+# Deploy configs (not needed in Docker build context)
+deploy/
+.env
+.env.example
+.github/

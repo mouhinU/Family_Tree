@@ -57,4 +57,13 @@
         </root>
         <logger name="com.mouhin.family.tree" level="INFO"/>
     </springProfile>
+
+    <!-- MySQL 生产环境：与 prod 相同日志策略 -->
+    <springProfile name="mysql">
+        <root level="WARN">
+            <appender-ref ref="FILE"/>
+            <appender-ref ref="ERROR_FILE"/>
+        </root>
+        <logger name="com.mouhin.family.tree" level="INFO"/>
+    </springProfile>
 </configuration>

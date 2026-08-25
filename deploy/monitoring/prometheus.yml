@@ -1,0 +1,21 @@
+# Prometheus 抓取配置
+# 抓取 Family Tree 应用的 Actuator Prometheus 端点
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # 应用指标
+  - job_name: "family-tree"
+    metrics_path: "/actuator/prometheus"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["family-tree:8090"]
+        labels:
+          application: "family-tree"
+
+  # Prometheus 自身指标
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

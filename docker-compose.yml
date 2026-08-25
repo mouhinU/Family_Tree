@@ -7,12 +7,14 @@
 #   1. 复制 .env.example 为 .env 并填写数据库凭据
 #   2. docker compose --profile mysql up -d
 #
-version: '3.8'
+# 版本管理：
+#   在 .env 中设置 IMAGE_TAG 锁定版本（如 1.0.0），不设置则使用 latest
+#   回滚：修改 IMAGE_TAG 为上一版本号，docker compose up -d 即可
 
 services:
   # ========== H2 模式（默认） ==========
   family-tree:
-    image: ghcr.io/mouhinu/family-tree:latest
+    image: ghcr.io/mouhinu/family-tree:${IMAGE_TAG:-latest}
     container_name: family-tree
     restart: unless-stopped
     ports:
@@ -21,14 +23,32 @@ services:
       - family-tree-data:/app/data
       - family-tree-logs:/app/logs
     environment:
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-dev}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
       - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
+    # 运行时为 distroless 镜像（无 curl），健康检查由 sidecar 容器执行
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8090/actuator/health" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8090/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        compress: "true"
+
+  # 健康检查 sidecar（distroless 镜像无 curl，通过 network_mode:service 共享网络栈）
+  family-tree-healthcheck:
+    image: alpine/curl:8.9.1
+    container_name: family-tree-healthcheck
+    network_mode: "service:family-tree"
+    restart: unless-stopped
+    depends_on:
+      family-tree:
+        condition: service_started
+    entrypoint: ["sh", "-c", "while true; do sleep 30; curl -sf http://localhost:8090/actuator/health > /dev/null || echo '[healthcheck] FAILED'; done"]
 
   # ========== MySQL 模式（--profile mysql 激活） ==========
   mysql:
@@ -48,14 +68,19 @@ services:
       - mysql-data:/var/lib/mysql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      test: ["mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
 
   # MySQL 模式下的应用服务（覆盖上面的默认服务）
   family-tree-mysql:
-    image: ghcr.io/mouhinu/family-tree:latest
+    image: ghcr.io/mouhinu/family-tree:${IMAGE_TAG:-latest}
     container_name: family-tree-app
     restart: unless-stopped
     profiles:
@@ -73,14 +98,73 @@ services:
       - DB_USERNAME=${DB_USERNAME:-family_tree_app}
       - DB_PASSWORD=${DB_PASSWORD}
       - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
+    # 运行时为 distroless 镜像（无 curl），健康检查由 sidecar 容器执行
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8090/actuator/health" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8090/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        compress: "true"
+
+  # MySQL 模式健康检查 sidecar
+  family-tree-mysql-healthcheck:
+    image: alpine/curl:8.9.1
+    container_name: family-tree-mysql-healthcheck
+    network_mode: "service:family-tree-mysql"
+    restart: unless-stopped
+    profiles:
+      - mysql
+    depends_on:
+      family-tree-mysql:
+        condition: service_started
+    entrypoint: ["sh", "-c", "while true; do sleep 30; curl -sf http://localhost:8090/actuator/health > /dev/null || echo '[healthcheck] FAILED'; done"]
+
+  # ========== Prometheus 监控（--profile monitoring 激活） ==========
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: family-tree-prometheus
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+
+  # ========== Grafana 可视化（--profile monitoring 激活） ==========
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: family-tree-grafana
+    restart: unless-stopped
+    profiles:
+      - monitoring
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./deploy/monitoring/grafana-datasource.yml:/etc/grafana/provisioning/datasources/family-tree.yml:ro
+      - ./deploy/monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/family-tree.json:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
 
 volumes:
   family-tree-data:
   family-tree-logs:
   mysql-data:
+  prometheus-data:
+  grafana-data:
