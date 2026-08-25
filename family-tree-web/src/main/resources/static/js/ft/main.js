@@ -176,6 +176,14 @@
             });
         }
 
+        // 留言板按钮
+        var btnMessage = document.getElementById('btn-message');
+        if (btnMessage) {
+            btnMessage.addEventListener('click', function () {
+                FT.showMessageModal();
+            });
+        }
+
         // 忌日提醒按钮
         var btnDeathAnniversary = document.getElementById('btn-death-anniversary');
         if (btnDeathAnniversary) {

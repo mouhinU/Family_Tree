@@ -2623,3 +2623,122 @@ body.toolbar-hidden .tree-container {
         font-size: 16px;
     }
 }
+
+/* ========== 留言板 ========== */
+.msg-list {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+}
+
+.msg-item {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--paper-card);
+    border-radius: 6px;
+    margin-bottom: 6px;
+}
+
+.msg-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.msg-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.msg-username {
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ink);
+}
+
+.msg-time {
+    font-size: 12px;
+    color: var(--ink-faint);
+}
+
+.msg-delete-btn {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--ink-faint);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: color 0.2s, background 0.2s;
+}
+
+.msg-delete-btn:hover {
+    color: var(--cinnabar);
+    background: rgba(166, 58, 43, 0.08);
+}
+
+.msg-content {
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--ink-light);
+    word-break: break-word;
+}
+
+.msg-empty {
+    text-align: center;
+    color: var(--ink-faint);
+    padding: 30px 0;
+    font-size: 14px;
+}
+
+.msg-pagination {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--ink-faint);
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+    margin-bottom: 8px;
+}
+
+.msg-input-area {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.msg-textarea {
+    width: 100%;
+    border: none;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-family: var(--font-kai);
+    resize: none;
+    outline: none;
+    background: transparent;
+    color: var(--ink);
+    line-height: 1.6;
+}
+
+.msg-textarea::placeholder {
+    color: var(--ink-faint);
+}
+
+.msg-input-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    border-top: 1px solid rgba(216, 203, 168, 0.5);
+    background: rgba(250, 245, 230, 0.5);
+}
+
+.msg-char-count {
+    font-size: 12px;
+    color: var(--ink-faint);
+}
