@@ -59,7 +59,7 @@ public class FamilyTreeDomainService {
         List<FamilyNode> roots = nodes.stream()
                 .filter(n -> !childIds.contains(n.getId()))
                 .filter(n -> !spouseAttachedIds.contains(n.getId()))
-                .collect(Collectors.toList());
+                .toList();
 
         Map<Long, FamilyNode> nodeMap = nodes.stream()
                 .collect(Collectors.toMap(FamilyNode::getId, n -> n, (a, b) -> a));

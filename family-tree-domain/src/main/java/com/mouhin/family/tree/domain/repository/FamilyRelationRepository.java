@@ -21,6 +21,13 @@ public interface FamilyRelationRepository {
     FamilyRelation save(FamilyRelation relation);
 
     /**
+     * 更新关系
+     *
+     * @param relation 关系领域对象
+     */
+    void update(FamilyRelation relation);
+
+    /**
      * 根据ID查询关系
      *
      * @param id 关系ID

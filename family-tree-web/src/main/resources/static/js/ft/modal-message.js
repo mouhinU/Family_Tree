@@ -1,6 +1,6 @@
 /**
  * 族谱前端 - 留言板模块
- * 家族留言板：发布留言、分页列表、删除自己的留言。
+ * 家族留言板：发布留言、分页列表、删除自己的留言、点赞/取消点赞。
  *
  * @author Family-Tree
  * @date 2026-08-25
@@ -41,6 +41,9 @@
                 if (msg.own) {
                     deleteBtn = '<button class="msg-delete-btn" data-msg-id="' + msg.id + '" title="删除">&times;</button>';
                 }
+                var likeCount = msg.likeCount || 0;
+                var likeClass = msg.liked ? 'msg-liked' : '';
+                var likeIcon = msg.liked ? '&#9829;' : '&#9825;';
                 listHtml += '<div class="msg-item">' +
                     '<div class="msg-header">' +
                     '<span class="msg-username">' + FT.escapeHtml(msg.username) + '</span>' +
@@ -48,6 +51,12 @@
                     deleteBtn +
                     '</div>' +
                     '<div class="msg-content">' + FT.escapeHtml(msg.content) + '</div>' +
+                    '<div class="msg-footer">' +
+                    '<button class="msg-like-btn ' + likeClass + '" data-msg-id="' + msg.id + '">' +
+                    '<span class="msg-like-icon">' + likeIcon + '</span>' +
+                    '<span class="msg-like-count">' + likeCount + '</span>' +
+                    '</button>' +
+                    '</div>' +
                     '</div>';
             });
             listHtml += '</div>';
@@ -57,14 +66,14 @@
         var pageHtml = '';
         if (totalPages > 1) {
             pageHtml = '<div class="msg-pagination">';
-            pageHtml += '<span>共 ' + total + ' 条</span>';
-            pageHtml += '<span>';
+            pageHtml += '<span class="msg-page-info">共 ' + total + ' 条</span>';
+            pageHtml += '<span class="msg-page-nav">';
             if (page > 1) {
-                pageHtml += '<button class="btn-sm msg-page-btn" data-page="' + (page - 1) + '">上一页</button> ';
+                pageHtml += '<button class="msg-page-btn" data-page="' + (page - 1) + '">&laquo; 上一页</button>';
             }
-            pageHtml += '第 ' + page + ' / ' + totalPages + ' 页';
+            pageHtml += '<span class="msg-page-current">第 ' + page + ' / ' + totalPages + ' 页</span>';
             if (page < totalPages) {
-                pageHtml += ' <button class="btn-sm msg-page-btn" data-page="' + (page + 1) + '">下一页</button>';
+                pageHtml += '<button class="msg-page-btn" data-page="' + (page + 1) + '">下一页 &raquo;</button>';
             }
             pageHtml += '</span></div>';
         }
@@ -74,13 +83,13 @@
             '<textarea id="msg-input" class="msg-textarea" placeholder="写下你想说的..." maxlength="500" rows="3"></textarea>' +
             '<div class="msg-input-footer">' +
             '<span class="msg-char-count" id="msg-char-count">0 / 500</span>' +
-            '<button class="btn-sm primary" id="msg-submit-btn">发布留言</button>' +
+            '<button class="msg-submit-btn" id="msg-submit-btn">发布留言</button>' +
             '</div></div>';
 
-        var bodyHtml = '<h3 style="margin-bottom:12px;">家族留言板</h3>' +
+        var bodyHtml = '<h3 class="msg-modal-title">家族留言板</h3>' +
             listHtml + pageHtml + inputHtml +
-            '<div class="modal-actions" style="margin-top:8px;">' +
-            '<button class="btn-cancel" data-close-modal>关闭</button></div>';
+            '<div class="msg-modal-actions">' +
+            '<button class="msg-close-btn" data-close-modal>关闭</button></div>';
 
         FT.showModal(bodyHtml, 'modal-wide');
 
@@ -134,6 +143,28 @@
                     showMessageModal(page);
                 } else {
                     FT.toast(delRes.message || '删除失败');
+                }
+            });
+        });
+
+        // 绑定点赞/取消点赞
+        document.querySelectorAll('.msg-like-btn').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                var msgId = btn.dataset.msgId;
+                var isLiked = btn.classList.contains('msg-liked');
+                var url = '/api/message/' + msgId + '/like';
+                var method = isLiked ? 'DELETE' : 'POST';
+
+                try {
+                    var likeRes = await FT.api(url, { method: method });
+                    if (likeRes.code === 200) {
+                        // 刷新当前页
+                        showMessageModal(page);
+                    } else {
+                        FT.toast(likeRes.message || '操作失败');
+                    }
+                } catch (e) {
+                    FT.toast('网络错误，请重试');
                 }
             });
         });

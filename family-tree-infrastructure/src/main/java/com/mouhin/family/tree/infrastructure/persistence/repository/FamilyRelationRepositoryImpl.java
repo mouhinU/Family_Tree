@@ -35,6 +35,12 @@ public class FamilyRelationRepositoryImpl implements FamilyRelationRepository {
     }
 
     @Override
+    public void update(FamilyRelation entity) {
+        FamilyRelationDO doObj = FamilyRelationConverter.toDO(entity);
+        mapper.updateById(doObj);
+    }
+
+    @Override
     public FamilyRelation findById(Long id) {
         FamilyRelationDO doObj = mapper.selectById(id);
         return FamilyRelationConverter.toDomain(doObj);

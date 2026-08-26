@@ -30,4 +30,10 @@ public class MessageVO {
 
     /** 是否为当前用户（用于前端判断删除权限） */
     private Boolean own;
+
+    /** 点赞数 */
+    private Long likeCount;
+
+    /** 当前用户是否已点赞 */
+    private Boolean liked;
 }

@@ -23,8 +23,7 @@ import java.util.List;
 @Service
 public class DeathAnniversaryDomainService {
 
-    private static final Logger logger =
-            LoggerFactory.getLogger(DeathAnniversaryDomainService.class);
+    private static final Logger logger = LoggerFactory.getLogger(DeathAnniversaryDomainService.class);
 
     /**
      * 忌日信息结果对象

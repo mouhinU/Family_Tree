@@ -82,7 +82,7 @@ public class FamilyGenerationApplicationService {
         if (existing != null) {
             existing.setName(dto.getName().trim());
             existing.setUpdateTime(LocalDateTime.now());
-            familyGenerationRepository.save(existing);
+            familyGenerationRepository.update(existing);
         } else {
             FamilyGeneration entity = new FamilyGeneration();
             entity.setFamilyId(familyId);

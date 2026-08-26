@@ -103,7 +103,7 @@ public class FamilyRelationApplicationService {
                     && !Objects.equals(fromNode.getGeneration(), toNode.getGeneration())) {
                 toNode.setGeneration(fromNode.getGeneration());
                 toNode.setUpdateTime(LocalDateTime.now());
-                familyNodeRepository.save(toNode);
+                familyNodeRepository.update(toNode);
             }
         }
 
@@ -186,7 +186,7 @@ public class FamilyRelationApplicationService {
             relation.setEndType(dto.getEndType());
         }
         relation.setUpdateTime(LocalDateTime.now());
-        familyRelationRepository.save(relation);
+        familyRelationRepository.update(relation);
 
         logger.info("Updated relation id={} divorced={} widowed={} for family={}",
                 dto.getId(), dto.getDivorced(), dto.getWidowed(), familyId);
@@ -231,7 +231,7 @@ public class FamilyRelationApplicationService {
             int childGen = parent.getGeneration() + 1;
             child.setGeneration(childGen);
             child.setUpdateTime(LocalDateTime.now());
-            familyNodeRepository.save(child);
+            familyNodeRepository.update(child);
             familyNodeApplicationService.syncDescendantGenerations(
                     familyId, child.getId(), childGen);
         }

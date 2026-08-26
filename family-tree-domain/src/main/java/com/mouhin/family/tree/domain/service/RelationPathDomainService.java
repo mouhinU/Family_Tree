@@ -27,8 +27,7 @@ import java.util.Set;
 @Service
 public class RelationPathDomainService {
 
-    private static final Logger logger =
-            LoggerFactory.getLogger(RelationPathDomainService.class);
+    private static final Logger logger = LoggerFactory.getLogger(RelationPathDomainService.class);
 
     /**
      * 关系路径步骤

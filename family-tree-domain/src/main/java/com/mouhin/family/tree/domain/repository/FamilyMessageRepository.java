@@ -52,4 +52,53 @@ public interface FamilyMessageRepository {
      * @param id 留言ID
      */
     void removeById(Long id);
+
+    /**
+     * 增加留言点赞数
+     *
+     * @param messageId 留言ID
+     */
+    void incrementLikeCount(Long messageId);
+
+    /**
+     * 减少留言点赞数
+     *
+     * @param messageId 留言ID
+     */
+    void decrementLikeCount(Long messageId);
+
+    /**
+     * 检查用户是否已点赞
+     *
+     * @param messageId 留言ID
+     * @param userId    用户ID
+     * @return 是否已点赞
+     */
+    boolean existsByMessageIdAndUserId(Long messageId, Long userId);
+
+    /**
+     * 保存点赞记录
+     *
+     * @param messageId 留言ID
+     * @param userId    用户ID
+     * @param familyId  家族ID
+     */
+    void saveLike(Long messageId, Long userId, Long familyId);
+
+    /**
+     * 删除点赞记录
+     *
+     * @param messageId 留言ID
+     * @param userId    用户ID
+     */
+    void removeLike(Long messageId, Long userId);
+
+    /**
+     * 批量查询用户点赞状态
+     *
+     * @param messageIds 留言ID列表
+     * @param userId     用户ID
+     * @return 已点赞的留言ID集合
+     */
+    java.util.Set<Long> findLikedMessageIds(java.util.List<Long> messageIds, Long userId);
 }

@@ -112,7 +112,7 @@
     async function showTimelineModal() {
         var res = await FT.api('/api/timeline');
         if (res.code !== 200) { FT.toast(res.message || '加载失败'); return; }
-        var events = res.data || [];
+        var events = (res.data && res.data.records) || [];
 
         var typeIcon = function(type) {
             if (type === 'BIRTH') return '<span style="color:#4caf50;">&#9679;</span>';

@@ -1,14 +1,22 @@
 package com.mouhin.family.tree.infrastructure.persistence.repository;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.mouhin.family.tree.domain.entity.FamilyMessage;
 import com.mouhin.family.tree.domain.repository.FamilyMessageRepository;
 import com.mouhin.family.tree.infrastructure.converter.FamilyMessageConverter;
 import com.mouhin.family.tree.infrastructure.persistence.entity.FamilyMessageDO;
+import com.mouhin.family.tree.infrastructure.persistence.entity.FamilyMessageLikeDO;
+import com.mouhin.family.tree.infrastructure.persistence.mapper.FamilyMessageLikeMapper;
 import com.mouhin.family.tree.infrastructure.persistence.mapper.FamilyMessageMapper;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * FamilyMessage 仓储实现
@@ -20,9 +28,12 @@ import java.util.List;
 public class FamilyMessageRepositoryImpl implements FamilyMessageRepository {
 
     private final FamilyMessageMapper mapper;
+    private final FamilyMessageLikeMapper likeMapper;
 
-    public FamilyMessageRepositoryImpl(FamilyMessageMapper mapper) {
+    public FamilyMessageRepositoryImpl(FamilyMessageMapper mapper,
+                                       FamilyMessageLikeMapper likeMapper) {
         this.mapper = mapper;
+        this.likeMapper = likeMapper;
     }
 
     @Override
@@ -59,5 +70,62 @@ public class FamilyMessageRepositoryImpl implements FamilyMessageRepository {
     @Override
     public void removeById(Long id) {
         mapper.deleteById(id);
+    }
+
+    @Override
+    public void incrementLikeCount(Long messageId) {
+        LambdaUpdateWrapper<FamilyMessageDO> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(FamilyMessageDO::getId, messageId)
+                .setSql("like_count = like_count + 1");
+        mapper.update(null, wrapper);
+    }
+
+    @Override
+    public void decrementLikeCount(Long messageId) {
+        LambdaUpdateWrapper<FamilyMessageDO> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(FamilyMessageDO::getId, messageId)
+                .gt(FamilyMessageDO::getLikeCount, 0)
+                .setSql("like_count = like_count - 1");
+        mapper.update(null, wrapper);
+    }
+
+    @Override
+    public boolean existsByMessageIdAndUserId(Long messageId, Long userId) {
+        LambdaQueryWrapper<FamilyMessageLikeDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(FamilyMessageLikeDO::getMessageId, messageId)
+                .eq(FamilyMessageLikeDO::getUserId, userId);
+        return likeMapper.selectCount(wrapper) > 0;
+    }
+
+    @Override
+    public void saveLike(Long messageId, Long userId, Long familyId) {
+        FamilyMessageLikeDO likeDO = new FamilyMessageLikeDO();
+        likeDO.setMessageId(messageId);
+        likeDO.setUserId(userId);
+        likeDO.setFamilyId(familyId);
+        likeDO.setCreateTime(LocalDateTime.now());
+        likeMapper.insert(likeDO);
+    }
+
+    @Override
+    public void removeLike(Long messageId, Long userId) {
+        LambdaQueryWrapper<FamilyMessageLikeDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(FamilyMessageLikeDO::getMessageId, messageId)
+                .eq(FamilyMessageLikeDO::getUserId, userId);
+        likeMapper.delete(wrapper);
+    }
+
+    @Override
+    public Set<Long> findLikedMessageIds(List<Long> messageIds, Long userId) {
+        if (messageIds == null || messageIds.isEmpty()) {
+            return Collections.emptySet();
+        }
+        LambdaQueryWrapper<FamilyMessageLikeDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.in(FamilyMessageLikeDO::getMessageId, messageIds)
+                .eq(FamilyMessageLikeDO::getUserId, userId);
+        List<FamilyMessageLikeDO> likes = likeMapper.selectList(wrapper);
+        return likes.stream()
+                .map(FamilyMessageLikeDO::getMessageId)
+                .collect(Collectors.toSet());
     }
 }

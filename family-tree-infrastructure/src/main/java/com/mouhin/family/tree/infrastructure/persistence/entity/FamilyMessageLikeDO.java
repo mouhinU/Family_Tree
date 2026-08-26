@@ -8,37 +8,28 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 /**
- * 家族留言数据对象
+ * 留言点赞记录数据对象
  *
  * @author Family-Tree
- * @date 2026-08-25
+ * @date 2026-08-26
  */
 @Data
-@TableName("family_message")
-public class FamilyMessageDO {
+@TableName("family_message_like")
+public class FamilyMessageLikeDO {
 
     /** 主键 */
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    /** 留言ID */
+    private Long messageId;
+
+    /** 点赞用户ID */
+    private Long userId;
+
     /** 家族ID */
     private Long familyId;
 
-    /** 留言用户ID */
-    private Long userId;
-
-    /** 留言用户名 */
-    private String username;
-
-    /** 留言内容 */
-    private String content;
-
-    /** 点赞数 */
-    private Long likeCount;
-
     /** 创建时间 */
     private LocalDateTime createTime;
-
-    /** 更新时间 */
-    private LocalDateTime updateTime;
 }

@@ -286,7 +286,7 @@ public class FamilyNodeApplicationService {
         }
 
         existing.setUpdateTime(LocalDateTime.now());
-        familyNodeRepository.save(existing);
+        familyNodeRepository.update(existing);
 
         // 生卒日期顺序校验（取更新后的有效值）
         LocalDate effectiveBirth = existing.getBirthDate();
@@ -402,7 +402,7 @@ public class FamilyNodeApplicationService {
         List<FamilyNode> updatedNodes = familyNodeDomainService.syncDescendantGenerations(
                 nodeId, generation, allNodes, allRelations);
         for (FamilyNode node : updatedNodes) {
-            familyNodeRepository.save(node);
+            familyNodeRepository.update(node);
         }
         logger.info("Synced descendant generations from node={} gen={} for family={} ({} nodes updated)",
                 nodeId, generation, familyId, updatedNodes.size());
@@ -423,7 +423,7 @@ public class FamilyNodeApplicationService {
             if (spouse != null && Objects.equals(spouse.getFamilyId(), familyId)) {
                 spouse.setGeneration(generation);
                 spouse.setUpdateTime(LocalDateTime.now());
-                familyNodeRepository.save(spouse);
+                familyNodeRepository.update(spouse);
             }
         }
         if (!spouseRelations.isEmpty()) {

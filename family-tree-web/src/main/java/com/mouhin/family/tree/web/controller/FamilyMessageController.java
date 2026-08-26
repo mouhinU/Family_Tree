@@ -73,4 +73,33 @@ public class FamilyMessageController extends BaseController {
         messageService.deleteMessage(id, userId);
         return Result.success();
     }
+
+    /**
+     * 点赞留言
+     *
+     * @param id      留言ID
+     * @param session 当前会话
+     * @return 操作结果
+     */
+    @PostMapping("/{id}/like")
+    public Result<Void> likeMessage(@PathVariable Long id, HttpSession session) {
+        Long userId = getCurrentUserId(session);
+        Long familyId = getCurrentFamilyId(session);
+        messageService.likeMessage(id, userId, familyId);
+        return Result.success();
+    }
+
+    /**
+     * 取消点赞
+     *
+     * @param id      留言ID
+     * @param session 当前会话
+     * @return 操作结果
+     */
+    @DeleteMapping("/{id}/like")
+    public Result<Void> unlikeMessage(@PathVariable Long id, HttpSession session) {
+        Long userId = getCurrentUserId(session);
+        messageService.unlikeMessage(id, userId);
+        return Result.success();
+    }
 }

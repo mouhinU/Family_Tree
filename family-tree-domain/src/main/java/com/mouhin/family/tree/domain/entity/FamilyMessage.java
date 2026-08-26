@@ -24,6 +24,7 @@ public class FamilyMessage {
     private Long userId;
     private String username;
     private String content;
+    private Long likeCount;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 

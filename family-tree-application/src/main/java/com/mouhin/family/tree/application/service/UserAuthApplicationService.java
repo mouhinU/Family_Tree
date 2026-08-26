@@ -112,7 +112,7 @@ public class UserAuthApplicationService {
         if (isLegacyMd5Hash(user.getPasswordHash())) {
             user.setPasswordHash(BCrypt.hashpw(dto.getPassword(), BCrypt.gensalt()));
             user.setUpdateTime(LocalDateTime.now());
-            userRepository.save(user);
+            userRepository.update(user);
             logger.info("Upgraded legacy MD5 password hash to BCrypt for user id={}", user.getId());
         }
 
@@ -179,7 +179,7 @@ public class UserAuthApplicationService {
         if (!Objects.equals(user.getNodeId(), nodeId)) {
             user.setNodeId(nodeId);
             user.setUpdateTime(LocalDateTime.now());
-            userRepository.save(user);
+            userRepository.update(user);
             logger.info("User nodeId updated: userId={}, nodeId={}", userId, nodeId);
         }
     }
@@ -224,7 +224,7 @@ public class UserAuthApplicationService {
 
         if (changed) {
             user.setUpdateTime(LocalDateTime.now());
-            userRepository.save(user);
+            userRepository.update(user);
             logger.info("User profile updated: userId={}", userId);
         }
     }

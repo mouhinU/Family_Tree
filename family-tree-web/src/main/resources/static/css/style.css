@@ -2687,6 +2687,49 @@ body.toolbar-hidden .tree-container {
     word-break: break-word;
 }
 
+.msg-footer {
+    display: flex;
+    align-items: center;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed rgba(216, 203, 168, 0.3);
+}
+
+.msg-like-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 2px 10px;
+    font-size: 12px;
+    color: var(--ink-faint);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.msg-like-btn:hover {
+    border-color: var(--cinnabar);
+    color: var(--cinnabar);
+}
+
+.msg-like-btn.msg-liked {
+    background: rgba(166, 58, 43, 0.08);
+    border-color: var(--cinnabar);
+    color: var(--cinnabar);
+}
+
+.msg-like-icon {
+    font-size: 14px;
+    line-height: 1;
+}
+
+.msg-like-count {
+    font-size: 12px;
+    min-width: 12px;
+}
+
 .msg-empty {
     text-align: center;
     color: var(--ink-faint);
@@ -2698,11 +2741,42 @@ body.toolbar-hidden .tree-container {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    font-size: 13px;
+    color: var(--ink-faint);
+    padding: 10px 0;
+    border-top: 1px solid var(--border);
+    margin-bottom: 10px;
+}
+
+.msg-page-info {
+    font-size: 12px;
+}
+
+.msg-page-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.msg-page-btn {
+    background: var(--paper-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: var(--ink);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.msg-page-btn:hover {
+    border-color: var(--cinnabar);
+    color: var(--cinnabar);
+}
+
+.msg-page-current {
     font-size: 12px;
     color: var(--ink-faint);
-    padding: 8px 0;
-    border-top: 1px solid var(--border);
-    margin-bottom: 8px;
 }
 
 .msg-input-area {
@@ -2723,6 +2797,7 @@ body.toolbar-hidden .tree-container {
     background: transparent;
     color: var(--ink);
     line-height: 1.6;
+    box-sizing: border-box;
 }
 
 .msg-textarea::placeholder {
@@ -2741,6 +2816,54 @@ body.toolbar-hidden .tree-container {
 .msg-char-count {
     font-size: 12px;
     color: var(--ink-faint);
+}
+
+.msg-submit-btn {
+    background: var(--cinnabar);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 5px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.msg-submit-btn:hover {
+    opacity: 0.85;
+}
+
+.msg-submit-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.msg-modal-title {
+    margin-bottom: 12px;
+    font-size: 16px;
+    color: var(--ink);
+}
+
+.msg-modal-actions {
+    margin-top: 8px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.msg-close-btn {
+    background: var(--paper-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-size: 13px;
+    color: var(--ink);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.msg-close-btn:hover {
+    border-color: var(--cinnabar);
+    color: var(--cinnabar);
 }
 
 /* ===== 留言轮播 ===== */

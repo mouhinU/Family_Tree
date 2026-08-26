@@ -282,7 +282,7 @@ public class FamilyApplicationService {
         }
         family.setInviteCode(newCode);
         family.setUpdateTime(LocalDateTime.now());
-        familyRepository.save(family);
+        familyRepository.update(family);
 
         logger.info("Refreshed invite code for family={} by user={}", familyId, operatorUserId);
         return newCode;
@@ -328,7 +328,7 @@ public class FamilyApplicationService {
 
         targetMember.setRole(targetRole.getCode());
         targetMember.setUpdateTime(LocalDateTime.now());
-        familyMemberRepository.save(targetMember);
+        familyMemberRepository.update(targetMember);
 
         logger.info("Set role={} for user={} in family={} by operator={}",
                 targetRole.getCode(), targetUserId, familyId, operatorUserId);
@@ -353,7 +353,7 @@ public class FamilyApplicationService {
         }
         user.setCurrentFamilyId(familyId);
         user.setUpdateTime(LocalDateTime.now());
-        userRepository.save(user);
+        userRepository.update(user);
 
         logger.info("User {} switched to family {}", userId, familyId);
     }
@@ -396,7 +396,7 @@ public class FamilyApplicationService {
         }
         family.updateHallInfo(hallName, ancestralHome);
         family.setUpdateTime(LocalDateTime.now());
-        familyRepository.save(family);
+        familyRepository.update(family);
 
         logger.info("Updated family info for family={} by user={}", familyId, operatorUserId);
     }
@@ -421,7 +421,7 @@ public class FamilyApplicationService {
         family.setGenerationCols(cols);
         family.setGenerationRows(rows);
         family.setUpdateTime(LocalDateTime.now());
-        familyRepository.save(family);
+        familyRepository.update(family);
 
         logger.info("Updated generation layout for family={} cols={} rows={} by user={}",
                 familyId, cols, rows, operatorUserId);

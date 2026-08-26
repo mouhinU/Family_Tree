@@ -30,8 +30,7 @@ import java.util.Set;
 @Service
 public class FamilyNodeDomainService {
 
-    private static final Logger logger =
-            LoggerFactory.getLogger(FamilyNodeDomainService.class);
+    private static final Logger logger = LoggerFactory.getLogger(FamilyNodeDomainService.class);
 
     /**
      * 计算新节点的世代层级

@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -59,6 +60,7 @@ public class FamilyMessageApplicationService {
         message.setUserId(userId);
         message.setUsername(username != null ? username : "匿名");
         message.setContent(content.trim());
+        message.setLikeCount(0L);
         message.setCreateTime(LocalDateTime.now());
         message.setUpdateTime(LocalDateTime.now());
 
@@ -86,6 +88,12 @@ public class FamilyMessageApplicationService {
         List<FamilyMessage> messages = familyMessageRepository.findByFamilyId(
                 familyId, offset, size);
 
+        // 批量查询当前用户的点赞状态
+        List<Long> messageIds = messages.stream()
+                .map(FamilyMessage::getId)
+                .collect(Collectors.toList());
+        Set<Long> likedMessageIds = familyMessageRepository.findLikedMessageIds(messageIds, currentUserId);
+
         List<MessageVO> voList = messages.stream().map(msg -> {
             MessageVO vo = new MessageVO();
             vo.setId(msg.getId());
@@ -94,6 +102,8 @@ public class FamilyMessageApplicationService {
             vo.setContent(msg.getContent());
             vo.setCreateTime(msg.getCreateTime());
             vo.setOwn(Objects.equals(msg.getUserId(), currentUserId));
+            vo.setLikeCount(msg.getLikeCount() != null ? msg.getLikeCount() : 0L);
+            vo.setLiked(likedMessageIds.contains(msg.getId()));
             return vo;
         }).collect(Collectors.toList());
 
@@ -118,5 +128,48 @@ public class FamilyMessageApplicationService {
 
         familyMessageRepository.removeById(messageId);
         logger.info("用户 {} 删除留言: id={}", userId, messageId);
+    }
+
+    /**
+     * 点赞留言
+     *
+     * @param messageId 留言ID
+     * @param userId    用户ID
+     * @param familyId  家族ID
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void likeMessage(Long messageId, Long userId, Long familyId) {
+        FamilyMessage message = familyMessageRepository.findById(messageId);
+        if (message == null) {
+            throw new BusinessException("留言不存在");
+        }
+        if (familyMessageRepository.existsByMessageIdAndUserId(messageId, userId)) {
+            throw new BusinessException("已点赞，不能重复点赞");
+        }
+
+        familyMessageRepository.saveLike(messageId, userId, familyId);
+        familyMessageRepository.incrementLikeCount(messageId);
+        logger.info("用户 {} 点赞留言: id={}", userId, messageId);
+    }
+
+    /**
+     * 取消点赞
+     *
+     * @param messageId 留言ID
+     * @param userId    用户ID
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void unlikeMessage(Long messageId, Long userId) {
+        FamilyMessage message = familyMessageRepository.findById(messageId);
+        if (message == null) {
+            throw new BusinessException("留言不存在");
+        }
+        if (!familyMessageRepository.existsByMessageIdAndUserId(messageId, userId)) {
+            throw new BusinessException("未点赞，不能取消点赞");
+        }
+
+        familyMessageRepository.removeLike(messageId, userId);
+        familyMessageRepository.decrementLikeCount(messageId);
+        logger.info("用户 {} 取消点赞留言: id={}", userId, messageId);
     }
 }
