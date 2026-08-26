@@ -148,6 +148,24 @@
         // 清空后代计数记忆化缓存（树结构可能已变化）
         FT.state.descendantMemo = new Map();
 
+        // 为每个根节点包装"未知始祖"虚拟节点，表示上游祖先信息不可考
+        var wrappedTree = [];
+        displayTree.forEach(function (root, idx) {
+            var unknownGen = (root.generation != null && root.generation > 1) ? root.generation - 1 : null;
+            var unknownNode = {
+                id: '__unknown_' + idx,
+                name: '未知始祖',
+                isUnknown: true,
+                generation: unknownGen,
+                children: [root],
+                spouses: [],
+                bloodSpouses: [],
+                formerSpouses: []
+            };
+            wrappedTree.push(unknownNode);
+        });
+        displayTree = wrappedTree;
+
         const gMain = FT.state.gMain;
         if (displayTree.length === 0) {
             gMain.append('text')
@@ -407,8 +425,93 @@
                 group.classed('node-self', true);
             }
 
-            // 内层视觉容器：搜索定位等 CSS 缩放动画作用于此，不影响外层定位 transform
+            // 内层视觉容器
             const inner = group.append('g').attr('class', 'node-inner');
+
+            // ===== 未知始祖虚拟节点：虚线卡片 =====
+            if (n.data.isUnknown) {
+                group.classed('node-unknown', true);
+
+                // 虚线外框
+                inner.append('rect')
+                    .attr('class', 'node-rect')
+                    .attr('width', FT.NODE_WIDTH)
+                    .attr('height', FT.NODE_HEIGHT)
+                    .attr('rx', 3)
+                    .attr('fill', '#f0ebe0')
+                    .attr('stroke', '#b8a88a')
+                    .attr('stroke-width', 1.5)
+                    .attr('stroke-dasharray', '6 3');
+
+                // 虚线内框
+                inner.append('rect')
+                    .attr('x', 3.5).attr('y', 3.5)
+                    .attr('width', FT.NODE_WIDTH - 7)
+                    .attr('height', FT.NODE_HEIGHT - 7)
+                    .attr('rx', 2)
+                    .attr('fill', 'none')
+                    .attr('stroke', '#b8a88a')
+                    .attr('stroke-width', 0.5)
+                    .attr('stroke-dasharray', '4 2')
+                    .attr('opacity', 0.5);
+
+                // 辈分标签
+                if (n.data.generation != null) {
+                    var genLabel = FT.state.generationNames[n.data.generation] || ('第' + n.data.generation + '世');
+                    inner.append('text')
+                        .attr('x', FT.NODE_WIDTH / 2)
+                        .attr('y', 17.5)
+                        .attr('text-anchor', 'middle')
+                        .attr('font-family', FT.FONT_KAI)
+                        .attr('font-size', '9px')
+                        .attr('fill', '#a09880')
+                        .text(genLabel);
+                }
+
+                // 问号图标
+                inner.append('text')
+                    .attr('x', FT.NODE_WIDTH / 2)
+                    .attr('y', FT.NODE_HEIGHT / 2 + 2)
+                    .attr('text-anchor', 'middle')
+                    .attr('dominant-baseline', 'central')
+                    .attr('font-family', FT.FONT_KAI)
+                    .attr('font-size', '30px')
+                    .attr('fill', '#b8a88a')
+                    .attr('opacity', 0.55)
+                    .text('?');
+
+                // "未知始祖"文字
+                inner.append('text')
+                    .attr('x', FT.NODE_WIDTH / 2)
+                    .attr('y', FT.NODE_HEIGHT - 24)
+                    .attr('text-anchor', 'middle')
+                    .attr('font-family', FT.FONT_KAI)
+                    .attr('font-size', '10px')
+                    .attr('fill', '#a09880')
+                    .text('未知始祖');
+
+                // "点击补充"提示
+                if (interactive) {
+                    inner.append('text')
+                        .attr('x', FT.NODE_WIDTH / 2)
+                        .attr('y', FT.NODE_HEIGHT - 10)
+                        .attr('text-anchor', 'middle')
+                        .attr('font-family', FT.FONT_KAI)
+                        .attr('font-size', '8px')
+                        .attr('fill', '#c4b898')
+                        .text('点击补充');
+                }
+
+                // 未知节点交互：点击提示
+                if (interactive) {
+                    group.style('cursor', 'pointer');
+                    group.on('click', function (event) {
+                        event.stopPropagation();
+                        FT.toast('如已知该始祖信息，可在族谱中直接添加其父/母节点', 'info');
+                    });
+                }
+                return; // 跳过后续正常节点绘制
+            }
 
             // 外层卡片
             inner.append('rect')

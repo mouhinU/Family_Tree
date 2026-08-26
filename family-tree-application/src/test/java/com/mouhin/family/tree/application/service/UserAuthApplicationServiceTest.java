@@ -85,7 +85,7 @@ class UserAuthApplicationServiceTest {
         assertEquals(1L, userId);
         // 校验通过后应透明升级为 BCrypt
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
-        verify(userRepository).save(captor.capture());
+        verify(userRepository).update(captor.capture());
         String upgraded = captor.getValue().getPasswordHash();
         assertNotEquals(md5(RAW_PASSWORD), upgraded);
         assertTrue(BCrypt.checkpw(RAW_PASSWORD, upgraded),

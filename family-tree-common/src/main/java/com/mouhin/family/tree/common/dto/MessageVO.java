@@ -36,4 +36,10 @@ public class MessageVO {
 
     /** 当前用户是否已点赞 */
     private Boolean liked;
+
+    /** 留言分类编码 */
+    private String category;
+
+    /** 留言分类描述 */
+    private String categoryDesc;
 }

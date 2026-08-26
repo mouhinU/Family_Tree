@@ -3,6 +3,7 @@ package com.mouhin.family.tree.application.service;
 import com.mouhin.family.tree.common.dto.MessageCreateDTO;
 import com.mouhin.family.tree.common.dto.MessageVO;
 import com.mouhin.family.tree.common.dto.PageResult;
+import com.mouhin.family.tree.common.enums.MessageCategoryEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilyMessage;
 import com.mouhin.family.tree.domain.repository.FamilyMessageRepository;
@@ -55,17 +56,26 @@ public class FamilyMessageApplicationService {
             throw new BusinessException("留言内容不能超过" + MAX_CONTENT_LENGTH + "字");
         }
 
+        // 校验分类，默认普通留言
+        String category = dto.getCategory();
+        if (category != null && !category.isBlank()) {
+            MessageCategoryEnum.fromCode(category);
+        } else {
+            category = MessageCategoryEnum.GENERAL.getCode();
+        }
+
         FamilyMessage message = new FamilyMessage();
         message.setFamilyId(familyId);
         message.setUserId(userId);
         message.setUsername(username != null ? username : "匿名");
         message.setContent(content.trim());
         message.setLikeCount(0L);
+        message.setCategory(category);
         message.setCreateTime(LocalDateTime.now());
         message.setUpdateTime(LocalDateTime.now());
 
         familyMessageRepository.save(message);
-        logger.info("用户 {} 在家族 {} 发布留言: id={}", userId, familyId, message.getId());
+        logger.info("用户 {} 在家族 {} 发布留言: id={}, category={}", userId, familyId, message.getId(), category);
     }
 
     /**
@@ -73,12 +83,13 @@ public class FamilyMessageApplicationService {
      *
      * @param familyId      家族ID
      * @param currentUserId 当前用户ID
+     * @param category      留言分类（null 表示全部分类）
      * @param page          页码（从1开始）
      * @param size          每页大小
      * @return 分页结果
      */
-    public PageResult<MessageVO> listMessages(Long familyId, Long currentUserId, int page, int size) {
-        long total = familyMessageRepository.countByFamilyId(familyId);
+    public PageResult<MessageVO> listMessages(Long familyId, Long currentUserId, String category, int page, int size) {
+        long total = familyMessageRepository.countByFamilyId(familyId, category);
 
         if (total == 0) {
             return new PageResult<>(List.of(), 0L, page, size);
@@ -86,7 +97,7 @@ public class FamilyMessageApplicationService {
 
         int offset = (page - 1) * size;
         List<FamilyMessage> messages = familyMessageRepository.findByFamilyId(
-                familyId, offset, size);
+                familyId, category, offset, size);
 
         // 批量查询当前用户的点赞状态
         List<Long> messageIds = messages.stream()
@@ -104,10 +115,29 @@ public class FamilyMessageApplicationService {
             vo.setOwn(Objects.equals(msg.getUserId(), currentUserId));
             vo.setLikeCount(msg.getLikeCount() != null ? msg.getLikeCount() : 0L);
             vo.setLiked(likedMessageIds.contains(msg.getId()));
+            vo.setCategory(msg.getCategory());
+            vo.setCategoryDesc(getCategoryDesc(msg.getCategory()));
             return vo;
         }).collect(Collectors.toList());
 
         return new PageResult<>(voList, total, page, size);
+    }
+
+    /**
+     * 获取分类描述
+     *
+     * @param category 分类编码
+     * @return 分类描述
+     */
+    private String getCategoryDesc(String category) {
+        if (category == null) {
+            return MessageCategoryEnum.GENERAL.getDescription();
+        }
+        try {
+            return MessageCategoryEnum.fromCode(category).getDescription();
+        } catch (BusinessException e) {
+            return MessageCategoryEnum.GENERAL.getDescription();
+        }
     }
 
     /**

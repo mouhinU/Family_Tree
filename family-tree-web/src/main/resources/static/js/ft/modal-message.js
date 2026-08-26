@@ -1,6 +1,6 @@
 /**
  * 族谱前端 - 留言板模块
- * 家族留言板：发布留言、分页列表、删除自己的留言、点赞/取消点赞。
+ * 家族留言板：发布留言、分页列表、删除自己的留言、点赞/取消点赞、分类筛选。
  *
  * @author Family-Tree
  * @date 2026-08-25
@@ -11,6 +11,30 @@
     var FT = window.FT;
     var PAGE_SIZE = 20;
 
+    /** 当前选中的分类（null 表示全部） */
+    var currentCategory = null;
+
+    /**
+     * 分类配置
+     */
+    var CATEGORIES = [
+        { code: null, label: '全部' },
+        { code: 'GENERAL', label: '普通留言' },
+        { code: 'FEATURE', label: '功能需求' }
+    ];
+
+    /**
+     * 获取分类标签样式类名
+     * @param {string} category 分类编码
+     * @returns {string} CSS 类名
+     */
+    function getCategoryTagClass(category) {
+        if (category === 'FEATURE') {
+            return 'msg-tag-feature';
+        }
+        return 'msg-tag-general';
+    }
+
     /**
      * 打开留言板弹窗
      * @param {number} [page] 页码（默认 1）
@@ -18,7 +42,12 @@
     async function showMessageModal(page) {
         page = page || 1;
 
-        var res = await FT.api('/api/message?page=' + page + '&size=' + PAGE_SIZE);
+        var url = '/api/message?page=' + page + '&size=' + PAGE_SIZE;
+        if (currentCategory) {
+            url += '&category=' + currentCategory;
+        }
+
+        var res = await FT.api(url);
         if (res.code !== 200) {
             FT.toast(res.message || '加载留言失败');
             return;
@@ -28,6 +57,16 @@
         var records = data.records || [];
         var total = data.total || 0;
         var totalPages = data.totalPages || 1;
+
+        // 分类筛选标签
+        var tabsHtml = '<div class="msg-category-tabs">';
+        CATEGORIES.forEach(function (cat) {
+            var activeClass = (cat.code === currentCategory) ? ' msg-tab-active' : '';
+            var dataAttr = cat.code ? ' data-category="' + cat.code + '"' : ' data-category=""';
+            tabsHtml += '<button class="msg-category-tab' + activeClass + '"' + dataAttr + '>' +
+                FT.escapeHtml(cat.label) + '</button>';
+        });
+        tabsHtml += '</div>';
 
         // 留言列表
         var listHtml = '';
@@ -44,10 +83,13 @@
                 var likeCount = msg.likeCount || 0;
                 var likeClass = msg.liked ? 'msg-liked' : '';
                 var likeIcon = msg.liked ? '&#9829;' : '&#9825;';
+                var tagClass = getCategoryTagClass(msg.category);
+                var categoryDesc = msg.categoryDesc || '普通留言';
                 listHtml += '<div class="msg-item">' +
                     '<div class="msg-header">' +
                     '<span class="msg-username">' + FT.escapeHtml(msg.username) + '</span>' +
                     '<span class="msg-time">' + FT.escapeHtml(time) + '</span>' +
+                    '<span class="msg-category-tag ' + tagClass + '">' + FT.escapeHtml(categoryDesc) + '</span>' +
                     deleteBtn +
                     '</div>' +
                     '<div class="msg-content">' + FT.escapeHtml(msg.content) + '</div>' +
@@ -78,20 +120,36 @@
             pageHtml += '</span></div>';
         }
 
-        // 输入区域
+        // 输入区域（含分类选择）
         var inputHtml = '<div class="msg-input-area">' +
             '<textarea id="msg-input" class="msg-textarea" placeholder="写下你想说的..." maxlength="500" rows="3"></textarea>' +
             '<div class="msg-input-footer">' +
+            '<span class="msg-category-select">' +
+            '<label class="msg-select-label">分类：</label>' +
+            '<select id="msg-category-input" class="msg-select">' +
+            '<option value="GENERAL">普通留言</option>' +
+            '<option value="FEATURE">功能需求</option>' +
+            '</select>' +
+            '</span>' +
             '<span class="msg-char-count" id="msg-char-count">0 / 500</span>' +
             '<button class="msg-submit-btn" id="msg-submit-btn">发布留言</button>' +
             '</div></div>';
 
         var bodyHtml = '<h3 class="msg-modal-title">家族留言板</h3>' +
-            listHtml + pageHtml + inputHtml +
+            tabsHtml + listHtml + pageHtml + inputHtml +
             '<div class="msg-modal-actions">' +
             '<button class="msg-close-btn" data-close-modal>关闭</button></div>';
 
         FT.showModal(bodyHtml, 'modal-wide');
+
+        // 绑定分类筛选
+        document.querySelectorAll('.msg-category-tab').forEach(function (tab) {
+            tab.addEventListener('click', function () {
+                var cat = tab.dataset.category || null;
+                currentCategory = cat || null;
+                showMessageModal(1);
+            });
+        });
 
         // 绑定字数统计
         var textarea = document.getElementById('msg-input');
@@ -107,11 +165,12 @@
                 FT.toast('请输入留言内容', 'warning');
                 return;
             }
+            var category = document.getElementById('msg-category-input').value;
             this.disabled = true;
             this.textContent = '发布中...';
             var submitRes = await FT.api('/api/message', {
                 method: 'POST',
-                body: JSON.stringify({ content: content })
+                body: JSON.stringify({ content: content, category: category })
             });
             if (submitRes.code === 200) {
                 FT.toast('留言成功');
@@ -158,7 +217,6 @@
                 try {
                     var likeRes = await FT.api(url, { method: method });
                     if (likeRes.code === 200) {
-                        // 刷新当前页
                         showMessageModal(page);
                     } else {
                         FT.toast(likeRes.message || '操作失败');

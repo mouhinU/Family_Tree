@@ -113,10 +113,10 @@ class FamilyMessageApplicationServiceTest {
 
     @Test
     void listMessages_empty() {
-        when(familyMessageRepository.countByFamilyId(FAMILY_ID)).thenReturn(0L);
+        when(familyMessageRepository.countByFamilyId(FAMILY_ID, null)).thenReturn(0L);
 
         PageResult<MessageVO> result = messageApplicationService.listMessages(
-                FAMILY_ID, USER_ID, 1, 20);
+                FAMILY_ID, USER_ID, null, 1, 20);
 
         assertEquals(0L, result.getTotal());
         assertTrue(result.getRecords().isEmpty());
@@ -124,15 +124,15 @@ class FamilyMessageApplicationServiceTest {
 
     @Test
     void listMessages_withData_ownFlag() {
-        when(familyMessageRepository.countByFamilyId(FAMILY_ID)).thenReturn(2L);
+        when(familyMessageRepository.countByFamilyId(FAMILY_ID, null)).thenReturn(2L);
 
         FamilyMessage msg1 = buildMessage(1L, USER_ID, "用户A", "我的留言");
         FamilyMessage msg2 = buildMessage(2L, OTHER_USER_ID, "用户B", "别人的留言");
-        when(familyMessageRepository.findByFamilyId(FAMILY_ID, 1, 20))
+        when(familyMessageRepository.findByFamilyId(FAMILY_ID, null, 0, 20))
                 .thenReturn(List.of(msg1, msg2));
 
         PageResult<MessageVO> result = messageApplicationService.listMessages(
-                FAMILY_ID, USER_ID, 1, 20);
+                FAMILY_ID, USER_ID, null, 1, 20);
 
         assertEquals(2L, result.getTotal());
         assertEquals(2, result.getRecords().size());

@@ -17,4 +17,7 @@ public class MessageCreateDTO {
     @NotBlank(message = "留言内容不能为空")
     @Size(max = 500, message = "留言内容不能超过500字")
     private String content;
+
+    /** 留言分类（GENERAL-普通留言, FEATURE-功能需求） */
+    private String category;
 }

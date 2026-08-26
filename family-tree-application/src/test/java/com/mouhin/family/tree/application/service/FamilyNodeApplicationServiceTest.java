@@ -201,12 +201,12 @@ class FamilyNodeApplicationServiceTest {
         familyNodeApplicationService.updateNode(FAMILY_ID, dto);
 
         // 验证：节点自身保存
-        verify(familyNodeRepository).save(existingNode);
+        verify(familyNodeRepository).update(existingNode);
         assertEquals(2, existingNode.getGeneration());
 
         // 验证：子节点世代同步（领域服务返回的 2 个子节点各保存一次）
-        verify(familyNodeRepository).save(child1);
-        verify(familyNodeRepository).save(child2);
+        verify(familyNodeRepository).update(child1);
+        verify(familyNodeRepository).update(child2);
 
         // 验证：缓存已失效（syncDescendantGenerations 和 updateNode 各调用一次）
         verify(familyTreeApplicationService, times(2)).evictFamilyTree(FAMILY_ID);

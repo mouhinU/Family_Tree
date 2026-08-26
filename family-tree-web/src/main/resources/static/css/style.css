@@ -589,6 +589,24 @@ body.toolbar-hidden .tree-container {
     filter: brightness(0.96) saturate(1.1);
 }
 
+/* 未知始祖虚拟节点 */
+.node-unknown {
+    opacity: 0.75;
+}
+
+.node-unknown:hover {
+    opacity: 1;
+}
+
+.node-unknown .node-rect {
+    transition: stroke-width 0.2s, filter 0.2s;
+}
+
+.node-unknown:hover .node-rect {
+    stroke-width: 2.2;
+    filter: brightness(0.97);
+}
+
 .node-name {
     font-family: var(--font-kai);
     font-weight: 600;
@@ -2864,6 +2882,79 @@ body.toolbar-hidden .tree-container {
 .msg-close-btn:hover {
     border-color: var(--cinnabar);
     color: var(--cinnabar);
+}
+
+/* ===== 留言分类标签 ===== */
+.msg-category-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+}
+
+.msg-category-tab {
+    padding: 4px 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: transparent;
+    font-size: 13px;
+    color: var(--ink-light);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: var(--font-kai);
+}
+
+.msg-category-tab:hover {
+    border-color: var(--cinnabar);
+    color: var(--cinnabar);
+}
+
+.msg-category-tab.msg-tab-active {
+    background: var(--cinnabar);
+    border-color: var(--cinnabar);
+    color: #fff;
+}
+
+.msg-category-tag {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    line-height: 18px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.msg-tag-general {
+    background: rgba(43, 38, 34, 0.06);
+    color: var(--ink-light);
+}
+
+.msg-tag-feature {
+    background: rgba(199, 90, 56, 0.1);
+    color: var(--cinnabar);
+}
+
+.msg-category-select {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.msg-select-label {
+    font-size: 12px;
+    color: var(--ink-light);
+}
+
+.msg-select {
+    padding: 2px 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--ink);
+    background: var(--paper);
+    cursor: pointer;
 }
 
 /* ===== 留言轮播 ===== */

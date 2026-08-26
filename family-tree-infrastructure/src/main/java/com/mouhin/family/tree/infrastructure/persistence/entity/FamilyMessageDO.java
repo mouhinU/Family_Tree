@@ -36,6 +36,9 @@ public class FamilyMessageDO {
     /** 点赞数 */
     private Long likeCount;
 
+    /** 留言分类 */
+    private String category;
+
     /** 创建时间 */
     private LocalDateTime createTime;
 

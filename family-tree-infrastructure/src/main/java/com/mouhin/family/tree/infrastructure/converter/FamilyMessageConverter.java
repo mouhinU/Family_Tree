@@ -35,6 +35,7 @@ public final class FamilyMessageConverter {
         entity.setUsername(doObj.getUsername());
         entity.setContent(doObj.getContent());
         entity.setLikeCount(doObj.getLikeCount());
+        entity.setCategory(doObj.getCategory());
         entity.setCreateTime(doObj.getCreateTime());
         entity.setUpdateTime(doObj.getUpdateTime());
         return entity;
@@ -57,6 +58,7 @@ public final class FamilyMessageConverter {
         doObj.setUsername(entity.getUsername());
         doObj.setContent(entity.getContent());
         doObj.setLikeCount(entity.getLikeCount());
+        doObj.setCategory(entity.getCategory());
         doObj.setCreateTime(entity.getCreateTime());
         doObj.setUpdateTime(entity.getUpdateTime());
         return doObj;

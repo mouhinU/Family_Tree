@@ -51,19 +51,25 @@ public class FamilyMessageRepositoryImpl implements FamilyMessageRepository {
     }
 
     @Override
-    public List<FamilyMessage> findByFamilyId(Long familyId, int offset, int size) {
+    public List<FamilyMessage> findByFamilyId(Long familyId, String category, int offset, int size) {
         LambdaQueryWrapper<FamilyMessageDO> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(FamilyMessageDO::getFamilyId, familyId)
-                .orderByDesc(FamilyMessageDO::getCreateTime)
+        wrapper.eq(FamilyMessageDO::getFamilyId, familyId);
+        if (category != null && !category.isBlank()) {
+            wrapper.eq(FamilyMessageDO::getCategory, category);
+        }
+        wrapper.orderByDesc(FamilyMessageDO::getCreateTime)
                 .last("LIMIT " + size + " OFFSET " + offset);
         List<FamilyMessageDO> doList = mapper.selectList(wrapper);
         return FamilyMessageConverter.toDomainList(doList);
     }
 
     @Override
-    public long countByFamilyId(Long familyId) {
+    public long countByFamilyId(Long familyId, String category) {
         LambdaQueryWrapper<FamilyMessageDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FamilyMessageDO::getFamilyId, familyId);
+        if (category != null && !category.isBlank()) {
+            wrapper.eq(FamilyMessageDO::getCategory, category);
+        }
         return mapper.selectCount(wrapper);
     }
 

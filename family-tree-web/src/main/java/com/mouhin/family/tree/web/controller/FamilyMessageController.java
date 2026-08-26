@@ -44,19 +44,21 @@ public class FamilyMessageController extends BaseController {
     /**
      * 分页查询留言列表
      *
-     * @param page    页码（默认 1）
-     * @param size    每页大小（默认 20）
-     * @param session 当前会话
+     * @param page     页码（默认 1）
+     * @param size     每页大小（默认 20）
+     * @param category 留言分类（可选，GENERAL-普通留言, FEATURE-功能需求，不传则查全部）
+     * @param session  当前会话
      * @return 分页留言列表
      */
     @GetMapping
     public Result<PageResult<MessageVO>> listMessages(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String category,
             HttpSession session) {
         Long userId = getCurrentUserId(session);
         Long familyId = getCurrentFamilyId(session);
-        PageResult<MessageVO> result = messageService.listMessages(familyId, userId, page, size);
+        PageResult<MessageVO> result = messageService.listMessages(familyId, userId, category, page, size);
         return Result.success(result);
     }
 

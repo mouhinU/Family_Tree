@@ -32,19 +32,21 @@ public interface FamilyMessageRepository {
      * 根据家族ID分页查询留言
      *
      * @param familyId 家族ID
+     * @param category 留言分类（null 表示全部分类）
      * @param offset   偏移量
      * @param limit    每页数量
      * @return 留言列表
      */
-    List<FamilyMessage> findByFamilyId(Long familyId, int offset, int limit);
+    List<FamilyMessage> findByFamilyId(Long familyId, String category, int offset, int limit);
 
     /**
      * 统计家族留言数量
      *
      * @param familyId 家族ID
+     * @param category 留言分类（null 表示全部分类）
      * @return 留言数量
      */
-    long countByFamilyId(Long familyId);
+    long countByFamilyId(Long familyId, String category);
 
     /**
      * 根据ID删除留言
