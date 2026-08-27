@@ -209,8 +209,7 @@ public class FamilyNodeApplicationService {
 
         if (dto.getName() != null && !dto.getName().isBlank()) {
             if (dto.getName().trim().length() > FamilyTreeConsts.MAX_NAME_LENGTH) {
-                throw new BusinessException("节点名称不能超过"
-                        + FamilyTreeConsts.MAX_NAME_LENGTH + "个字符");
+                throw new BusinessException("节点名称不能超过" + FamilyTreeConsts.MAX_NAME_LENGTH + "个字符");
             }
             existing.setName(dto.getName().trim());
         }

@@ -3,6 +3,8 @@ package com.mouhin.family.tree.application.service;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.service.DeathAnniversaryDomainService;
+import lombok.Getter;
+import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -41,9 +43,7 @@ public class DeathAnniversaryApplicationService {
         List<DeathAnniversaryDomainService.AnniversaryInfo> infos =
                 deathAnniversaryDomainService.calculateUpcoming(deceasedNodes, days);
 
-        return infos.stream()
-                .map(this::toDTO)
-                .toList();
+        return infos.stream().map(this::toDTO).toList();
     }
 
     private DeathAnniversaryDTO toDTO(DeathAnniversaryDomainService.AnniversaryInfo info) {
@@ -58,6 +58,8 @@ public class DeathAnniversaryApplicationService {
     /**
      * 忌日提醒 DTO
      */
+    @Setter
+    @Getter
     public static class DeathAnniversaryDTO {
 
         private Long nodeId;
@@ -65,46 +67,5 @@ public class DeathAnniversaryApplicationService {
         private String deathDate;
         private int daysUntil;
 
-        public Long getNodeId() {
-            return nodeId;
-        }
-
-        public void setNodeId(Long nodeId) {
-            this.nodeId = nodeId;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public void setName(String name) {
-            this.name = name;
-        }
-
-        public String getDeathDate() {
-            return deathDate;
-        }
-
-        public void setDeathDate(String deathDate) {
-            this.deathDate = deathDate;
-        }
-
-        public int getDaysUntil() {
-            return daysUntil;
-        }
-
-        public void setDaysUntil(int daysUntil) {
-            this.daysUntil = daysUntil;
-        }
-
-        @Override
-        public String toString() {
-            return "DeathAnniversaryDTO{"
-                    + "nodeId=" + nodeId
-                    + ", name='" + name + '\''
-                    + ", deathDate='" + deathDate + '\''
-                    + ", daysUntil=" + daysUntil
-                    + '}';
-        }
     }
 }

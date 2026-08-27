@@ -18,15 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.function.Function;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -40,10 +32,14 @@ public class FamilyOfferingApplicationService {
 
     private static final Logger logger = LoggerFactory.getLogger(FamilyOfferingApplicationService.class);
 
-    /** 最近祭奠时间展示格式 */
+    /**
+     * 最近祭奠时间展示格式
+     */
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-    /** 用户已注销或缺失时的昵称兜底 */
+    /**
+     * 用户已注销或缺失时的昵称兜底
+     */
     private static final String DEFAULT_NICKNAME = "未知用户";
 
     private final FamilyOfferingRepository familyOfferingRepository;
@@ -97,8 +93,7 @@ public class FamilyOfferingApplicationService {
         record.setUpdateTime(LocalDateTime.now());
         familyOfferingRepository.save(record);
 
-        logger.info("Offering recorded id={} type={} user={} node={} family={}",
-                record.getId(), type.getDescription(), userId, dto.getNodeId(), familyId);
+        logger.info("Offering recorded id={} type={} user={} node={} family={}", record.getId(), type.getDescription(), userId, dto.getNodeId(), familyId);
     }
 
     /**
@@ -124,9 +119,7 @@ public class FamilyOfferingApplicationService {
     }
 
     private Map<Long, String> buildNicknameMap(List<FamilyOffering> records) {
-        Set<Long> userIds = records.stream()
-                .map(FamilyOffering::getUserId)
-                .collect(Collectors.toSet());
+        Set<Long> userIds = records.stream().map(FamilyOffering::getUserId).collect(Collectors.toSet());
         Map<Long, String> nicknameMap = new HashMap<>((int) (userIds.size() / 0.75) + 1);
         if (userIds.isEmpty()) {
             return nicknameMap;

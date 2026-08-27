@@ -58,8 +58,7 @@ public class OperationLogApplicationService {
             operationLogRepository.save(logEntry);
         } catch (Exception e) {
             // 日志记录失败不应影响主业务流程
-            logger.error("Failed to write operation log: type={} user={} desc={}",
-                    operationType, username, operationDesc, e);
+            logger.error("Failed to write operation log: type={} user={} desc={}", operationType, username, operationDesc, e);
         }
     }
 
@@ -87,9 +86,7 @@ public class OperationLogApplicationService {
         List<OperationLog> records = operationLogRepository.findByFamilyId(
                 familyId, trimmedType, offset, size);
 
-        List<OperationLogDTO> dtoList = records.stream()
-                .map(this::toDTO)
-                .collect(Collectors.toList());
+        List<OperationLogDTO> dtoList = records.stream().map(this::toDTO).collect(Collectors.toList());
 
         return new PageResult<>(dtoList, total, page, size);
     }

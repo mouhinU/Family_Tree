@@ -97,8 +97,7 @@ public class FamilyMessageApplicationService {
             familyMessageRepository.incrementReplyCount(parentId);
         }
 
-        logger.info("用户 {} 在家族 {} 发布留言: id={}, parentId={}, category={}",
-                userId, familyId, message.getId(), parentId, category);
+        logger.info("用户 {} 在家族 {} 发布留言: id={}, parentId={}, category={}", userId, familyId, message.getId(), parentId, category);
     }
 
     /**
@@ -167,9 +166,7 @@ public class FamilyMessageApplicationService {
         if (replies.isEmpty()) {
             return List.of();
         }
-        List<Long> replyIds = replies.stream()
-                .map(FamilyMessage::getId)
-                .collect(Collectors.toList());
+        List<Long> replyIds = replies.stream().map(FamilyMessage::getId).collect(Collectors.toList());
         Set<Long> likedReplyIds = familyMessageRepository.findLikedMessageIds(replyIds, userId);
         return replies.stream()
                 .map(r -> toMessageVO(r, userId, likedReplyIds))
