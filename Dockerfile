@@ -10,15 +10,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends unzip && rm -rf
 COPY mvnw pom.xml ./
 COPY .mvn .mvn
 COPY family-tree-common/pom.xml family-tree-common/
-COPY family-tree-persistence/pom.xml family-tree-persistence/
-COPY family-tree-service/pom.xml family-tree-service/
+COPY family-tree-domain/pom.xml family-tree-domain/
+COPY family-tree-infrastructure/pom.xml family-tree-infrastructure/
+COPY family-tree-application/pom.xml family-tree-application/
 COPY family-tree-web/pom.xml family-tree-web/
 RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
 
 # 复制源码并构建
 COPY family-tree-common/src family-tree-common/src
-COPY family-tree-persistence/src family-tree-persistence/src
-COPY family-tree-service/src family-tree-service/src
+COPY family-tree-domain/src family-tree-domain/src
+COPY family-tree-infrastructure/src family-tree-infrastructure/src
+COPY family-tree-application/src family-tree-application/src
 COPY family-tree-web/src family-tree-web/src
 RUN ./mvnw package -DskipTests -B
 
