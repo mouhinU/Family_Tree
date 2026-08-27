@@ -17,15 +17,10 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * 用户认证应用服务密码哈希与平滑迁移逻辑单元测试
@@ -41,10 +36,6 @@ class UserAuthApplicationServiceTest {
     @Mock
     private UserRepository userRepository;
 
-    private UserAuthApplicationService createService(LoginAttemptService loginAttemptService) {
-        return new UserAuthApplicationService(userRepository, loginAttemptService);
-    }
-
     private static String md5(String raw) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");
@@ -57,6 +48,10 @@ class UserAuthApplicationServiceTest {
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("MD5 algorithm not available", e);
         }
+    }
+
+    private UserAuthApplicationService createService(LoginAttemptService loginAttemptService) {
+        return new UserAuthApplicationService(userRepository, loginAttemptService);
     }
 
     private User userWithHash(String hash) {

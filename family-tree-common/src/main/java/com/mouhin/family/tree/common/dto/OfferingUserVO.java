@@ -11,15 +11,23 @@ import lombok.Data;
 @Data
 public class OfferingUserVO {
 
-    /** 用户ID */
+    /**
+     * 用户ID
+     */
     private Long userId;
 
-    /** 用户昵称 */
+    /**
+     * 用户昵称
+     */
     private String nickname;
 
-    /** 累计次数 */
+    /**
+     * 累计次数
+     */
     private Long count;
 
-    /** 最近一次祭奠时间（yyyy-MM-dd HH:mm） */
+    /**
+     * 最近一次祭奠时间（yyyy-MM-dd HH:mm）
+     */
     private String lastTime;
 }

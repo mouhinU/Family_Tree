@@ -9,15 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 族谱节点世代计算领域服务。
@@ -43,9 +35,9 @@ public class FamilyNodeDomainService {
      * @return 计算后的世代层级
      */
     public int calculateGeneration(Long parentNodeId, Long childNodeId,
-                                    Long spouseNodeId,
-                                    Map<Long, FamilyNode> nodeIndex,
-                                    List<FamilyRelation> relations) {
+                                   Long spouseNodeId,
+                                   Map<Long, FamilyNode> nodeIndex,
+                                   List<FamilyRelation> relations) {
         if (parentNodeId != null) {
             FamilyNode parent = nodeIndex.get(parentNodeId);
             if (parent == null) {
@@ -76,16 +68,16 @@ public class FamilyNodeDomainService {
      * 从起始节点开始，通过亲子关系的邻接表进行 BFS，
      * 每个子节点世代 = 父节点世代 + 1，同时同步配偶世代。
      *
-     * @param startNodeId  起始节点ID
+     * @param startNodeId   起始节点ID
      * @param newGeneration 起始节点的新世代
-     * @param allNodes     所有节点列表
-     * @param allRelations 所有关系列表
+     * @param allNodes      所有节点列表
+     * @param allRelations  所有关系列表
      * @return 已更新世代的节点列表（不含起始节点本身）
      */
     public List<FamilyNode> syncDescendantGenerations(Long startNodeId,
-                                                       int newGeneration,
-                                                       List<FamilyNode> allNodes,
-                                                       List<FamilyRelation> allRelations) {
+                                                      int newGeneration,
+                                                      List<FamilyNode> allNodes,
+                                                      List<FamilyRelation> allRelations) {
         Map<Long, FamilyNode> nodeIndex = new HashMap<>();
         for (FamilyNode node : allNodes) {
             nodeIndex.put(node.getId(), node);
@@ -169,13 +161,13 @@ public class FamilyNodeDomainService {
     /**
      * 同步配偶的世代层级与指定节点一致
      *
-     * @param node       当前节点
-     * @param relations  所有关系列表
-     * @param allNodes   所有节点列表
+     * @param node      当前节点
+     * @param relations 所有关系列表
+     * @param allNodes  所有节点列表
      */
     public void syncSpouseGeneration(FamilyNode node,
-                                      List<FamilyRelation> relations,
-                                      List<FamilyNode> allNodes) {
+                                     List<FamilyRelation> relations,
+                                     List<FamilyNode> allNodes) {
         Map<Long, FamilyNode> nodeIndex = new HashMap<>();
         for (FamilyNode n : allNodes) {
             nodeIndex.put(n.getId(), n);
@@ -193,7 +185,7 @@ public class FamilyNodeDomainService {
             FamilyNode spouseNode = nodeIndex.get(spouseId);
             if (spouseNode != null
                     && !Objects.equals(spouseNode.getGeneration(),
-                            node.getGeneration())) {
+                    node.getGeneration())) {
                 spouseNode.setGeneration(node.getGeneration());
             }
         }

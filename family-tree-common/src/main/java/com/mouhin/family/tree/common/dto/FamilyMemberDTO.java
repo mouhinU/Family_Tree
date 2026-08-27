@@ -13,15 +13,23 @@ import java.time.LocalDateTime;
 @Data
 public class FamilyMemberDTO {
 
-    /** 用户ID */
+    /**
+     * 用户ID
+     */
     private Long userId;
 
-    /** 用户昵称 */
+    /**
+     * 用户昵称
+     */
     private String nickname;
 
-    /** 角色：OWNER / MEMBER */
+    /**
+     * 角色：OWNER / MEMBER
+     */
     private String role;
 
-    /** 加入时间 */
+    /**
+     * 加入时间
+     */
     private LocalDateTime joinedTime;
 }

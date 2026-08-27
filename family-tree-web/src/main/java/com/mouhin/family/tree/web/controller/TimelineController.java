@@ -15,11 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * 家族动态时间线控制器
@@ -45,9 +41,9 @@ public class TimelineController extends BaseController {
     /**
      * 获取家族时间线事件列表（分页）
      *
-     * @param year  指定年份（可选，不传则返回全部年份的事件）
-     * @param page  当前页码，默认1
-     * @param size  每页大小，默认50
+     * @param year    指定年份（可选，不传则返回全部年份的事件）
+     * @param page    当前页码，默认1
+     * @param size    每页大小，默认50
      * @param session HTTP会话
      * @return 分页后的时间线事件
      */

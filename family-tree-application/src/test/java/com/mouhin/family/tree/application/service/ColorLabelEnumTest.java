@@ -4,9 +4,7 @@ import com.mouhin.family.tree.common.enums.ColorLabelEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * 颜色标注枚举校验逻辑单元测试

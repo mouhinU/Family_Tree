@@ -11,6 +11,8 @@ import lombok.Data;
 @Data
 public class FamilyCreateDTO {
 
-    /** 家族名称 */
+    /**
+     * 家族名称
+     */
     private String name;
 }

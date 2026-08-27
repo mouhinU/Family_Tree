@@ -2,55 +2,58 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>族谱管理系统 - 登录</title>
-    <link rel="stylesheet" href="/css/style.css">
+    <link href="/css/style.css" rel="stylesheet">
 </head>
 <body class="login-body">
-    <div class="login-container">
-        <div class="login-card">
-            <h1 class="login-title">族谱管理系统</h1>
-            <p class="login-subtitle">Family Tree Manager</p>
+<div class="login-container">
+    <div class="login-card">
+        <h1 class="login-title">族谱管理系统</h1>
+        <p class="login-subtitle">Family Tree Manager</p>
 
-            <div class="login-tabs">
-                <button class="tab-btn active" id="tab-login">登录</button>
-                <button class="tab-btn" id="tab-register">注册</button>
-            </div>
-
-            <!-- 登录表单 -->
-            <form id="login-form" class="login-form">
-                <div class="form-group">
-                    <label for="login-username">用户名</label>
-                    <input type="text" id="login-username" name="username" placeholder="请输入用户名" required>
-                </div>
-                <div class="form-group">
-                    <label for="login-password">密码</label>
-                    <input type="password" id="login-password" name="password" placeholder="请输入密码" required>
-                </div>
-                <button type="submit" class="btn-primary">登 录</button>
-            </form>
-
-            <!-- 注册表单 -->
-            <form id="register-form" class="login-form" style="display:none;">
-                <div class="form-group">
-                    <label for="reg-username">用户名</label>
-                    <input type="text" id="reg-username" name="username" placeholder="请输入用户名" required>
-                </div>
-                <div class="form-group">
-                    <label for="reg-password">密码</label>
-                    <input type="password" id="reg-password" name="password" placeholder="至少6位密码" required minlength="6">
-                </div>
-                <div class="form-group">
-                    <label for="reg-invite-code">家族邀请码 <span style="color:#999;font-size:12px">（可选，加入已有家族）</span></label>
-                    <input type="text" id="reg-invite-code" name="inviteCode" placeholder="留空则注册后自行创建家族" style="text-transform:uppercase">
-                </div>
-                <button type="submit" class="btn-primary">注 册</button>
-            </form>
-
-            <div id="login-message" class="message"></div>
+        <div class="login-tabs">
+            <button class="tab-btn active" id="tab-login">登录</button>
+            <button class="tab-btn" id="tab-register">注册</button>
         </div>
-    </div>
 
-    <script src="/js/ft/login.js"></script>
+        <!-- 登录表单 -->
+        <form class="login-form" id="login-form">
+            <div class="form-group">
+                <label for="login-username">用户名</label>
+                <input id="login-username" name="username" placeholder="请输入用户名" required type="text">
+            </div>
+            <div class="form-group">
+                <label for="login-password">密码</label>
+                <input id="login-password" name="password" placeholder="请输入密码" required type="password">
+            </div>
+            <button class="btn-primary" type="submit">登 录</button>
+        </form>
+
+        <!-- 注册表单 -->
+        <form class="login-form" id="register-form" style="display:none;">
+            <div class="form-group">
+                <label for="reg-username">用户名</label>
+                <input id="reg-username" name="username" placeholder="请输入用户名" required type="text">
+            </div>
+            <div class="form-group">
+                <label for="reg-password">密码</label>
+                <input id="reg-password" minlength="6" name="password" placeholder="至少6位密码" required
+                       type="password">
+            </div>
+            <div class="form-group">
+                <label for="reg-invite-code">家族邀请码 <span
+                        style="color:#999;font-size:12px">（可选，加入已有家族）</span></label>
+                <input id="reg-invite-code" name="inviteCode" placeholder="留空则注册后自行创建家族" style="text-transform:uppercase"
+                       type="text">
+            </div>
+            <button class="btn-primary" type="submit">注 册</button>
+        </form>
+
+        <div class="message" id="login-message"></div>
+    </div>
+</div>
+
+<script src="/js/ft/login.js"></script>
 </body>
 </html>

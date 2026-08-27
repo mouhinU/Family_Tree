@@ -5,7 +5,6 @@ import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
 import org.springframework.stereotype.Service;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -33,16 +32,16 @@ public class RelationValidationDomainService {
      * 4. 同胞（共享父母）禁止结婚
      * 5. 双方均不得有未终止的婚姻（重婚禁止）
      *
-     * @param familyId        家族ID
-     * @param fromNodeId      起始节点ID
-     * @param toNodeId        目标节点ID
+     * @param familyId          家族ID
+     * @param fromNodeId        起始节点ID
+     * @param toNodeId          目标节点ID
      * @param existingRelations 涉及双方的现有关系列表
-     * @param allRelations    家族所有关系列表
+     * @param allRelations      家族所有关系列表
      */
     public void validateSpouseRelation(Long familyId, Long fromNodeId,
-                                        Long toNodeId,
-                                        List<FamilyRelation> existingRelations,
-                                        List<FamilyRelation> allRelations) {
+                                       Long toNodeId,
+                                       List<FamilyRelation> existingRelations,
+                                       List<FamilyRelation> allRelations) {
         // 1. 自身校验
         if (Objects.equals(fromNodeId, toNodeId)) {
             throw new BusinessException("不能与自身建立夫妻关系");
@@ -80,15 +79,15 @@ public class RelationValidationDomainService {
     /**
      * 校验新建关系的通用合法性
      *
-     * @param familyId        家族ID
-     * @param fromNodeId      起始节点ID
-     * @param toNodeId        目标节点ID
-     * @param relationType    关系类型
+     * @param familyId          家族ID
+     * @param fromNodeId        起始节点ID
+     * @param toNodeId          目标节点ID
+     * @param relationType      关系类型
      * @param existingRelations 涉及双方的现有关系列表
      */
     public void validateRelationCreate(Long familyId, Long fromNodeId,
-                                        Long toNodeId, Integer relationType,
-                                        List<FamilyRelation> existingRelations) {
+                                       Long toNodeId, Integer relationType,
+                                       List<FamilyRelation> existingRelations) {
         // 自身校验
         if (Objects.equals(fromNodeId, toNodeId)) {
             throw new BusinessException("不能与自身建立关系");
@@ -113,7 +112,7 @@ public class RelationValidationDomainService {
      * 判断关系是否为双向匹配（from→to 或 to→from）
      */
     private boolean isBidirectionalMatch(FamilyRelation relation,
-                                          Long nodeId1, Long nodeId2) {
+                                         Long nodeId1, Long nodeId2) {
         return (Objects.equals(relation.getFromNodeId(), nodeId1)
                 && Objects.equals(relation.getToNodeId(), nodeId2))
                 || (Objects.equals(relation.getFromNodeId(), nodeId2)
@@ -124,7 +123,7 @@ public class RelationValidationDomainService {
      * 收集指定节点的所有父母节点ID
      */
     private Set<Long> collectParentIds(Long nodeId,
-                                        List<FamilyRelation> allRelations) {
+                                       List<FamilyRelation> allRelations) {
         return allRelations.stream()
                 .filter(FamilyRelation::isParentChild)
                 .filter(r -> Objects.equals(r.getToNodeId(), nodeId))
@@ -136,7 +135,7 @@ public class RelationValidationDomainService {
      * 校验指定节点不存在未终止的婚姻
      */
     private void validateNoActiveMarriage(Long nodeId,
-                                           List<FamilyRelation> allRelations) {
+                                          List<FamilyRelation> allRelations) {
         boolean hasActiveMarriage = allRelations.stream()
                 .filter(FamilyRelation::isSpouse)
                 .filter(r -> Objects.equals(r.getFromNodeId(), nodeId)

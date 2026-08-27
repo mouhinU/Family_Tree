@@ -27,7 +27,7 @@ services:
       - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
     # 运行时为 distroless 镜像（无 curl），健康检查由 sidecar 容器执行
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8090/actuator/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8090/actuator/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -48,7 +48,7 @@ services:
     depends_on:
       family-tree:
         condition: service_started
-    entrypoint: ["sh", "-c", "while true; do sleep 30; curl -sf http://localhost:8090/actuator/health > /dev/null || echo '[healthcheck] FAILED'; done"]
+    entrypoint: [ "sh", "-c", "while true; do sleep 30; curl -sf http://localhost:8090/actuator/health > /dev/null || echo '[healthcheck] FAILED'; done" ]
 
   # ========== MySQL 模式（--profile mysql 激活） ==========
   mysql:
@@ -68,7 +68,7 @@ services:
       - mysql-data:/var/lib/mysql
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["mysqladmin", "ping", "-h", "localhost"]
+      test: [ "mysqladmin", "ping", "-h", "localhost" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -100,7 +100,7 @@ services:
       - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
     # 运行时为 distroless 镜像（无 curl），健康检查由 sidecar 容器执行
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8090/actuator/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8090/actuator/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -123,7 +123,7 @@ services:
     depends_on:
       family-tree-mysql:
         condition: service_started
-    entrypoint: ["sh", "-c", "while true; do sleep 30; curl -sf http://localhost:8090/actuator/health > /dev/null || echo '[healthcheck] FAILED'; done"]
+    entrypoint: [ "sh", "-c", "while true; do sleep 30; curl -sf http://localhost:8090/actuator/health > /dev/null || echo '[healthcheck] FAILED'; done" ]
 
   # ========== Prometheus 监控（--profile monitoring 激活） ==========
   prometheus:

@@ -2,14 +2,7 @@ package com.mouhin.family.tree.application.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mouhin.family.tree.common.dto.AiOcrParseDTO;
-import com.mouhin.family.tree.common.dto.AiQueryDTO;
-import com.mouhin.family.tree.common.dto.AiQueryVO;
-import com.mouhin.family.tree.common.dto.AiSmartEntryDTO;
-import com.mouhin.family.tree.common.dto.AiSmartEntryVO;
-import com.mouhin.family.tree.common.dto.AiStoryDTO;
-import com.mouhin.family.tree.common.dto.AiStoryVO;
-import com.mouhin.family.tree.common.dto.TreeNodeVO;
+import com.mouhin.family.tree.common.dto.*;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
@@ -43,27 +36,20 @@ public class AiApplicationService {
     private static final Logger logger = LoggerFactory.getLogger(AiApplicationService.class);
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-
-    @Value("${ai.llm.enabled:false}")
-    private boolean aiEnabled;
-
-    @Value("${ai.llm.api-key:}")
-    private String apiKey;
-
-    @Value("${ai.llm.api-url:https://api.deepseek.com/chat/completions}")
-    private String apiUrl;
-
-    @Value("${ai.llm.model:deepseek-chat}")
-    private String model;
-
-    @Value("${ai.llm.timeout-seconds:60}")
-    private int timeoutSeconds;
-
     private final FamilyNodeRepository familyNodeRepository;
     private final FamilyRelationRepository familyRelationRepository;
     private final FamilyTreeApplicationService familyTreeApplicationService;
-
     private final HttpClient httpClient;
+    @Value("${ai.llm.enabled:false}")
+    private boolean aiEnabled;
+    @Value("${ai.llm.api-key:}")
+    private String apiKey;
+    @Value("${ai.llm.api-url:https://api.deepseek.com/chat/completions}")
+    private String apiUrl;
+    @Value("${ai.llm.model:deepseek-chat}")
+    private String model;
+    @Value("${ai.llm.timeout-seconds:60}")
+    private int timeoutSeconds;
 
     public AiApplicationService(FamilyNodeRepository familyNodeRepository,
                                 FamilyRelationRepository familyRelationRepository,

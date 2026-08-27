@@ -2,9 +2,9 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>族谱管理系统 - 加入家族</title>
-    <link rel="stylesheet" href="/css/style.css">
+    <link href="/css/style.css" rel="stylesheet">
     <style>
         .family-setup-body {
             display: flex;
@@ -98,27 +98,27 @@
     </style>
 </head>
 <body class="family-setup-body">
-    <div class="family-setup-card">
-        <h1>族谱管理系统</h1>
-        <p class="subtitle">您尚未加入任何家族，请创建或加入一个家族</p>
+<div class="family-setup-card">
+    <h1>族谱管理系统</h1>
+    <p class="subtitle">您尚未加入任何家族，请创建或加入一个家族</p>
 
-        <div class="setup-section">
-            <h3>创建新家族</h3>
-            <p>输入家族名称，创建一个新的家族并成为族长。</p>
-            <input type="text" id="create-name" placeholder="例如：张氏家族">
-            <button type="button" id="btn-create">创建家族</button>
-        </div>
-
-        <div class="setup-section">
-            <h3>加入已有家族</h3>
-            <p>输入族长分享给您的邀请码，加入该家族。</p>
-            <input type="text" id="join-code" placeholder="请输入邀请码" style="text-transform: uppercase;">
-            <button type="button" id="btn-join" class="btn-secondary">加入家族</button>
-        </div>
-
-        <div id="setup-message"></div>
+    <div class="setup-section">
+        <h3>创建新家族</h3>
+        <p>输入家族名称，创建一个新的家族并成为族长。</p>
+        <input id="create-name" placeholder="例如：张氏家族" type="text">
+        <button id="btn-create" type="button">创建家族</button>
     </div>
 
-    <script src="/js/ft/family-setup.js"></script>
+    <div class="setup-section">
+        <h3>加入已有家族</h3>
+        <p>输入族长分享给您的邀请码，加入该家族。</p>
+        <input id="join-code" placeholder="请输入邀请码" style="text-transform: uppercase;" type="text">
+        <button class="btn-secondary" id="btn-join" type="button">加入家族</button>
+    </div>
+
+    <div id="setup-message"></div>
+</div>
+
+<script src="/js/ft/family-setup.js"></script>
 </body>
 </html>

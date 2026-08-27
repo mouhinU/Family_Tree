@@ -17,19 +17,29 @@ import java.time.LocalDateTime;
 @TableName("family_message_like")
 public class FamilyMessageLikeDO {
 
-    /** 主键 */
+    /**
+     * 主键
+     */
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /** 留言ID */
+    /**
+     * 留言ID
+     */
     private Long messageId;
 
-    /** 点赞用户ID */
+    /**
+     * 点赞用户ID
+     */
     private Long userId;
 
-    /** 家族ID */
+    /**
+     * 家族ID
+     */
     private Long familyId;
 
-    /** 创建时间 */
+    /**
+     * 创建时间
+     */
     private LocalDateTime createTime;
 }

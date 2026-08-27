@@ -80,7 +80,7 @@ public class FamilyRelationRepositoryImpl implements FamilyRelationRepository {
 
     @Override
     public List<FamilyRelation> findByFromAndToAndType(Long familyId, Long fromNodeId,
-                                                        Long toNodeId, Integer relationType) {
+                                                       Long toNodeId, Integer relationType) {
         LambdaQueryWrapper<FamilyRelationDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FamilyRelationDO::getFamilyId, familyId)
                 .eq(FamilyRelationDO::getFromNodeId, fromNodeId)
@@ -122,7 +122,7 @@ public class FamilyRelationRepositoryImpl implements FamilyRelationRepository {
 
     @Override
     public boolean existsRelation(Long familyId, Long fromNodeId, Long toNodeId,
-                                   Integer relationType) {
+                                  Integer relationType) {
         LambdaQueryWrapper<FamilyRelationDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FamilyRelationDO::getFamilyId, familyId);
         wrapper.eq(FamilyRelationDO::getFromNodeId, fromNodeId);

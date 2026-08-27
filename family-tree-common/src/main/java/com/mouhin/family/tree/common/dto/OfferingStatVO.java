@@ -14,18 +14,28 @@ import java.util.List;
 @Data
 public class OfferingStatVO {
 
-    /** 祭奠类型：1-香烛 2-烧纸 */
+    /**
+     * 祭奠类型：1-香烛 2-烧纸
+     */
     private Integer offeringType;
 
-    /** 祭奠类型名称（香烛 / 烧纸） */
+    /**
+     * 祭奠类型名称（香烛 / 烧纸）
+     */
     private String typeName;
 
-    /** 累计总次数 */
+    /**
+     * 累计总次数
+     */
     private Long totalCount;
 
-    /** 参与人数（去重） */
+    /**
+     * 参与人数（去重）
+     */
     private Integer userCount;
 
-    /** 人员明细（按累计次数降序） */
+    /**
+     * 人员明细（按累计次数降序）
+     */
     private List<OfferingUserVO> users = new ArrayList<>();
 }

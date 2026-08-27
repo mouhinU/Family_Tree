@@ -11,11 +11,11 @@ scrape_configs:
     metrics_path: "/actuator/prometheus"
     scrape_interval: 10s
     static_configs:
-      - targets: ["family-tree:8090"]
+      - targets: [ "family-tree:8090" ]
         labels:
           application: "family-tree"
 
   # Prometheus 自身指标
   - job_name: "prometheus"
     static_configs:
-      - targets: ["localhost:9090"]
+      - targets: [ "localhost:9090" ]

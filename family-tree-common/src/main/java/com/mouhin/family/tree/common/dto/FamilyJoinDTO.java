@@ -11,6 +11,8 @@ import lombok.Data;
 @Data
 public class FamilyJoinDTO {
 
-    /** 邀请码 */
+    /**
+     * 邀请码
+     */
     private String inviteCode;
 }

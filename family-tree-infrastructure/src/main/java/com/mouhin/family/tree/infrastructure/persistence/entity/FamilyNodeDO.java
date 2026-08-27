@@ -35,7 +35,9 @@ public class FamilyNodeDO {
 
     private Integer generation;
 
-    /** 同胞排次（1=老大 2=老二 ...），null 表示未设置 */
+    /**
+     * 同胞排次（1=老大 2=老二 ...），null 表示未设置
+     */
     private Integer birthOrder;
 
     private String colorLabel;
@@ -44,28 +46,44 @@ public class FamilyNodeDO {
 
     private String remark;
 
-    /** 农历出生日期 */
+    /**
+     * 农历出生日期
+     */
     private String lunarBirthDate;
 
-    /** 农历去世日期 */
+    /**
+     * 农历去世日期
+     */
     private String lunarDeathDate;
 
-    /** 字 */
+    /**
+     * 字
+     */
     private String zi;
 
-    /** 号 */
+    /**
+     * 号
+     */
     private String hao;
 
-    /** 讳 */
+    /**
+     * 讳
+     */
     private String hui;
 
-    /** 坟茔位置 */
+    /**
+     * 坟茔位置
+     */
     private String graveLocation;
 
-    /** 配偶姓名（外嫁女婚配记录） */
+    /**
+     * 配偶姓名（外嫁女婚配记录）
+     */
     private String spouseName;
 
-    /** 婚配方家族（外嫁女婚配记录） */
+    /**
+     * 婚配方家族（外嫁女婚配记录）
+     */
     private String spouseOriginFamily;
 
     private LocalDateTime createTime;

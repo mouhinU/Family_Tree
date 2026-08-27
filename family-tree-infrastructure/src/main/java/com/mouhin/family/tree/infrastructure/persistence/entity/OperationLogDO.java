@@ -20,30 +20,48 @@ public class OperationLogDO {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /** 操作用户ID */
+    /**
+     * 操作用户ID
+     */
     private Long userId;
 
-    /** 操作用户名 */
+    /**
+     * 操作用户名
+     */
     private String username;
 
-    /** 操作类型（LOGIN / REGISTER / LOGOUT / NODE_CREATE / NODE_UPDATE / NODE_DELETE 等） */
+    /**
+     * 操作类型（LOGIN / REGISTER / LOGOUT / NODE_CREATE / NODE_UPDATE / NODE_DELETE 等）
+     */
     private String operationType;
 
-    /** 操作描述 */
+    /**
+     * 操作描述
+     */
     private String operationDesc;
 
-    /** 操作对象类型（node / relation / family / user） */
+    /**
+     * 操作对象类型（node / relation / family / user）
+     */
     private String targetType;
 
-    /** 操作对象ID */
+    /**
+     * 操作对象ID
+     */
     private Long targetId;
 
-    /** 所属家族ID */
+    /**
+     * 所属家族ID
+     */
     private Long familyId;
 
-    /** 客户端IP */
+    /**
+     * 客户端IP
+     */
     private String ipAddress;
 
-    /** 操作时间 */
+    /**
+     * 操作时间
+     */
     private LocalDateTime createTime;
 }

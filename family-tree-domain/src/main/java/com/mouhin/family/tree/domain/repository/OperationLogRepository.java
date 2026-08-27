@@ -29,7 +29,7 @@ public interface OperationLogRepository {
      * @return 日志列表
      */
     List<OperationLog> findByFamilyId(Long familyId, String operationType,
-                                       int offset, int limit);
+                                      int offset, int limit);
 
     /**
      * 统计家族操作日志数量

@@ -1,13 +1,7 @@
 package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.AiApplicationService;
-import com.mouhin.family.tree.common.dto.AiOcrParseDTO;
-import com.mouhin.family.tree.common.dto.AiQueryDTO;
-import com.mouhin.family.tree.common.dto.AiQueryVO;
-import com.mouhin.family.tree.common.dto.AiSmartEntryDTO;
-import com.mouhin.family.tree.common.dto.AiSmartEntryVO;
-import com.mouhin.family.tree.common.dto.AiStoryDTO;
-import com.mouhin.family.tree.common.dto.AiStoryVO;
+import com.mouhin.family.tree.common.dto.*;
 import com.mouhin.family.tree.common.result.Result;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;

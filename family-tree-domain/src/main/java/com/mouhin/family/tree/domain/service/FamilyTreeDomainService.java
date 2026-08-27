@@ -2,21 +2,11 @@ package com.mouhin.family.tree.domain.service;
 
 import com.mouhin.family.tree.common.dto.TreeNodeVO;
 import com.mouhin.family.tree.common.enums.ColorLabelEnum;
-import com.mouhin.family.tree.common.enums.RelationTypeEnum;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -39,7 +29,7 @@ public class FamilyTreeDomainService {
      * @return 树形节点列表（可能有多个根节点）
      */
     public List<TreeNodeVO> buildTree(List<FamilyNode> nodes,
-                                       List<FamilyRelation> relations) {
+                                      List<FamilyRelation> relations) {
         if (nodes.isEmpty()) {
             return new ArrayList<>();
         }
@@ -97,14 +87,14 @@ public class FamilyTreeDomainService {
     /**
      * 以指定节点为根构建子树
      *
-     * @param rootNode  子树根节点
-     * @param allNodes  家族所有节点
+     * @param rootNode     子树根节点
+     * @param allNodes     家族所有节点
      * @param allRelations 家族所有关系
      * @return 子树形视图对象
      */
     public TreeNodeVO buildSubTreeForNode(FamilyNode rootNode,
-                                           List<FamilyNode> allNodes,
-                                           List<FamilyRelation> allRelations) {
+                                          List<FamilyNode> allNodes,
+                                          List<FamilyRelation> allRelations) {
         Map<Long, FamilyNode> nodeMap = allNodes.stream()
                 .collect(Collectors.toMap(FamilyNode::getId, n -> n, (a, b) -> a));
 
@@ -136,15 +126,15 @@ public class FamilyTreeDomainService {
      * 构建子树（递归）
      */
     private TreeNodeVO buildSubTree(FamilyNode node,
-                                     Map<Long, List<FamilyRelation>> spouseRelByNode,
-                                     Map<Long, List<Long>> childIdsByParent,
-                                     Map<Long, List<Long>> parentIdsByChild,
-                                     Map<Long, FamilyNode> nodeMap,
-                                     Set<Long> visited,
-                                     Set<Long> childIds,
-                                     Set<Long> globalSatelliteSpouseIds,
-                                     Set<Long> contestedSpouseSet,
-                                     Map<Long, Long> contestedPreferredHusband) {
+                                    Map<Long, List<FamilyRelation>> spouseRelByNode,
+                                    Map<Long, List<Long>> childIdsByParent,
+                                    Map<Long, List<Long>> parentIdsByChild,
+                                    Map<Long, FamilyNode> nodeMap,
+                                    Set<Long> visited,
+                                    Set<Long> childIds,
+                                    Set<Long> globalSatelliteSpouseIds,
+                                    Set<Long> contestedSpouseSet,
+                                    Map<Long, Long> contestedPreferredHusband) {
         if (visited.contains(node.getId())) {
             return toVO(node);
         }
@@ -204,7 +194,7 @@ public class FamilyTreeDomainService {
             // 改嫁/续弦争议：只有优先丈夫才能挂载为卫星配偶
             if (contestedSpouseSet.contains(spouseId)
                     && !Objects.equals(
-                            contestedPreferredHusband.get(spouseId), node.getId())) {
+                    contestedPreferredHusband.get(spouseId), node.getId())) {
                 continue;
             }
             boolean widowed = Boolean.TRUE.equals(rel.getWidowed());
@@ -304,9 +294,9 @@ public class FamilyTreeDomainService {
      * 从全量关系列表构建三个查询索引
      */
     private void buildRelationIndexes(List<FamilyRelation> allRelations,
-                                       Map<Long, List<FamilyRelation>> spouseRelByNode,
-                                       Map<Long, List<Long>> childIdsByParent,
-                                       Map<Long, List<Long>> parentIdsByChild) {
+                                      Map<Long, List<FamilyRelation>> spouseRelByNode,
+                                      Map<Long, List<Long>> childIdsByParent,
+                                      Map<Long, List<Long>> parentIdsByChild) {
         for (FamilyRelation rel : allRelations) {
             if (rel.isSpouse()) {
                 spouseRelByNode.computeIfAbsent(rel.getFromNodeId(),
@@ -360,7 +350,7 @@ public class FamilyTreeDomainService {
      * 计算血亲亲缘标签
      */
     private String bloodRelationLabel(Long aId, Long bId,
-                                       Map<Long, List<Long>> parentIdsByChild) {
+                                      Map<Long, List<Long>> parentIdsByChild) {
         int distance = cousinDistance(aId, bId, parentIdsByChild);
         if (distance == 2) {
             return "亲表兄妹";
@@ -378,7 +368,7 @@ public class FamilyTreeDomainService {
      * 计算共同祖先到两人的最大距离
      */
     private int cousinDistance(Long aId, Long bId,
-                                Map<Long, List<Long>> parentIdsByChild) {
+                               Map<Long, List<Long>> parentIdsByChild) {
         Map<Long, Integer> aAncestors = ancestorDistances(aId, parentIdsByChild);
         Map<Long, Integer> bAncestors = ancestorDistances(bId, parentIdsByChild);
         int best = Integer.MAX_VALUE;
@@ -395,7 +385,7 @@ public class FamilyTreeDomainService {
      * BFS 向上追溯祖先，记录每个祖先的距离
      */
     private Map<Long, Integer> ancestorDistances(Long startId,
-                                                   Map<Long, List<Long>> parentIdsByChild) {
+                                                 Map<Long, List<Long>> parentIdsByChild) {
         Map<Long, Integer> distances = new HashMap<>();
         Deque<Long> queue = new ArrayDeque<>();
         distances.put(startId, 0);

@@ -24,10 +24,14 @@ public class FamilyGenerationDO {
 
     private Long familyId;
 
-    /** 世代（从1开始） */
+    /**
+     * 世代（从1开始）
+     */
     private Integer generation;
 
-    /** 辈分名称（字辈） */
+    /**
+     * 辈分名称（字辈）
+     */
     private String name;
 
     private LocalDateTime createTime;

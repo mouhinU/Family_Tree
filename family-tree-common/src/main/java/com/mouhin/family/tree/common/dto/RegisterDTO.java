@@ -21,6 +21,8 @@ public class RegisterDTO {
     @Size(min = 6, message = "密码长度不能少于6位")
     private String password;
 
-    /** 家族邀请码（可选，注册时直接加入已有家族） */
+    /**
+     * 家族邀请码（可选，注册时直接加入已有家族）
+     */
     private String inviteCode;
 }

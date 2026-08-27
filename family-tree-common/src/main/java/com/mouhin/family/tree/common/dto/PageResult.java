@@ -13,19 +13,29 @@ import java.util.List;
 @Data
 public class PageResult<T> {
 
-    /** 数据列表 */
+    /**
+     * 数据列表
+     */
     private List<T> records;
 
-    /** 总记录数 */
+    /**
+     * 总记录数
+     */
     private long total;
 
-    /** 当前页码 */
+    /**
+     * 当前页码
+     */
     private int page;
 
-    /** 每页大小 */
+    /**
+     * 每页大小
+     */
     private int size;
 
-    /** 总页数 */
+    /**
+     * 总页数
+     */
     private int totalPages;
 
     public PageResult() {

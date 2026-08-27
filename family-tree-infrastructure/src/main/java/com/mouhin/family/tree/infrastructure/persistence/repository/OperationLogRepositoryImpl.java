@@ -34,7 +34,7 @@ public class OperationLogRepositoryImpl implements OperationLogRepository {
 
     @Override
     public List<OperationLog> findByFamilyId(Long familyId, String operationType,
-                                              int offset, int size) {
+                                             int offset, int size) {
         LambdaQueryWrapper<OperationLogDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(OperationLogDO::getFamilyId, familyId);
         if (operationType != null && !operationType.isEmpty()) {

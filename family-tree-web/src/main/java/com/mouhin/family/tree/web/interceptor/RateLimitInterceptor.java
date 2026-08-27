@@ -28,7 +28,9 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     private static final Logger logger = LoggerFactory.getLogger(RateLimitInterceptor.class);
 
-    /** 限流缓存：key=userId，value=窗口内请求计数 */
+    /**
+     * 限流缓存：key=userId，value=窗口内请求计数
+     */
     private final Cache<Long, int[]> rateLimitCache = Caffeine.newBuilder()
             .maximumSize(10_000)
             .expireAfterWrite(Duration.ofSeconds(FamilyTreeConsts.RATE_LIMIT_WINDOW_SECONDS))

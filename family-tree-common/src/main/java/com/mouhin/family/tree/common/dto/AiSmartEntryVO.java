@@ -37,7 +37,9 @@ public class AiSmartEntryVO {
     public static class AiRelationDTO {
         private String fromName;
         private String toName;
-        /** 1=亲子, 2=夫妻, 3=收养 */
+        /**
+         * 1=亲子, 2=夫妻, 3=收养
+         */
         private Integer relationType;
         private String marriageDate;
     }

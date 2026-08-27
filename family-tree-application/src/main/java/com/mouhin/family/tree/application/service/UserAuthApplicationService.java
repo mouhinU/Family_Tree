@@ -30,7 +30,9 @@ public class UserAuthApplicationService {
 
     private static final Logger logger = LoggerFactory.getLogger(UserAuthApplicationService.class);
 
-    /** 旧版 MD5 哈希固定为 32 位十六进制；BCrypt 为 60 位 $2x$ 前缀，据此区分新旧格式 */
+    /**
+     * 旧版 MD5 哈希固定为 32 位十六进制；BCrypt 为 60 位 $2x$ 前缀，据此区分新旧格式
+     */
     private static final int LEGACY_MD5_HASH_LENGTH = 32;
 
     private final UserRepository userRepository;

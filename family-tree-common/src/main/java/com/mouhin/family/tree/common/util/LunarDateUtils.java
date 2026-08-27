@@ -15,36 +15,38 @@ import java.time.LocalDate;
  */
 public final class LunarDateUtils {
 
-    private LunarDateUtils() {
-    }
-
-    /** 天干 */
+    /**
+     * 天干
+     */
     private static final String[] HEAVENLY_STEMS = {
             "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"
     };
-
-    /** 地支 */
+    /**
+     * 地支
+     */
     private static final String[] EARTHLY_BRANCHES = {
             "子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"
     };
-
-    /** 生肖 */
+    /**
+     * 生肖
+     */
     private static final String[] ZODIAC_ANIMALS = {
             "鼠", "牛", "虎", "兔", "龙", "蛇", "马", "羊", "猴", "鸡", "狗", "猪"
     };
-
-    /** 农历月份名称 */
+    /**
+     * 农历月份名称
+     */
     private static final String[] LUNAR_MONTH_NAMES = {
             "正", "二", "三", "四", "五", "六", "七", "八", "九", "十", "冬", "腊"
     };
-
-    /** 农历日期名称（初一到三十） */
+    /**
+     * 农历日期名称（初一到三十）
+     */
     private static final String[] LUNAR_DAY_NAMES = {
             "初一", "初二", "初三", "初四", "初五", "初六", "初七", "初八", "初九", "初十",
             "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十",
             "廿一", "廿二", "廿三", "廿四", "廿五", "廿六", "廿七", "廿八", "廿九", "三十"
     };
-
     /**
      * 农历历法数据表（1900–2100，共201年）。
      * 每个 int 值编码该年的农历信息：
@@ -77,12 +79,17 @@ public final class LunarDateUtils {
             0x0e968, 0x0d520, 0x0daa0, 0x16aa6, 0x056d0, 0x04ae0, 0x0a9d4, 0x0a4d0, 0x0d150, 0x0f252, // 2090-2099
             0x0d520                                                                                     // 2100
     };
-
-    /** 基准年 */
+    /**
+     * 基准年
+     */
     private static final int BASE_YEAR = 1900;
-
-    /** 1900年农历正月初一对应的公历日期：1900-01-31 */
+    /**
+     * 1900年农历正月初一对应的公历日期：1900-01-31
+     */
     private static final LocalDate LUNAR_EPOCH = LocalDate.of(1900, 1, 31);
+
+    private LunarDateUtils() {
+    }
 
     // ========== 天干地支 ==========
 

@@ -17,7 +17,7 @@
 
 | 元素                      | 风格             | 正例                                     | 反例                              |
 |-------------------------|----------------|----------------------------------------|---------------------------------|
-| 类名                      | UpperCamelCase | `UserService`、`TreeNodeVO`         | `userService`、`TreeNodeVo`  |
+| 类名                      | UpperCamelCase | `UserService`、`TreeNodeVO`             | `userService`、`TreeNodeVo`      |
 | 方法名 / 参数名 / 成员变量 / 局部变量 | lowerCamelCase | `localValue`、`getHttpMessage()`        | `LocalValue`、`gethttpmessage()` |
 | 常量                      | 全大写 + 下划线分隔    | `MAX_STOCK_COUNT`、`CACHE_EXPIRED_TIME` | `MAX_COUNT`                     |
 | 包名                      | 全小写，单数形式       | `com.mouhin.family.tree.util`          | `com.mouhin.Family.Tree.Utils`  |
@@ -59,18 +59,18 @@
 
 **DDD 领域模型命名（适用于领域层模块）：**
 
-| 概念 | 后缀 | 正例 |
-|------|------|------|
-| 领域实体（Entity） | 直接用业务名词，或后缀 `Entity` | `Person`、`PersonEntity` |
-| 值对象（Value Object） | `ValueObject` | `GenerationalValueObject` |
-| 聚合根（Aggregate Root） | 直接用业务名词，类注释中标识 | `FamilyTree` |
-| 领域服务（Domain Service） | `DomainService` | `GenerationalCalculatorDomainService` |
-| 仓储接口（Repository） | `Repository` | `PersonRepository` |
-| 仓储实现 | `RepositoryImpl` | `PersonRepositoryImpl` |
-| 应用服务 | `ApplicationService` | `PersonApplicationService` |
-| 工厂（Factory） | `Factory` | `PersonFactory` |
-| 领域事件（Domain Event） | `Event`（过去式） | `PersonAddedEvent` |
-| 转换器（Converter） | `Converter` / `Assembler` | `PersonConverter` |
+| 概念                   | 后缀                        | 正例                                    |
+|----------------------|---------------------------|---------------------------------------|
+| 领域实体（Entity）         | 直接用业务名词，或后缀 `Entity`      | `Person`、`PersonEntity`               |
+| 值对象（Value Object）    | `ValueObject`             | `GenerationalValueObject`             |
+| 聚合根（Aggregate Root）  | 直接用业务名词，类注释中标识            | `FamilyTree`                          |
+| 领域服务（Domain Service） | `DomainService`           | `GenerationalCalculatorDomainService` |
+| 仓储接口（Repository）     | `Repository`              | `PersonRepository`                    |
+| 仓储实现                 | `RepositoryImpl`          | `PersonRepositoryImpl`                |
+| 应用服务                 | `ApplicationService`      | `PersonApplicationService`            |
+| 工厂（Factory）          | `Factory`                 | `PersonFactory`                       |
+| 领域事件（Domain Event）   | `Event`（过去式）              | `PersonAddedEvent`                    |
+| 转换器（Converter）       | `Converter` / `Assembler` | `PersonConverter`                     |
 
 ### 1.7 设计模式命名
 
@@ -304,7 +304,8 @@ private static final Logger logger = LoggerFactory.getLogger(XxxService.class);
 - 语句覆盖率目标 70%，核心模块 100%。
 - 遵循 BCDE 原则：Border（边界值）、Correct（正确输入）、Design（结合设计）、Error（错误输入）。
 - 数据库相关测试使用程序插入数据，设定自动回滚机制。
-- MyBatis-Plus 3.5.9 的 `BaseMapper` 存在重载方法（如 `insert(T)` / `insert(Collection<T>)`），Mockito 测试中须使用显式泛型 `ArgumentMatchers.<EntityDO>any()` 避免编译歧义。
+- MyBatis-Plus 3.5.9 的 `BaseMapper` 存在重载方法（如 `insert(T)` / `insert(Collection<T>)`），Mockito 测试中须使用显式泛型
+  `ArgumentMatchers.<EntityDO>any()` 避免编译歧义。
 
 ---
 
@@ -386,13 +387,13 @@ family-tree-common         → 公共模块（工具、常量、枚举、DTO/VO�
 
 ### 14.2 各层职责与编码规范
 
-| 层级 | 职责 | 依赖方向 |
-|------|------|----------|
-| 表现层（Web） | 处理 HTTP 请求/响应，基本参数校验，会话管理，调用应用层，返回 `Result<VO>`。不包含业务逻辑。 | → 应用层 |
-| 应用层（Application） | 实现用例，编排领域对象，控制事务边界（`@Transactional`），权限校验，DTO ↔ 领域对象转换。不包含业务规则。 | → 领域层 + 基础设施层 |
-| 领域层（Domain） | 核心业务逻辑（实体、值对象、领域服务、仓储接口、领域事件）。不依赖基础设施。 | 仅依赖 Common |
-| 基础设施层（Infrastructure） | 实现仓储接口，操作数据库（MyBatis-Plus Mapper + DO），DO ↔ 领域对象转换。不含业务规则。 | → 领域层（实现其接口） |
-| 公共模块（Common） | 通用工具、常量、枚举、异常基类、DTO/VO。 | 被所有层依赖 |
+| 层级                    | 职责                                                              | 依赖方向          |
+|-----------------------|-----------------------------------------------------------------|---------------|
+| 表现层（Web）              | 处理 HTTP 请求/响应，基本参数校验，会话管理，调用应用层，返回 `Result<VO>`。不包含业务逻辑。        | → 应用层         |
+| 应用层（Application）      | 实现用例，编排领域对象，控制事务边界（`@Transactional`），权限校验，DTO ↔ 领域对象转换。不包含业务规则。 | → 领域层 + 基础设施层 |
+| 领域层（Domain）           | 核心业务逻辑（实体、值对象、领域服务、仓储接口、领域事件）。不依赖基础设施。                          | 仅依赖 Common    |
+| 基础设施层（Infrastructure） | 实现仓储接口，操作数据库（MyBatis-Plus Mapper + DO），DO ↔ 领域对象转换。不含业务规则。      | → 领域层（实现其接口）  |
+| 公共模块（Common）          | 通用工具、常量、枚举、异常基类、DTO/VO。                                         | 被所有层依赖        |
 
 **分层异常处理：**
 
@@ -403,25 +404,28 @@ family-tree-common         → 公共模块（工具、常量、枚举、DTO/VO�
 
 ### 14.3 领域模型分布
 
-| 模型 | 说明 | 所在模块 |
-|------|------|----------|
-| DO | 与数据库表一一对应，MyBatis-Plus 注解 | `family-tree-infrastructure` |
-| 领域实体 | 业务对象，包含业务校验方法，`@Getter` + `@Setter` | `family-tree-domain` |
-| DTO | 数据传输对象（请求入参） | `family-tree-common` |
-| VO | 展示层对象（响应出参） | `family-tree-common` |
-| Converter | DO ↔ 领域对象转换器 | `family-tree-infrastructure` |
-| Repository | 仓储接口（领域对象参数/返回值） | `family-tree-domain` |
-| RepositoryImpl | 仓储实现（Mapper + Converter） | `family-tree-infrastructure` |
-| ApplicationService | 用例编排，事务控制 | `family-tree-application` |
-| DomainService | 跨实体业务逻辑（树构建、世代同步、关系校验） | `family-tree-domain` |
+| 模型                 | 说明                                  | 所在模块                         |
+|--------------------|-------------------------------------|------------------------------|
+| DO                 | 与数据库表一一对应，MyBatis-Plus 注解           | `family-tree-infrastructure` |
+| 领域实体               | 业务对象，包含业务校验方法，`@Getter` + `@Setter` | `family-tree-domain`         |
+| DTO                | 数据传输对象（请求入参）                        | `family-tree-common`         |
+| VO                 | 展示层对象（响应出参）                         | `family-tree-common`         |
+| Converter          | DO ↔ 领域对象转换器                        | `family-tree-infrastructure` |
+| Repository         | 仓储接口（领域对象参数/返回值）                    | `family-tree-domain`         |
+| RepositoryImpl     | 仓储实现（Mapper + Converter）            | `family-tree-infrastructure` |
+| ApplicationService | 用例编排，事务控制                           | `family-tree-application`    |
+| DomainService      | 跨实体业务逻辑（树构建、世代同步、关系校验）              | `family-tree-domain`         |
 
 ### 14.4 编码规范
 
 **领域层编码规范：**
 
-- **实体 / 聚合根**：属性为 `private`，使用 `@Getter` + `@Setter`（禁止 `@Data`）。须基于 ID 重写 `equals` / `hashCode`。业务校验方法体现在实体中（如 `validateForCreate()`、`isDeceased()`）。
-- **仓储接口**：定义在 `domain.repository` 包，参数和返回值均为领域对象，严禁出现 DO 或 DTO。方法命名使用领域术语（如 `findById`、`save`、`findByFamilyId`）。
-- **领域服务**：处理跨实体/聚合的业务逻辑，无状态，方法命名体现业务意图（如 `FamilyTreeDomainService.buildTree()`、`RelationValidationDomainService.validateSpouseRelation()`）。`@Service` 管理。
+- **实体 / 聚合根**：属性为 `private`，使用 `@Getter` + `@Setter`（禁止 `@Data`）。须基于 ID 重写 `equals` / `hashCode`
+  。业务校验方法体现在实体中（如 `validateForCreate()`、`isDeceased()`）。
+- **仓储接口**：定义在 `domain.repository` 包，参数和返回值均为领域对象，严禁出现 DO 或 DTO。方法命名使用领域术语（如
+  `findById`、`save`、`findByFamilyId`）。
+- **领域服务**：处理跨实体/聚合的业务逻辑，无状态，方法命名体现业务意图（如 `FamilyTreeDomainService.buildTree()`、
+  `RelationValidationDomainService.validateSpouseRelation()`）。`@Service` 管理。
 - **领域事件**：放在 `domain.event` 包，实现 `DomainEvent` 标记接口。命名使用过去式（如 `FamilyTreeUpdatedEvent`）。
 
 **应用层编码规范：**
@@ -434,9 +438,11 @@ family-tree-common         → 公共模块（工具、常量、枚举、DTO/VO�
 **基础设施层编码规范：**
 
 - 仓储实现类以 `RepositoryImpl` 结尾，实现领域层定义的仓储接口。`@Repository` 注解。
-- 使用 `Converter`（放在 `infrastructure.converter` 包）进行 DO ↔ 领域对象转换。Converter 为 `final` 工具类，提供 `toDomain()`、`toDO()`、`toDomainList()` 静态方法。
+- 使用 `Converter`（放在 `infrastructure.converter` 包）进行 DO ↔ 领域对象转换。Converter 为 `final` 工具类，提供
+  `toDomain()`、`toDO()`、`toDomainList()` 静态方法。
 - 不得包含业务规则，只负责技术实现。
-- 分页查询使用 `selectCount` + `selectList` + `LAST "LIMIT x OFFSET y"`。注意 H2 严格模式下 `selectCount` 不能带 `ORDER BY`。
+- 分页查询使用 `selectCount` + `selectList` + `LAST "LIMIT x OFFSET y"`。注意 H2 严格模式下 `selectCount` 不能带
+  `ORDER BY`。
 
 **聚合设计原则：**
 

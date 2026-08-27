@@ -51,8 +51,8 @@ public class User {
     /**
      * 更新用户资料
      *
-     * @param nickname  昵称
-     * @param birthDate 出生日期
+     * @param nickname   昵称
+     * @param birthDate  出生日期
      * @param generation 世代
      */
     public void updateProfile(String nickname, String birthDate, Integer generation) {

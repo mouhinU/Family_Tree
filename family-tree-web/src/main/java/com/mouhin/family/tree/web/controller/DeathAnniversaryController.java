@@ -1,7 +1,7 @@
 package com.mouhin.family.tree.web.controller;
 
-import com.mouhin.family.tree.common.result.Result;
 import com.mouhin.family.tree.application.service.DeathAnniversaryApplicationService;
+import com.mouhin.family.tree.common.result.Result;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;

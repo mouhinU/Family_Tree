@@ -15,9 +15,13 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class GenerationLayoutDTO {
 
-    /** 列数 */
+    /**
+     * 列数
+     */
     private Integer cols;
 
-    /** 行数 */
+    /**
+     * 行数
+     */
     private Integer rows;
 }

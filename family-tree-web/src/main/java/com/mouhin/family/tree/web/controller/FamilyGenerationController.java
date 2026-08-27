@@ -1,16 +1,12 @@
 package com.mouhin.family.tree.web.controller;
 
+import com.mouhin.family.tree.application.service.FamilyApplicationService;
+import com.mouhin.family.tree.application.service.FamilyGenerationApplicationService;
 import com.mouhin.family.tree.common.dto.FamilyGenerationDTO;
 import com.mouhin.family.tree.common.dto.GenerationLayoutDTO;
 import com.mouhin.family.tree.common.result.Result;
-import com.mouhin.family.tree.application.service.FamilyGenerationApplicationService;
-import com.mouhin.family.tree.application.service.FamilyApplicationService;
 import jakarta.servlet.http.HttpSession;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 

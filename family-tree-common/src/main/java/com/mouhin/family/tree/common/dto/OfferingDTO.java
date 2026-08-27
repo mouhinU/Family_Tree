@@ -11,9 +11,13 @@ import lombok.Data;
 @Data
 public class OfferingDTO {
 
-    /** 受祭的已故节点ID */
+    /**
+     * 受祭的已故节点ID
+     */
     private Long nodeId;
 
-    /** 祭奠类型：1-香烛 2-烧纸 */
+    /**
+     * 祭奠类型：1-香烛 2-烧纸
+     */
     private Integer offeringType;
 }

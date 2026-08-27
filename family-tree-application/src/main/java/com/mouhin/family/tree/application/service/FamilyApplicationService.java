@@ -10,13 +10,7 @@ import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.Family;
 import com.mouhin.family.tree.domain.entity.FamilyMember;
 import com.mouhin.family.tree.domain.entity.User;
-import com.mouhin.family.tree.domain.repository.FamilyGenerationRepository;
-import com.mouhin.family.tree.domain.repository.FamilyMemberRepository;
-import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
-import com.mouhin.family.tree.domain.repository.FamilyOfferingRepository;
-import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
-import com.mouhin.family.tree.domain.repository.FamilyRepository;
-import com.mouhin.family.tree.domain.repository.UserRepository;
+import com.mouhin.family.tree.domain.repository.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -42,10 +36,14 @@ public class FamilyApplicationService {
 
     private static final Logger logger = LoggerFactory.getLogger(FamilyApplicationService.class);
 
-    /** 邀请码字符集（去除易混淆字符 0/1/O/I/L） */
+    /**
+     * 邀请码字符集（去除易混淆字符 0/1/O/I/L）
+     */
     private static final String INVITE_CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
-    /** 邀请码生成最大重试次数（防止极端情况下死循环） */
+    /**
+     * 邀请码生成最大重试次数（防止极端情况下死循环）
+     */
     private static final int INVITE_CODE_MAX_RETRIES = 10;
 
     private final FamilyRepository familyRepository;
@@ -216,7 +214,7 @@ public class FamilyApplicationService {
         Map<Long, User> userMap = userIds.isEmpty()
                 ? Map.of()
                 : userRepository.findByIds(userIds).stream()
-                        .collect(Collectors.toMap(User::getId, Function.identity()));
+                .collect(Collectors.toMap(User::getId, Function.identity()));
 
         return members.stream().map(m -> {
             FamilyMemberDTO memberDTO = new FamilyMemberDTO();

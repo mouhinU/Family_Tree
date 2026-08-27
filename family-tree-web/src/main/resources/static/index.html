@@ -2,163 +2,186 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>族谱管理系统</title>
-    <link rel="stylesheet" href="/css/style.css?v=20260827c">
+    <link href="/css/style.css?v=20260827c" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body class="toolbar-hidden">
-    <!-- 入场卷轴蒙层：点击「开启卷轴」后纸面自中缝向两侧卷起，木轴随之前滚出 -->
-    <div id="scroll-overlay">
-        <div class="scroll-paper paper-left">
-            <div class="scroll-pattern"></div>
-        </div>
-        <div class="scroll-paper paper-right">
-            <div class="scroll-pattern"></div>
-        </div>
-        <!-- 中缝衬纸：横跨两轴之间、顶天立地，遮住匾额上下的空隙；开启时随匾额一同淡出 -->
-        <div class="scroll-paper paper-middle">
-            <div class="scroll-pattern"></div>
-        </div>
-        <div class="scroll-rod rod-left"></div>
-        <div class="scroll-rod rod-right"></div>
-        <div class="scroll-center">
-            <div class="scroll-seal" id="scroll-seal-text">族谱</div>
-            <div class="scroll-subtitle">木有本 · 水有源 · 世代相传</div>
-            <button type="button" class="scroll-open-btn" id="btn-open-scroll">开启卷轴</button>
-        </div>
+<!-- 入场卷轴蒙层：点击「开启卷轴」后纸面自中缝向两侧卷起，木轴随之前滚出 -->
+<div id="scroll-overlay">
+    <div class="scroll-paper paper-left">
+        <div class="scroll-pattern"></div>
     </div>
+    <div class="scroll-paper paper-right">
+        <div class="scroll-pattern"></div>
+    </div>
+    <!-- 中缝衬纸：横跨两轴之间、顶天立地，遮住匾额上下的空隙；开启时随匾额一同淡出 -->
+    <div class="scroll-paper paper-middle">
+        <div class="scroll-pattern"></div>
+    </div>
+    <div class="scroll-rod rod-left"></div>
+    <div class="scroll-rod rod-right"></div>
+    <div class="scroll-center">
+        <div class="scroll-seal" id="scroll-seal-text">族谱</div>
+        <div class="scroll-subtitle">木有本 · 水有源 · 世代相传</div>
+        <button class="scroll-open-btn" id="btn-open-scroll" type="button">开启卷轴</button>
+    </div>
+</div>
 
-    <!-- 顶部导航 -->
-    <header class="app-header">
-        <div class="header-left">
-            <h1>族谱管理系统</h1>
-            <span class="family-name" id="family-name" title="当前家族"></span>
-            <span class="family-role-badge" id="family-role-badge" style="display:none;" title="族长">族长</span>
-            <button class="btn-sm" id="btn-generation">辈分管理</button>
-            <button class="btn-sm" id="btn-family">家族管理</button>
-            <button class="btn-sm" id="btn-timeline" title="家族时间线">时间线</button>
-            <button class="btn-sm" id="btn-relation-path" title="关系路径分析">关系路径</button>
-            <button class="btn-sm" id="btn-message" title="家族留言板">留言板</button>
-        </div>
-        <div class="header-search">
-            <input type="text" id="search-input" placeholder="搜索族人..." autocomplete="off">
-            <div class="search-dropdown" id="search-dropdown" style="display:none;"></div>
-        </div>
-        <div class="header-actions">
-            <span class="nickname" id="user-nickname"></span>
-            <div class="header-more-wrap">
-                <button class="btn-sm" id="btn-more" title="更多操作">更多 ▾</button>
-                <div class="header-more-dropdown" id="header-more-dropdown" style="display:none;">
-                    <div class="header-more-item" id="btn-profile" title="维护个人信息">个人信息</div>
-                    <div class="header-more-item" id="btn-family-switch" title="切换家族">切换家族</div>
-                    <div class="header-more-item" id="btn-death-anniversary" title="忌日提醒">忌日提醒</div>
-                    <div class="header-more-item" id="btn-operation-log" style="display:none;">操作日志</div>
-                </div>
-            </div>
-            <button class="btn-sm" id="btn-export" title="导出整棵族谱为 PDF（含宣纸背景与辈分水印）">导出族谱</button>
-            <button class="btn-sm primary" id="btn-add-root">添加始祖</button>
-            <button class="btn-sm" id="btn-logout">退出</button>
-        </div>
-    </header>
-
-    <!-- 工具栏（默认收起，点击底边把手展开） -->
-    <div class="toolbar collapsed" id="toolbar">
-        <div class="legend" id="legend">
-            <span class="legend-toggle" id="legend-toggle" title="显示 / 隐藏颜色图例">图例：<span class="legend-caret">▾</span></span>
-            <div class="legend-items">
-                <div class="legend-item"><div class="legend-dot" style="background:#5b6b7c"></div>默认</div>
-                <div class="legend-item"><div class="legend-dot" style="background:#a63a2b"></div>父系</div>
-                <div class="legend-item"><div class="legend-dot" style="background:#a0522d"></div>母系</div>
-                <div class="legend-item"><div class="legend-dot" style="background:#6b4f8a"></div>姻亲</div>
-                <div class="legend-item"><div class="legend-dot" style="background:#3a6b4f"></div>过继</div>
-                <div class="legend-item"><div class="legend-dot" style="background:#a63d5c"></div>高亮</div>
-                <div class="legend-item"><div class="legend-dot" style="background:#9a968c"></div>已故</div>
+<!-- 顶部导航 -->
+<header class="app-header">
+    <div class="header-left">
+        <h1>族谱管理系统</h1>
+        <span class="family-name" id="family-name" title="当前家族"></span>
+        <span class="family-role-badge" id="family-role-badge" style="display:none;" title="族长">族长</span>
+        <button class="btn-sm" id="btn-generation">辈分管理</button>
+        <button class="btn-sm" id="btn-family">家族管理</button>
+        <button class="btn-sm" id="btn-timeline" title="家族时间线">时间线</button>
+        <button class="btn-sm" id="btn-relation-path" title="关系路径分析">关系路径</button>
+        <button class="btn-sm" id="btn-message" title="家族留言板">留言板</button>
+    </div>
+    <div class="header-search">
+        <input autocomplete="off" id="search-input" placeholder="搜索族人..." type="text">
+        <div class="search-dropdown" id="search-dropdown" style="display:none;"></div>
+    </div>
+    <div class="header-actions">
+        <span class="nickname" id="user-nickname"></span>
+        <div class="header-more-wrap">
+            <button class="btn-sm" id="btn-more" title="更多操作">更多 ▾</button>
+            <div class="header-more-dropdown" id="header-more-dropdown" style="display:none;">
+                <div class="header-more-item" id="btn-profile" title="维护个人信息">个人信息</div>
+                <div class="header-more-item" id="btn-family-switch" title="切换家族">切换家族</div>
+                <div class="header-more-item" id="btn-death-anniversary" title="忌日提醒">忌日提醒</div>
+                <div class="header-more-item" id="btn-operation-log" style="display:none;">操作日志</div>
             </div>
         </div>
-        <label class="layout-select" title="切换族谱布局方向">
-            <span>布局</span>
-            <select id="sel-layout">
-                <option value="tb" selected>上下</option>
-                <option value="lr">左→右</option>
-                <option value="rl">右→左</option>
-            </select>
-        </label>
-        <label class="living-toggle" title="隐藏已故节点，只显示健在成员">
-            <input type="checkbox" id="chk-hide-deceased">
-            <span>只看健在</span>
-        </label>
-        <label class="marryout-toggle" title="女性外嫁后配偶与子女归属夫家，隐藏其家支不显示">
-            <input type="checkbox" id="chk-hide-marryout">
-            <span>隐藏外嫁</span>
-        </label>
-        <span class="hint">右键点击节点可操作 | 滚轮缩放 | 拖拽平移</span>
-        <!-- 下拉把手：整体收起 / 展开工具栏 -->
-        <button class="toolbar-handle" id="toolbar-handle" type="button" title="展开工具栏">
-            <span class="handle-caret">▴</span>
-        </button>
+        <button class="btn-sm" id="btn-export" title="导出整棵族谱为 PDF（含宣纸背景与辈分水印）">导出族谱</button>
+        <button class="btn-sm primary" id="btn-add-root">添加始祖</button>
+        <button class="btn-sm" id="btn-logout">退出</button>
     </div>
+</header>
 
-    <!-- 族谱画布 -->
-    <div class="tree-container" id="tree-container">
-        <svg id="tree-svg"></svg>
-        <!-- 辈分（字辈）水印层：右起竖排，登录人所属辈分高亮 -->
-        <div id="generation-watermark" aria-hidden="true"></div>
+<!-- 工具栏（默认收起，点击底边把手展开） -->
+<div class="toolbar collapsed" id="toolbar">
+    <div class="legend" id="legend">
+        <span class="legend-toggle" id="legend-toggle" title="显示 / 隐藏颜色图例">图例：<span
+                class="legend-caret">▾</span></span>
+        <div class="legend-items">
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#5b6b7c"></div>
+                默认
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#a63a2b"></div>
+                父系
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#a0522d"></div>
+                母系
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#6b4f8a"></div>
+                姻亲
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#3a6b4f"></div>
+                过继
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#a63d5c"></div>
+                高亮
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background:#9a968c"></div>
+                已故
+            </div>
+        </div>
     </div>
-
-    <!-- 右键菜单 -->
-    <div class="context-menu" id="context-menu">
-        <div class="menu-item" data-action="add-child">添加子女</div>
-        <div class="menu-item" data-action="add-spouse">添加配偶</div>
-        <div class="menu-item" data-action="link-spouse">关联配偶</div>
-        <div class="menu-item" data-action="add-parent">添加父母</div>
-        <div class="menu-item" data-action="adoption">过继/收养</div>
-        <div class="menu-item" data-action="birth-order">排次管理</div>
-        <div class="menu-item" data-action="mark-self">标记为我</div>
-        <div class="menu-item" data-action="edit">编辑信息</div>
-        <div class="menu-item" data-action="color">修改颜色</div>
-        <div class="menu-item danger" data-action="delete">删除节点</div>
-    </div>
-
-    <!-- 留言轮播 -->
-    <div id="message-carousel" class="msg-carousel" style="display:none;">
-        <span class="msg-carousel-label">板言般</span>
-        <div class="msg-carousel-track" id="msg-carousel-track"></div>
-        <button class="msg-carousel-close" id="msg-carousel-close" title="关闭族言">&times;</button>
-    </div>
-
-    <!-- AI 助手浮动机器人按钮 -->
-    <button class="ai-float-btn" id="btn-ai" title="AI 族谱助手">
-        <svg class="ai-float-icon" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="7" width="18" height="13" rx="3"/>
-            <circle cx="9" cy="13" r="1.5" fill="currentColor" stroke="none"/>
-            <circle cx="15" cy="13" r="1.5" fill="currentColor" stroke="none"/>
-            <path d="M9 17h6"/>
-            <path d="M12 3v4"/>
-            <circle cx="12" cy="2.5" r="1" fill="currentColor" stroke="none"/>
-        </svg>
-        <span class="ai-float-label">AI 助手</span>
+    <label class="layout-select" title="切换族谱布局方向">
+        <span>布局</span>
+        <select id="sel-layout">
+            <option selected value="tb">上下</option>
+            <option value="lr">左→右</option>
+            <option value="rl">右→左</option>
+        </select>
+    </label>
+    <label class="living-toggle" title="隐藏已故节点，只显示健在成员">
+        <input id="chk-hide-deceased" type="checkbox">
+        <span>只看健在</span>
+    </label>
+    <label class="marryout-toggle" title="女性外嫁后配偶与子女归属夫家，隐藏其家支不显示">
+        <input id="chk-hide-marryout" type="checkbox">
+        <span>隐藏外嫁</span>
+    </label>
+    <span class="hint">右键点击节点可操作 | 滚轮缩放 | 拖拽平移</span>
+    <!-- 下拉把手：整体收起 / 展开工具栏 -->
+    <button class="toolbar-handle" id="toolbar-handle" title="展开工具栏" type="button">
+        <span class="handle-caret">▴</span>
     </button>
+</div>
 
-    <!-- 模态框容器 -->
-    <div id="modal-container"></div>
+<!-- 族谱画布 -->
+<div class="tree-container" id="tree-container">
+    <svg id="tree-svg"></svg>
+    <!-- 辈分（字辈）水印层：右起竖排，登录人所属辈分高亮 -->
+    <div aria-hidden="true" id="generation-watermark"></div>
+</div>
 
-    <!-- 前端模块化拆分：core 定义命名空间/常量/状态，main 启动应用，顺序不可调换 -->
-    <script src="/js/ft/core.js?v=20260804c"></script>
-    <script src="/js/ft/api.js?v=20260809a"></script>
-    <script src="/js/ft/layout.js?v=20260805c"></script>
-    <script src="/js/ft/render.js?v=20260805j"></script>
-    <script src="/js/ft/export.js?v=20260809a"></script>
-    <script src="/js/ft/modals.js?v=20260809b"></script>
-    <script src="/js/ft/modal-offering.js?v=20260809a"></script>
-    <script src="/js/ft/modal-node.js?v=20260809a"></script>
-    <script src="/js/ft/modal-family.js?v=20260809a"></script>
-    <script src="/js/ft/modal-tools.js?v=20260809a"></script>
-    <script src="/js/ft/modal-message.js?v=20260827a"></script>
-    <script src="/js/ft/modal-ai.js?v=20260827b"></script>
-    <script src="/js/ft/message-carousel.js?v=20260825a"></script>
-    <script src="/js/ft/context-menu.js?v=20260804b"></script>
-    <script src="/js/ft/main.js?v=20260827a"></script>
+<!-- 右键菜单 -->
+<div class="context-menu" id="context-menu">
+    <div class="menu-item" data-action="add-child">添加子女</div>
+    <div class="menu-item" data-action="add-spouse">添加配偶</div>
+    <div class="menu-item" data-action="link-spouse">关联配偶</div>
+    <div class="menu-item" data-action="add-parent">添加父母</div>
+    <div class="menu-item" data-action="adoption">过继/收养</div>
+    <div class="menu-item" data-action="birth-order">排次管理</div>
+    <div class="menu-item" data-action="mark-self">标记为我</div>
+    <div class="menu-item" data-action="edit">编辑信息</div>
+    <div class="menu-item" data-action="color">修改颜色</div>
+    <div class="menu-item danger" data-action="delete">删除节点</div>
+</div>
+
+<!-- 留言轮播 -->
+<div class="msg-carousel" id="message-carousel" style="display:none;">
+    <span class="msg-carousel-label">板言般</span>
+    <div class="msg-carousel-track" id="msg-carousel-track"></div>
+    <button class="msg-carousel-close" id="msg-carousel-close" title="关闭族言">&times;</button>
+</div>
+
+<!-- AI 助手浮动机器人按钮 -->
+<button class="ai-float-btn" id="btn-ai" title="AI 族谱助手">
+    <svg class="ai-float-icon" fill="none" height="28" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+         stroke-width="1.8" viewBox="0 0 24 24" width="28">
+        <rect height="13" rx="3" width="18" x="3" y="7"/>
+        <circle cx="9" cy="13" fill="currentColor" r="1.5" stroke="none"/>
+        <circle cx="15" cy="13" fill="currentColor" r="1.5" stroke="none"/>
+        <path d="M9 17h6"/>
+        <path d="M12 3v4"/>
+        <circle cx="12" cy="2.5" fill="currentColor" r="1" stroke="none"/>
+    </svg>
+    <span class="ai-float-label">AI 助手</span>
+</button>
+
+<!-- 模态框容器 -->
+<div id="modal-container"></div>
+
+<!-- 前端模块化拆分：core 定义命名空间/常量/状态，main 启动应用，顺序不可调换 -->
+<script src="/js/ft/core.js?v=20260804c"></script>
+<script src="/js/ft/api.js?v=20260809a"></script>
+<script src="/js/ft/layout.js?v=20260805c"></script>
+<script src="/js/ft/render.js?v=20260805j"></script>
+<script src="/js/ft/export.js?v=20260809a"></script>
+<script src="/js/ft/modals.js?v=20260809b"></script>
+<script src="/js/ft/modal-offering.js?v=20260809a"></script>
+<script src="/js/ft/modal-node.js?v=20260809a"></script>
+<script src="/js/ft/modal-family.js?v=20260809a"></script>
+<script src="/js/ft/modal-tools.js?v=20260809a"></script>
+<script src="/js/ft/modal-message.js?v=20260827a"></script>
+<script src="/js/ft/modal-ai.js?v=20260827b"></script>
+<script src="/js/ft/message-carousel.js?v=20260825a"></script>
+<script src="/js/ft/context-menu.js?v=20260804b"></script>
+<script src="/js/ft/main.js?v=20260827a"></script>
 </body>
 </html>

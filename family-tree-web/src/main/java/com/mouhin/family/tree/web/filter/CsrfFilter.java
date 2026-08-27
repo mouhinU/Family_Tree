@@ -26,19 +26,29 @@ import java.util.UUID;
  */
 public class CsrfFilter implements Filter {
 
-    private static final Logger logger = LoggerFactory.getLogger(CsrfFilter.class);
-
     /**
      * Session 中存储 CSRF Token 的 key
      */
     public static final String CSRF_TOKEN_SESSION_KEY = "CSRF_TOKEN";
-
     /**
      * 前端回传 CSRF Token 的请求头名称
      */
     public static final String CSRF_TOKEN_HEADER = "X-CSRF-TOKEN";
-
+    private static final Logger logger = LoggerFactory.getLogger(CsrfFilter.class);
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    /**
+     * 生成新的 CSRF Token 并存入 Session。
+     * 在登录成功后调用。
+     *
+     * @param session 当前 HTTP Session
+     * @return 生成的 Token
+     */
+    public static String generateToken(HttpSession session) {
+        String token = UUID.randomUUID().toString();
+        session.setAttribute(CSRF_TOKEN_SESSION_KEY, token);
+        return token;
+    }
 
     @Override
     public void init(FilterConfig filterConfig) throws ServletException {
@@ -86,18 +96,5 @@ public class CsrfFilter implements Filter {
     @Override
     public void destroy() {
         // 无需清理
-    }
-
-    /**
-     * 生成新的 CSRF Token 并存入 Session。
-     * 在登录成功后调用。
-     *
-     * @param session 当前 HTTP Session
-     * @return 生成的 Token
-     */
-    public static String generateToken(HttpSession session) {
-        String token = UUID.randomUUID().toString();
-        session.setAttribute(CSRF_TOKEN_SESSION_KEY, token);
-        return token;
     }
 }

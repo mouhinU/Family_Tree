@@ -32,10 +32,14 @@ public class FamilyTreeApplicationService {
 
     private static final Logger logger = LoggerFactory.getLogger(FamilyTreeApplicationService.class);
 
-    /** 树缓存最大家族数：家庭内部系统，远超实际规模，仅作内存保护 */
+    /**
+     * 树缓存最大家族数：家庭内部系统，远超实际规模，仅作内存保护
+     */
     private static final int MAX_CACHED_FAMILIES = 200;
 
-    /** 树缓存过期时间：除写操作主动失效外的兜底，防止遗漏写路径导致长期脏读 */
+    /**
+     * 树缓存过期时间：除写操作主动失效外的兜底，防止遗漏写路径导致长期脏读
+     */
     private static final Duration TREE_CACHE_TTL = Duration.ofMinutes(10);
 
     private final FamilyNodeRepository familyNodeRepository;
@@ -43,8 +47,10 @@ public class FamilyTreeApplicationService {
     private final FamilyTreeDomainService familyTreeDomainService;
     private final Counter treeBuildCounter;
 
-    /** 整棵族谱树缓存（key=familyId）。族谱为读多写少场景，命中时省去全表查询与建树。
-     *  注意：缓存值为构建好的 VO 列表，读取方只可以序列化展示，不得修改其内容。 */
+    /**
+     * 整棵族谱树缓存（key=familyId）。族谱为读多写少场景，命中时省去全表查询与建树。
+     * 注意：缓存值为构建好的 VO 列表，读取方只可以序列化展示，不得修改其内容。
+     */
     private final Cache<Long, List<TreeNodeVO>> fullTreeCache = Caffeine.newBuilder()
             .maximumSize(MAX_CACHED_FAMILIES)
             .expireAfterWrite(TREE_CACHE_TTL)

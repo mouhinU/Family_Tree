@@ -11,7 +11,12 @@
     {
       "title": "JVM 内存使用",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
       "targets": [
         {
           "expr": "jvm_memory_used_bytes{application=\"family-tree\"}",
@@ -23,13 +28,20 @@
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "bytes" }
+        "defaults": {
+          "unit": "bytes"
+        }
       }
     },
     {
       "title": "JVM GC 暂停时间",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
       "targets": [
         {
           "expr": "rate(jvm_gc_pause_sum{application=\"family-tree\"}[1m])",
@@ -37,13 +49,20 @@
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "s" }
+        "defaults": {
+          "unit": "s"
+        }
       }
     },
     {
       "title": "HTTP 请求速率",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
       "targets": [
         {
           "expr": "rate(http_server_requests_seconds_count{application=\"family-tree\"}[1m])",
@@ -51,13 +70,20 @@
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "reqps" }
+        "defaults": {
+          "unit": "reqps"
+        }
       }
     },
     {
       "title": "HTTP 请求延迟 (P95)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
       "targets": [
         {
           "expr": "histogram_quantile(0.95, rate(http_server_requests_seconds_bucket{application=\"family-tree\"}[5m]))",
@@ -65,13 +91,20 @@
         }
       ],
       "fieldConfig": {
-        "defaults": { "unit": "s" }
+        "defaults": {
+          "unit": "s"
+        }
       }
     },
     {
       "title": "Caffeine 缓存命中率",
       "type": "gauge",
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 16
+      },
       "targets": [
         {
           "expr": "rate(cache_gets_total{application=\"family-tree\",cache=\"familyTreeCache\",result=\"hit\"}[5m]) / rate(cache_gets_total{application=\"family-tree\",cache=\"familyTreeCache\"}[5m]) * 100"
@@ -84,9 +117,18 @@
           "max": 100,
           "thresholds": {
             "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 60 },
-              { "color": "green", "value": 80 }
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "green",
+                "value": 80
+              }
             ]
           }
         }
@@ -95,7 +137,12 @@
     {
       "title": "Caffeine 缓存大小",
       "type": "stat",
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 16
+      },
       "targets": [
         {
           "expr": "cache_size{application=\"family-tree\",cache=\"familyTreeCache\"}",
@@ -106,7 +153,12 @@
     {
       "title": "JVM 线程数",
       "type": "stat",
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 16
+      },
       "targets": [
         {
           "expr": "jvm_threads_live_threads{application=\"family-tree\"}",
@@ -121,7 +173,12 @@
     {
       "title": "系统健康状态",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 24 },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 24
+      },
       "targets": [
         {
           "expr": "up{job=\"family-tree\"}",
@@ -131,16 +188,36 @@
       "fieldConfig": {
         "defaults": {
           "mappings": [
-            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                }
+              }
+            }
           ]
         }
       }
     }
   ],
   "schemaVersion": 39,
-  "tags": ["family-tree", "spring-boot"],
-  "templating": { "list": [] },
-  "time": { "from": "now-1h", "to": "now" },
+  "tags": [
+    "family-tree",
+    "spring-boot"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
   "title": "Family Tree 监控面板",
   "uid": "family-tree-overview"
 }

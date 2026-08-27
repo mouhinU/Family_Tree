@@ -77,7 +77,7 @@ public interface FamilyRelationRepository {
      * @return 匹配的关系列表
      */
     List<FamilyRelation> findByFromAndToAndType(Long familyId, Long fromNodeId,
-                                                 Long toNodeId, Integer relationType);
+                                                Long toNodeId, Integer relationType);
 
     /**
      * 根据用户ID更新所属家族ID（数据迁移场景）

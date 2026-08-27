@@ -17,37 +17,59 @@ import java.time.LocalDateTime;
 @TableName("family_message")
 public class FamilyMessageDO {
 
-    /** 主键 */
+    /**
+     * 主键
+     */
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /** 家族ID */
+    /**
+     * 家族ID
+     */
     private Long familyId;
 
-    /** 留言用户ID */
+    /**
+     * 留言用户ID
+     */
     private Long userId;
 
-    /** 留言用户名 */
+    /**
+     * 留言用户名
+     */
     private String username;
 
-    /** 留言内容 */
+    /**
+     * 留言内容
+     */
     private String content;
 
-    /** 点赞数 */
+    /**
+     * 点赞数
+     */
     private Long likeCount;
 
-    /** 留言分类 */
+    /**
+     * 留言分类
+     */
     private String category;
 
-    /** 父留言ID（null 表示顶级留言） */
+    /**
+     * 父留言ID（null 表示顶级留言）
+     */
     private Long parentId;
 
-    /** 回复数 */
+    /**
+     * 回复数
+     */
     private Long replyCount;
 
-    /** 创建时间 */
+    /**
+     * 创建时间
+     */
     private LocalDateTime createTime;
 
-    /** 更新时间 */
+    /**
+     * 更新时间
+     */
     private LocalDateTime updateTime;
 }

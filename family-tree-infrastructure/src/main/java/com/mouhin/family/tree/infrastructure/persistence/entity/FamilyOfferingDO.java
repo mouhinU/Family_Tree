@@ -20,16 +20,24 @@ public class FamilyOfferingDO {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /** 上香/烧纸的用户ID */
+    /**
+     * 上香/烧纸的用户ID
+     */
     private Long userId;
 
-    /** 所属家族ID */
+    /**
+     * 所属家族ID
+     */
     private Long familyId;
 
-    /** 受祭的已故节点ID */
+    /**
+     * 受祭的已故节点ID
+     */
     private Long nodeId;
 
-    /** 祭奠类型：1-香烛 2-烧纸 */
+    /**
+     * 祭奠类型：1-香烛 2-烧纸
+     */
     private Integer offeringType;
 
     private LocalDateTime createTime;

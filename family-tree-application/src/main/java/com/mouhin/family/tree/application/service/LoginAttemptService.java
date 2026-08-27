@@ -18,7 +18,9 @@ import java.time.Duration;
 @Service
 public class LoginAttemptService {
 
-    /** 失败计数器容量上限：远超正常用户名规模，仅作内存保护 */
+    /**
+     * 失败计数器容量上限：远超正常用户名规模，仅作内存保护
+     */
     private static final int MAX_TRACKED_USERNAMES = 10_000;
 
     private final Cache<String, Integer> attemptsCache = Caffeine.newBuilder()

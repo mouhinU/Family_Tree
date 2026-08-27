@@ -26,39 +26,6 @@ public class DeathAnniversaryDomainService {
     private static final Logger logger = LoggerFactory.getLogger(DeathAnniversaryDomainService.class);
 
     /**
-     * 忌日信息结果对象
-     */
-    @Getter
-    public static class AnniversaryInfo {
-
-        private final Long nodeId;
-        private final String nodeName;
-        private final LocalDate deathDate;
-        private final LocalDate anniversaryDate;
-        private final long daysUntil;
-
-        /**
-         * 构造忌日信息
-         *
-         * @param nodeId          节点ID
-         * @param nodeName        节点名称
-         * @param deathDate       去世日期
-         * @param anniversaryDate 今年/明年的忌日日期
-         * @param daysUntil       距今天数
-         */
-        public AnniversaryInfo(Long nodeId, String nodeName,
-                                LocalDate deathDate,
-                                LocalDate anniversaryDate,
-                                long daysUntil) {
-            this.nodeId = nodeId;
-            this.nodeName = nodeName;
-            this.deathDate = deathDate;
-            this.anniversaryDate = anniversaryDate;
-            this.daysUntil = daysUntil;
-        }
-    }
-
-    /**
      * 计算未来 N 天内即将到来的忌日列表
      *
      * @param deceasedNodes 已故节点列表（deathDate 不为空）
@@ -66,7 +33,7 @@ public class DeathAnniversaryDomainService {
      * @return 忌日信息列表，按剩余天数升序排列
      */
     public List<AnniversaryInfo> calculateUpcoming(List<FamilyNode> deceasedNodes,
-                                                    int days) {
+                                                   int days) {
         LocalDate today = LocalDate.now();
         List<AnniversaryInfo> result = new ArrayList<>();
 
@@ -106,5 +73,38 @@ public class DeathAnniversaryDomainService {
 
         result.sort(Comparator.comparingLong(AnniversaryInfo::getDaysUntil));
         return result;
+    }
+
+    /**
+     * 忌日信息结果对象
+     */
+    @Getter
+    public static class AnniversaryInfo {
+
+        private final Long nodeId;
+        private final String nodeName;
+        private final LocalDate deathDate;
+        private final LocalDate anniversaryDate;
+        private final long daysUntil;
+
+        /**
+         * 构造忌日信息
+         *
+         * @param nodeId          节点ID
+         * @param nodeName        节点名称
+         * @param deathDate       去世日期
+         * @param anniversaryDate 今年/明年的忌日日期
+         * @param daysUntil       距今天数
+         */
+        public AnniversaryInfo(Long nodeId, String nodeName,
+                               LocalDate deathDate,
+                               LocalDate anniversaryDate,
+                               long daysUntil) {
+            this.nodeId = nodeId;
+            this.nodeName = nodeName;
+            this.deathDate = deathDate;
+            this.anniversaryDate = anniversaryDate;
+            this.daysUntil = daysUntil;
+        }
     }
 }

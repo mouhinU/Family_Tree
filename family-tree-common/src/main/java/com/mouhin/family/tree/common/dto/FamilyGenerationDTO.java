@@ -13,9 +13,13 @@ public class FamilyGenerationDTO {
 
     private Long id;
 
-    /** 世代（从1开始） */
+    /**
+     * 世代（从1开始）
+     */
     private Integer generation;
 
-    /** 辈分名称（字辈），空字符串表示清除该世代名称 */
+    /**
+     * 辈分名称（字辈），空字符串表示清除该世代名称
+     */
     private String name;
 }

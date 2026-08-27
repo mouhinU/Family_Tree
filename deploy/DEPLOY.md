@@ -25,7 +25,8 @@ docker compose up -d
 # 4. 访问 http://your-server-ip:8090
 ```
 
-数据存储在 Docker 卷 `family-tree-data` 中。如需持久化到宿主机，可在 docker-compose.yml 中将 `family-tree-data` 改为 bind mount（如 `./data:/app/data`）。
+数据存储在 Docker 卷 `family-tree-data` 中。如需持久化到宿主机，可在 docker-compose.yml 中将 `family-tree-data` 改为 bind
+mount（如 `./data:/app/data`）。
 
 ---
 
@@ -192,14 +193,14 @@ Nginx 配置已限制 `/actuator/` 仅允许内网 IP 访问（127.0.0.1、10.0.
 
 所有脚本位于 `deploy/scripts/` 目录：
 
-| 脚本 | 用途 | 用法 |
-|------|------|------|
-| `backup.sh` | 数据库备份 | `./backup.sh mysql [备份目录]` |
-| `restore.sh` | 数据库恢复 | `./restore.sh mysql <备份文件>` |
-| `healthcheck.sh` | 健康检查 | `./healthcheck.sh [应用地址]` |
-| `cleanup-logs.sh` | 日志清理 | `./cleanup-logs.sh [保留天数] [日志目录]` |
-| `restart.sh` | 安全重启 | `./restart.sh [--force]` |
-| `rollback.sh` | 版本回滚 | `./rollback.sh <版本号>` |
+| 脚本                | 用途    | 用法                                |
+|-------------------|-------|-----------------------------------|
+| `backup.sh`       | 数据库备份 | `./backup.sh mysql [备份目录]`        |
+| `restore.sh`      | 数据库恢复 | `./restore.sh mysql <备份文件>`       |
+| `healthcheck.sh`  | 健康检查  | `./healthcheck.sh [应用地址]`         |
+| `cleanup-logs.sh` | 日志清理  | `./cleanup-logs.sh [保留天数] [日志目录]` |
+| `restart.sh`      | 安全重启  | `./restart.sh [--force]`          |
+| `rollback.sh`     | 版本回滚  | `./rollback.sh <版本号>`             |
 
 ---
 

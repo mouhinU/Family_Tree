@@ -11,12 +11,18 @@ import lombok.Data;
 @Data
 public class ProfileUpdateDTO {
 
-    /** 昵称 */
+    /**
+     * 昵称
+     */
     private String nickname;
 
-    /** 出生日期（yyyy-MM-dd） */
+    /**
+     * 出生日期（yyyy-MM-dd）
+     */
     private String birthDate;
 
-    /** 所属辈分（第几世） */
+    /**
+     * 所属辈分（第几世）
+     */
     private Integer generation;
 }

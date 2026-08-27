@@ -29,7 +29,9 @@ public class FamilyMessageApplicationService {
 
     private static final Logger logger = LoggerFactory.getLogger(FamilyMessageApplicationService.class);
 
-    /** 留言内容最大长度 */
+    /**
+     * 留言内容最大长度
+     */
     private static final int MAX_CONTENT_LENGTH = 500;
 
     private final FamilyMessageRepository familyMessageRepository;

@@ -13,14 +13,20 @@ import lombok.Data;
 @Data
 public class MessageCreateDTO {
 
-    /** 留言内容 */
+    /**
+     * 留言内容
+     */
     @NotBlank(message = "留言内容不能为空")
     @Size(max = 500, message = "留言内容不能超过500字")
     private String content;
 
-    /** 留言分类（GENERAL-普通留言, FEATURE-功能需求） */
+    /**
+     * 留言分类（GENERAL-普通留言, FEATURE-功能需求）
+     */
     private String category;
 
-    /** 父留言ID（null 表示顶级留言，非null 表示回复） */
+    /**
+     * 父留言ID（null 表示顶级留言，非null 表示回复）
+     */
     private Long parentId;
 }
