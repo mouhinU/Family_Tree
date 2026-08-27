@@ -3219,3 +3219,424 @@ body.toolbar-hidden .tree-container {
         transform: translateX(-50%);
     }
 }
+
+/* ========== AI 助手弹窗 ========== */
+.ai-modal-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0;
+    text-align: center;
+    letter-spacing: 2px;
+    pointer-events: none;
+}
+
+.ai-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 16px;
+}
+
+.ai-tab-btn {
+    flex: 1;
+    padding: 10px 8px;
+    border: none;
+    border-bottom: 3px solid transparent;
+    background: transparent;
+    color: var(--ink-light);
+    font-family: var(--font-kai);
+    font-size: 14px;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s, background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+}
+
+.ai-tab-btn:hover {
+    color: var(--cinnabar);
+    background: rgba(166, 58, 43, 0.04);
+}
+
+.ai-tab-active {
+    color: var(--cinnabar);
+    border-bottom-color: var(--cinnabar);
+    font-weight: 600;
+}
+
+.ai-tab-icon {
+    font-size: 16px;
+}
+
+.ai-tab-content {
+    min-height: 200px;
+}
+
+.ai-form-section {
+    padding: 0 4px;
+}
+
+.ai-form-desc {
+    font-size: 13px;
+    color: var(--ink-light);
+    margin-bottom: 6px;
+    line-height: 1.6;
+}
+
+.ai-form-example {
+    font-size: 12px;
+    color: var(--ink-faint);
+    margin-bottom: 10px;
+    padding: 6px 10px;
+    background: rgba(138, 109, 59, 0.06);
+    border-radius: 4px;
+    border-left: 3px solid var(--gold);
+    line-height: 1.5;
+}
+
+.ai-textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--paper-card);
+    color: var(--ink);
+    font-family: var(--font-kai);
+    font-size: 14px;
+    line-height: 1.6;
+    resize: vertical;
+    transition: border-color 0.2s;
+}
+
+.ai-textarea:focus {
+    outline: none;
+    border-color: var(--cinnabar);
+    box-shadow: 0 0 0 2px rgba(166, 58, 43, 0.1);
+}
+
+.ai-form-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 8px;
+}
+
+.ai-char-count {
+    font-size: 12px;
+    color: var(--ink-faint);
+}
+
+.ai-submit-btn {
+    padding: 8px 20px;
+    border: none;
+    border-radius: 6px;
+    background: var(--cinnabar);
+    color: #fff;
+    font-family: var(--font-kai);
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s, opacity 0.2s;
+}
+
+.ai-submit-btn:hover {
+    background: var(--cinnabar-dark);
+}
+
+.ai-submit-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.ai-result-area {
+    margin-top: 16px;
+    padding: 14px;
+    background: var(--paper-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    max-height: 360px;
+    overflow-y: auto;
+}
+
+.ai-result-content {
+    line-height: 1.7;
+}
+
+.ai-result-title {
+    font-size: 15px;
+    color: var(--cinnabar);
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.ai-result-summary {
+    font-size: 13px;
+    color: var(--ink-light);
+    margin-bottom: 12px;
+}
+
+.ai-result-section {
+    margin-bottom: 12px;
+}
+
+.ai-result-section h5 {
+    font-size: 14px;
+    color: var(--ink);
+    margin-bottom: 6px;
+}
+
+.ai-result-list {
+    padding-left: 20px;
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.8;
+}
+
+.ai-result-list li {
+    margin-bottom: 2px;
+}
+
+.ai-result-actions {
+    margin-top: 16px;
+    text-align: right;
+}
+
+.ai-confirm-btn {
+    padding: 8px 24px;
+    border: none;
+    border-radius: 6px;
+    background: var(--gold);
+    color: #fff;
+    font-family: var(--font-kai);
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.ai-confirm-btn:hover {
+    background: #745a2e;
+}
+
+.ai-close-btn {
+    padding: 8px 20px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--ink-light);
+    font-family: var(--font-kai);
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+.ai-close-btn:hover {
+    background: rgba(166, 58, 43, 0.06);
+    color: var(--ink);
+}
+
+.ai-modal-actions {
+    margin-top: 16px;
+    text-align: right;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+}
+
+.ai-loading {
+    text-align: center;
+    color: var(--ink-light);
+    font-size: 14px;
+    padding: 20px 0;
+}
+
+.ai-loading::before {
+    content: '';
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--cinnabar);
+    border-radius: 50%;
+    animation: ai-spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+@keyframes ai-spin {
+    to { transform: rotate(360deg); }
+}
+
+.ai-error {
+    color: var(--cinnabar);
+    font-size: 14px;
+    padding: 10px;
+    background: rgba(166, 58, 43, 0.06);
+    border-radius: 4px;
+    border-left: 3px solid var(--cinnabar);
+}
+
+.ai-node-select-area {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.ai-select-label {
+    font-size: 14px;
+    color: var(--ink);
+    white-space: nowrap;
+}
+
+.ai-select {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--paper-card);
+    color: var(--ink);
+    font-family: var(--font-kai);
+    font-size: 14px;
+}
+
+.ai-select:focus {
+    outline: none;
+    border-color: var(--cinnabar);
+}
+
+.ai-upload-area {
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.ai-upload-btn {
+    padding: 8px 16px;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    background: var(--paper-card);
+    color: var(--ink-light);
+    font-family: var(--font-kai);
+    font-size: 14px;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+}
+
+.ai-upload-btn:hover {
+    border-color: var(--cinnabar);
+    color: var(--cinnabar);
+}
+
+.ai-image-preview img {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+}
+
+.ai-answer-text,
+.ai-story-text {
+    font-size: 14px;
+    color: var(--ink);
+    line-height: 1.8;
+    white-space: pre-wrap;
+}
+
+/* AI 助手浮动机器人按钮 */
+.ai-float-btn {
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    z-index: 1500;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, var(--cinnabar), var(--gold));
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(166, 58, 43, 0.35), 0 2px 6px rgba(0, 0, 0, 0.15);
+    transition: transform 0.25s, box-shadow 0.25s;
+    overflow: visible;
+}
+
+.ai-float-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 24px rgba(166, 58, 43, 0.45), 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.ai-float-btn:active {
+    transform: scale(0.95);
+}
+
+.ai-float-icon {
+    transition: transform 0.3s;
+}
+
+.ai-float-btn:hover .ai-float-icon {
+    transform: rotate(-8deg);
+}
+
+.ai-float-label {
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 11px;
+    color: var(--ink-light);
+    white-space: nowrap;
+    font-family: var(--font-kai);
+    letter-spacing: 1px;
+}
+
+/* 浮动按钮呼吸光圈 */
+.ai-float-btn::before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--cinnabar), var(--gold));
+    opacity: 0;
+    animation: ai-float-pulse 2.5s ease-in-out infinite;
+    z-index: -1;
+}
+
+@keyframes ai-float-pulse {
+    0% { transform: scale(1); opacity: 0.4; }
+    70% { transform: scale(1.5); opacity: 0; }
+    100% { transform: scale(1.5); opacity: 0; }
+}
+
+/* AI 弹窗可拖拽标题栏 */
+.ai-drag-handle {
+    cursor: move;
+    user-select: none;
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+    border-bottom: 1px dashed var(--border);
+}
+
+.ai-drag-handle:active {
+    cursor: grabbing;
+}
+
+.ai-float-btn.dragging,
+.ai-float-btn.dragging .ai-drag-handle {
+    cursor: grabbing;
+}
+
+/* 拖拽时禁止选中文字 */
+.ai-modal-dragging {
+    user-select: none;
+}
+
+.ai-modal-dragging .modal {
+    transition: none !important;
+}

@@ -196,6 +196,14 @@
             });
         }
 
+        // AI 助手按钮
+        var btnAi = document.getElementById('btn-ai');
+        if (btnAi) {
+            btnAi.addEventListener('click', function () {
+                FT.showAiModal();
+            });
+        }
+
         // 切换家族按钮
         var btnFamilySwitch = document.getElementById('btn-family-switch');
         if (btnFamilySwitch) {

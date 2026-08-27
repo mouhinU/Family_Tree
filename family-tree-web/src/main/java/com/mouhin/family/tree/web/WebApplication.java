@@ -12,9 +12,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  */
 @SpringBootApplication(scanBasePackages = "com.mouhin.family.tree")
 @MapperScan("com.mouhin.family.tree.infrastructure.persistence.mapper")
-public class FamilyTreeApplication {
+public class WebApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(FamilyTreeApplication.class, args);
+        SpringApplication.run(WebApplication.class, args);
     }
 }

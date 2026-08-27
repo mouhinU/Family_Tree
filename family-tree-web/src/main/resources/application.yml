@@ -44,3 +44,12 @@ management:
   # Caffeine 缓存统计（需在代码中为 Cache 注册 metrics）
   cache:
     cache-names: familyTreeCache
+
+# AI 大模型配置（OpenAI 兼容格式，支持 DeepSeek / OpenAI 等）
+ai:
+  llm:
+    enabled: false
+    api-key: ""
+    api-url: "https://api.deepseek.com/chat/completions"
+    model: "deepseek-chat"
+    timeout-seconds: 60
