@@ -64,6 +64,20 @@ public class FamilyMessageApplicationService {
             category = MessageCategoryEnum.GENERAL.getCode();
         }
 
+        // 回复校验：父留言必须存在且为顶级留言
+        Long parentId = dto.getParentId();
+        if (parentId != null) {
+            FamilyMessage parent = familyMessageRepository.findById(parentId);
+            if (parent == null) {
+                throw new BusinessException("被回复的留言不存在");
+            }
+            if (!parent.isRootMessage()) {
+                throw new BusinessException("只能回复顶级留言");
+            }
+            // 回复继承父留言的家族ID
+            familyId = parent.getFamilyId();
+        }
+
         FamilyMessage message = new FamilyMessage();
         message.setFamilyId(familyId);
         message.setUserId(userId);
@@ -71,11 +85,20 @@ public class FamilyMessageApplicationService {
         message.setContent(content.trim());
         message.setLikeCount(0L);
         message.setCategory(category);
+        message.setParentId(parentId);
+        message.setReplyCount(0L);
         message.setCreateTime(LocalDateTime.now());
         message.setUpdateTime(LocalDateTime.now());
 
         familyMessageRepository.save(message);
-        logger.info("用户 {} 在家族 {} 发布留言: id={}, category={}", userId, familyId, message.getId(), category);
+
+        // 更新父留言的回复计数
+        if (parentId != null) {
+            familyMessageRepository.incrementReplyCount(parentId);
+        }
+
+        logger.info("用户 {} 在家族 {} 发布留言: id={}, parentId={}, category={}",
+                userId, familyId, message.getId(), parentId, category);
     }
 
     /**
@@ -99,28 +122,78 @@ public class FamilyMessageApplicationService {
         List<FamilyMessage> messages = familyMessageRepository.findByFamilyId(
                 familyId, category, offset, size);
 
-        // 批量查询当前用户的点赞状态
+        // 批量查询当前用户的点赞状态（含顶级留言和所有回复）
         List<Long> messageIds = messages.stream()
                 .map(FamilyMessage::getId)
                 .collect(Collectors.toList());
         Set<Long> likedMessageIds = familyMessageRepository.findLikedMessageIds(messageIds, currentUserId);
 
         List<MessageVO> voList = messages.stream().map(msg -> {
-            MessageVO vo = new MessageVO();
-            vo.setId(msg.getId());
-            vo.setUserId(msg.getUserId());
-            vo.setUsername(msg.getUsername());
-            vo.setContent(msg.getContent());
-            vo.setCreateTime(msg.getCreateTime());
-            vo.setOwn(Objects.equals(msg.getUserId(), currentUserId));
-            vo.setLikeCount(msg.getLikeCount() != null ? msg.getLikeCount() : 0L);
-            vo.setLiked(likedMessageIds.contains(msg.getId()));
-            vo.setCategory(msg.getCategory());
-            vo.setCategoryDesc(getCategoryDesc(msg.getCategory()));
+            MessageVO vo = toMessageVO(msg, currentUserId, likedMessageIds);
+            // 加载回复列表
+            if (msg.getReplyCount() != null && msg.getReplyCount() > 0) {
+                List<FamilyMessage> replies = familyMessageRepository.findByParentId(msg.getId());
+                // 收集回复的ID用于批量查点赞
+                List<Long> replyIds = replies.stream()
+                        .map(FamilyMessage::getId)
+                        .collect(Collectors.toList());
+                Set<Long> likedReplyIds = familyMessageRepository.findLikedMessageIds(replyIds, currentUserId);
+                List<MessageVO> replyVOs = replies.stream()
+                        .map(r -> toMessageVO(r, currentUserId, likedReplyIds))
+                        .collect(Collectors.toList());
+                vo.setReplies(replyVOs);
+            } else {
+                vo.setReplies(List.of());
+            }
             return vo;
         }).collect(Collectors.toList());
 
         return new PageResult<>(voList, total, page, size);
+    }
+
+    /**
+     * 查询指定留言的回复列表
+     *
+     * @param messageId 留言ID
+     * @param userId    当前用户ID
+     * @return 回复列表
+     */
+    public List<MessageVO> listReplies(Long messageId, Long userId) {
+        FamilyMessage parent = familyMessageRepository.findById(messageId);
+        if (parent == null) {
+            throw new BusinessException("留言不存在");
+        }
+        List<FamilyMessage> replies = familyMessageRepository.findByParentId(messageId);
+        if (replies.isEmpty()) {
+            return List.of();
+        }
+        List<Long> replyIds = replies.stream()
+                .map(FamilyMessage::getId)
+                .collect(Collectors.toList());
+        Set<Long> likedReplyIds = familyMessageRepository.findLikedMessageIds(replyIds, userId);
+        return replies.stream()
+                .map(r -> toMessageVO(r, userId, likedReplyIds))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 将领域对象转换为展示对象
+     */
+    private MessageVO toMessageVO(FamilyMessage msg, Long currentUserId, Set<Long> likedIds) {
+        MessageVO vo = new MessageVO();
+        vo.setId(msg.getId());
+        vo.setUserId(msg.getUserId());
+        vo.setUsername(msg.getUsername());
+        vo.setContent(msg.getContent());
+        vo.setCreateTime(msg.getCreateTime());
+        vo.setOwn(Objects.equals(msg.getUserId(), currentUserId));
+        vo.setLikeCount(msg.getLikeCount() != null ? msg.getLikeCount() : 0L);
+        vo.setLiked(likedIds.contains(msg.getId()));
+        vo.setCategory(msg.getCategory());
+        vo.setCategoryDesc(getCategoryDesc(msg.getCategory()));
+        vo.setParentId(msg.getParentId());
+        vo.setReplyCount(msg.getReplyCount() != null ? msg.getReplyCount() : 0L);
+        return vo;
     }
 
     /**
@@ -154,6 +227,14 @@ public class FamilyMessageApplicationService {
         }
         if (!Objects.equals(message.getUserId(), userId)) {
             throw new BusinessException("只能删除自己的留言");
+        }
+
+        // 删除顶级留言时，级联删除所有回复
+        if (message.isRootMessage()) {
+            familyMessageRepository.removeByParentId(messageId);
+        } else {
+            // 删除回复时，减少父留言的回复计数
+            familyMessageRepository.decrementReplyCount(message.getParentId());
         }
 
         familyMessageRepository.removeById(messageId);

@@ -39,6 +39,12 @@ public class FamilyMessageDO {
     /** 留言分类 */
     private String category;
 
+    /** 父留言ID（null 表示顶级留言） */
+    private Long parentId;
+
+    /** 回复数 */
+    private Long replyCount;
+
     /** 创建时间 */
     private LocalDateTime createTime;
 

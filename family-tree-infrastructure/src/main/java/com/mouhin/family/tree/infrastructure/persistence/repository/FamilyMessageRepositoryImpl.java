@@ -54,6 +54,7 @@ public class FamilyMessageRepositoryImpl implements FamilyMessageRepository {
     public List<FamilyMessage> findByFamilyId(Long familyId, String category, int offset, int size) {
         LambdaQueryWrapper<FamilyMessageDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FamilyMessageDO::getFamilyId, familyId);
+        wrapper.isNull(FamilyMessageDO::getParentId);
         if (category != null && !category.isBlank()) {
             wrapper.eq(FamilyMessageDO::getCategory, category);
         }
@@ -67,6 +68,7 @@ public class FamilyMessageRepositoryImpl implements FamilyMessageRepository {
     public long countByFamilyId(Long familyId, String category) {
         LambdaQueryWrapper<FamilyMessageDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FamilyMessageDO::getFamilyId, familyId);
+        wrapper.isNull(FamilyMessageDO::getParentId);
         if (category != null && !category.isBlank()) {
             wrapper.eq(FamilyMessageDO::getCategory, category);
         }
@@ -133,5 +135,45 @@ public class FamilyMessageRepositoryImpl implements FamilyMessageRepository {
         return likes.stream()
                 .map(FamilyMessageLikeDO::getMessageId)
                 .collect(Collectors.toSet());
+    }
+
+    @Override
+    public List<FamilyMessage> findByParentId(Long parentId) {
+        LambdaQueryWrapper<FamilyMessageDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(FamilyMessageDO::getParentId, parentId)
+                .orderByAsc(FamilyMessageDO::getCreateTime);
+        List<FamilyMessageDO> doList = mapper.selectList(wrapper);
+        return FamilyMessageConverter.toDomainList(doList);
+    }
+
+    @Override
+    public void incrementReplyCount(Long messageId) {
+        LambdaUpdateWrapper<FamilyMessageDO> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(FamilyMessageDO::getId, messageId)
+                .setSql("reply_count = reply_count + 1");
+        mapper.update(null, wrapper);
+    }
+
+    @Override
+    public void decrementReplyCount(Long messageId) {
+        LambdaUpdateWrapper<FamilyMessageDO> wrapper = new LambdaUpdateWrapper<>();
+        wrapper.eq(FamilyMessageDO::getId, messageId)
+                .gt(FamilyMessageDO::getReplyCount, 0)
+                .setSql("reply_count = reply_count - 1");
+        mapper.update(null, wrapper);
+    }
+
+    @Override
+    public void removeByParentId(Long parentId) {
+        LambdaQueryWrapper<FamilyMessageDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(FamilyMessageDO::getParentId, parentId);
+        mapper.delete(wrapper);
+    }
+
+    @Override
+    public long countByParentId(Long parentId) {
+        LambdaQueryWrapper<FamilyMessageDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(FamilyMessageDO::getParentId, parentId);
+        return mapper.selectCount(wrapper);
     }
 }

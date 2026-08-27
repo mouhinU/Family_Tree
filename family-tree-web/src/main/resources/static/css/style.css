@@ -2957,6 +2957,167 @@ body.toolbar-hidden .tree-container {
     cursor: pointer;
 }
 
+/* ===== 留言回复 ===== */
+.msg-reply-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--ink-light);
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    margin-left: 12px;
+}
+
+.msg-reply-btn:hover {
+    background: rgba(43, 38, 34, 0.06);
+    color: var(--ink);
+}
+
+.msg-replies-section {
+    margin-top: 8px;
+    border-top: 1px dashed rgba(43, 38, 34, 0.1);
+    padding-top: 8px;
+}
+
+.msg-replies-header {
+    margin-bottom: 6px;
+}
+
+.msg-replies-count {
+    font-size: 12px;
+    color: var(--ink-light);
+    font-weight: 500;
+}
+
+.msg-replies-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.msg-reply-item {
+    background: rgba(43, 38, 34, 0.03);
+    border-radius: 6px;
+    padding: 8px 10px;
+    margin-left: 16px;
+    border-left: 2px solid rgba(166, 58, 43, 0.15);
+}
+
+.msg-reply-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.msg-reply-username {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.msg-reply-time {
+    font-size: 11px;
+    color: var(--ink-lighter);
+}
+
+.msg-reply-delete-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    color: var(--ink-lighter);
+    padding: 0 4px;
+    line-height: 1;
+    margin-left: auto;
+    transition: color 0.2s;
+}
+
+.msg-reply-delete-btn:hover {
+    color: #c75a38;
+}
+
+.msg-reply-content {
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.msg-reply-footer {
+    display: flex;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.msg-reply-footer .msg-like-btn {
+    font-size: 11px;
+    padding: 1px 6px;
+}
+
+.msg-reply-input-area {
+    margin-top: 8px;
+    margin-left: 16px;
+}
+
+.msg-reply-textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: var(--font-main);
+    color: var(--ink);
+    background: var(--paper);
+    resize: vertical;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+}
+
+.msg-reply-textarea:focus {
+    outline: none;
+    border-color: var(--cinnabar);
+}
+
+.msg-reply-textarea::placeholder {
+    color: var(--ink-lighter);
+}
+
+.msg-reply-input-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.msg-reply-char-count {
+    font-size: 11px;
+    color: var(--ink-lighter);
+}
+
+.msg-reply-submit-btn {
+    padding: 4px 12px;
+    background: var(--cinnabar);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.msg-reply-submit-btn:hover {
+    background: #8f3523;
+}
+
+.msg-reply-submit-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 /* ===== 留言轮播 ===== */
 .msg-carousel {
     position: fixed;

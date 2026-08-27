@@ -103,4 +103,41 @@ public interface FamilyMessageRepository {
      * @return 已点赞的留言ID集合
      */
     java.util.Set<Long> findLikedMessageIds(java.util.List<Long> messageIds, Long userId);
+
+    /**
+     * 根据父留言ID查询回复列表
+     *
+     * @param parentId 父留言ID
+     * @return 回复列表
+     */
+    List<FamilyMessage> findByParentId(Long parentId);
+
+    /**
+     * 增加留言回复数
+     *
+     * @param messageId 留言ID
+     */
+    void incrementReplyCount(Long messageId);
+
+    /**
+     * 减少留言回复数
+     *
+     * @param messageId 留言ID
+     */
+    void decrementReplyCount(Long messageId);
+
+    /**
+     * 根据父留言ID删除所有回复
+     *
+     * @param parentId 父留言ID
+     */
+    void removeByParentId(Long parentId);
+
+    /**
+     * 统计指定父留言下的回复数
+     *
+     * @param parentId 父留言ID
+     * @return 回复数量
+     */
+    long countByParentId(Long parentId);
 }

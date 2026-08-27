@@ -9,6 +9,8 @@ import com.mouhin.family.tree.application.service.FamilyMessageApplicationServic
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
  * 家族留言控制器
  *
@@ -60,6 +62,20 @@ public class FamilyMessageController extends BaseController {
         Long familyId = getCurrentFamilyId(session);
         PageResult<MessageVO> result = messageService.listMessages(familyId, userId, category, page, size);
         return Result.success(result);
+    }
+
+    /**
+     * 查询留言的回复列表
+     *
+     * @param id      留言ID
+     * @param session 当前会话
+     * @return 回复列表
+     */
+    @GetMapping("/{id}/replies")
+    public Result<List<MessageVO>> listReplies(@PathVariable Long id, HttpSession session) {
+        Long userId = getCurrentUserId(session);
+        List<MessageVO> replies = messageService.listReplies(id, userId);
+        return Result.success(replies);
     }
 
     /**

@@ -3,6 +3,7 @@ package com.mouhin.family.tree.common.dto;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 留言展示对象
@@ -42,4 +43,13 @@ public class MessageVO {
 
     /** 留言分类描述 */
     private String categoryDesc;
+
+    /** 父留言ID */
+    private Long parentId;
+
+    /** 回复数 */
+    private Long replyCount;
+
+    /** 回复列表（仅顶级留言时加载） */
+    private List<MessageVO> replies;
 }

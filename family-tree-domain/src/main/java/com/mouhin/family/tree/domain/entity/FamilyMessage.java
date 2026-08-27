@@ -26,6 +26,8 @@ public class FamilyMessage {
     private String content;
     private Long likeCount;
     private String category;
+    private Long parentId;
+    private Long replyCount;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 
@@ -49,6 +51,15 @@ public class FamilyMessage {
      */
     public boolean isAuthor(Long userId) {
         return Objects.equals(this.userId, userId);
+    }
+
+    /**
+     * 判断是否为顶级留言（非回复）
+     *
+     * @return 是否为顶级留言
+     */
+    public boolean isRootMessage() {
+        return parentId == null;
     }
 
     @Override

@@ -1,6 +1,6 @@
 /**
  * 族谱前端 - 留言板模块
- * 家族留言板：发布留言、分页列表、删除自己的留言、点赞/取消点赞、分类筛选。
+ * 家族留言板：发布留言、分页列表、删除自己的留言、点赞/取消点赞、分类筛选、回复。
  *
  * @author Family-Tree
  * @date 2026-08-25
@@ -33,6 +33,69 @@
             return 'msg-tag-feature';
         }
         return 'msg-tag-general';
+    }
+
+    /**
+     * 渲染单条回复 HTML
+     * @param {Object} reply 回复数据
+     * @returns {string} HTML
+     */
+    function renderReplyItem(reply) {
+        var time = reply.createTime ? reply.createTime.replace('T', ' ').substring(0, 16) : '';
+        var deleteBtn = '';
+        if (reply.own) {
+            deleteBtn = '<button class="msg-reply-delete-btn" data-reply-id="' + reply.id + '" title="删除">&times;</button>';
+        }
+        var likeCount = reply.likeCount || 0;
+        var likeClass = reply.liked ? 'msg-liked' : '';
+        var likeIcon = reply.liked ? '&#9829;' : '&#9825;';
+        return '<div class="msg-reply-item" data-reply-id="' + reply.id + '">' +
+            '<div class="msg-reply-header">' +
+            '<span class="msg-reply-username">' + FT.escapeHtml(reply.username) + '</span>' +
+            '<span class="msg-reply-time">' + FT.escapeHtml(time) + '</span>' +
+            deleteBtn +
+            '</div>' +
+            '<div class="msg-reply-content">' + FT.escapeHtml(reply.content) + '</div>' +
+            '<div class="msg-reply-footer">' +
+            '<button class="msg-like-btn ' + likeClass + '" data-msg-id="' + reply.id + '">' +
+            '<span class="msg-like-icon">' + likeIcon + '</span>' +
+            '<span class="msg-like-count">' + likeCount + '</span>' +
+            '</button>' +
+            '</div>' +
+            '</div>';
+    }
+
+    /**
+     * 渲染回复列表 HTML
+     * @param {Object} msg 留言数据
+     * @returns {string} HTML
+     */
+    function renderRepliesSection(msg) {
+        var replyCount = msg.replyCount || 0;
+        var replies = msg.replies || [];
+        var html = '<div class="msg-replies-section" data-parent-id="' + msg.id + '">';
+
+        if (replyCount > 0) {
+            html += '<div class="msg-replies-header">';
+            html += '<span class="msg-replies-count">' + replyCount + ' 条回复</span>';
+            html += '</div>';
+            html += '<div class="msg-replies-list">';
+            replies.forEach(function (reply) {
+                html += renderReplyItem(reply);
+            });
+            html += '</div>';
+        }
+
+        // 回复输入区域（默认隐藏）
+        html += '<div class="msg-reply-input-area" id="msg-reply-input-' + msg.id + '" style="display:none;">' +
+            '<textarea class="msg-reply-textarea" placeholder="写下你的回复..." maxlength="500" rows="2"></textarea>' +
+            '<div class="msg-reply-input-footer">' +
+            '<span class="msg-reply-char-count">0 / 500</span>' +
+            '<button class="msg-reply-submit-btn" data-parent-id="' + msg.id + '">回复</button>' +
+            '</div></div>';
+
+        html += '</div>';
+        return html;
     }
 
     /**
@@ -85,7 +148,7 @@
                 var likeIcon = msg.liked ? '&#9829;' : '&#9825;';
                 var tagClass = getCategoryTagClass(msg.category);
                 var categoryDesc = msg.categoryDesc || '普通留言';
-                listHtml += '<div class="msg-item">' +
+                listHtml += '<div class="msg-item" data-msg-id="' + msg.id + '">' +
                     '<div class="msg-header">' +
                     '<span class="msg-username">' + FT.escapeHtml(msg.username) + '</span>' +
                     '<span class="msg-time">' + FT.escapeHtml(time) + '</span>' +
@@ -98,7 +161,9 @@
                     '<span class="msg-like-icon">' + likeIcon + '</span>' +
                     '<span class="msg-like-count">' + likeCount + '</span>' +
                     '</button>' +
+                    '<button class="msg-reply-btn" data-parent-id="' + msg.id + '">&#8617; 回复</button>' +
                     '</div>' +
+                    renderRepliesSection(msg) +
                     '</div>';
             });
             listHtml += '</div>';
@@ -190,11 +255,11 @@
             });
         });
 
-        // 绑定删除
+        // 绑定删除（顶级留言）
         document.querySelectorAll('.msg-delete-btn').forEach(function (btn) {
             btn.addEventListener('click', async function () {
                 var msgId = btn.dataset.msgId;
-                if (!confirm('确定删除这条留言吗？')) return;
+                if (!confirm('确定删除这条留言吗？删除后所有回复也将一并删除。')) return;
                 var delRes = await FT.api('/api/message/' + msgId, { method: 'DELETE' });
                 if (delRes.code === 200) {
                     FT.toast('已删除');
@@ -206,7 +271,7 @@
             });
         });
 
-        // 绑定点赞/取消点赞
+        // 绑定点赞/取消点赞（含回复的点赞）
         document.querySelectorAll('.msg-like-btn').forEach(function (btn) {
             btn.addEventListener('click', async function () {
                 var msgId = btn.dataset.msgId;
@@ -223,6 +288,74 @@
                     }
                 } catch (e) {
                     FT.toast('网络错误，请重试');
+                }
+            });
+        });
+
+        // 绑定回复按钮（切换回复输入区域显示/隐藏）
+        document.querySelectorAll('.msg-reply-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var parentId = btn.dataset.parentId;
+                var replyArea = document.getElementById('msg-reply-input-' + parentId);
+                if (replyArea) {
+                    var isHidden = replyArea.style.display === 'none';
+                    replyArea.style.display = isHidden ? 'block' : 'none';
+                    if (isHidden) {
+                        replyArea.querySelector('.msg-reply-textarea').focus();
+                    }
+                }
+            });
+        });
+
+        // 绑定回复输入区域字数统计
+        document.querySelectorAll('.msg-reply-textarea').forEach(function (ta) {
+            ta.addEventListener('input', function () {
+                var countSpan = ta.parentElement.querySelector('.msg-reply-char-count');
+                if (countSpan) {
+                    countSpan.textContent = ta.value.length + ' / 500';
+                }
+            });
+        });
+
+        // 绑定回复提交
+        document.querySelectorAll('.msg-reply-submit-btn').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                var parentId = btn.dataset.parentId;
+                var replyArea = document.getElementById('msg-reply-input-' + parentId);
+                var replyTextarea = replyArea.querySelector('.msg-reply-textarea');
+                var content = replyTextarea.value.trim();
+                if (!content) {
+                    FT.toast('请输入回复内容', 'warning');
+                    return;
+                }
+                btn.disabled = true;
+                btn.textContent = '回复中...';
+                var submitRes = await FT.api('/api/message', {
+                    method: 'POST',
+                    body: JSON.stringify({ content: content, parentId: parseInt(parentId, 10) })
+                });
+                if (submitRes.code === 200) {
+                    FT.toast('回复成功');
+                    showMessageModal(page);
+                } else {
+                    FT.toast(submitRes.message || '回复失败');
+                    btn.disabled = false;
+                    btn.textContent = '回复';
+                }
+            });
+        });
+
+        // 绑定回复删除
+        document.querySelectorAll('.msg-reply-delete-btn').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                var replyId = btn.dataset.replyId;
+                if (!confirm('确定删除这条回复吗？')) return;
+                var delRes = await FT.api('/api/message/' + replyId, { method: 'DELETE' });
+                if (delRes.code === 200) {
+                    FT.toast('已删除');
+                    showMessageModal(page);
+                } else {
+                    FT.toast(delRes.message || '删除失败');
                 }
             });
         });

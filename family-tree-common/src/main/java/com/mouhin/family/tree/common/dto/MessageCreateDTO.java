@@ -20,4 +20,7 @@ public class MessageCreateDTO {
 
     /** 留言分类（GENERAL-普通留言, FEATURE-功能需求） */
     private String category;
+
+    /** 父留言ID（null 表示顶级留言，非null 表示回复） */
+    private Long parentId;
 }
