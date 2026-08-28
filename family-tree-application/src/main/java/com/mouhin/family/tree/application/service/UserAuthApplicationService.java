@@ -4,6 +4,7 @@ import com.mouhin.family.tree.common.constant.LoginSecurityConsts;
 import com.mouhin.family.tree.common.dto.LoginDTO;
 import com.mouhin.family.tree.common.dto.ProfileUpdateDTO;
 import com.mouhin.family.tree.common.dto.RegisterDTO;
+import com.mouhin.family.tree.common.dto.UserProfileDTO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.User;
 import com.mouhin.family.tree.domain.repository.UserRepository;
@@ -134,36 +135,22 @@ public class UserAuthApplicationService {
     }
 
     /**
-     * 获取用户辈分
+     * 获取用户个人信息（一次查询返回所有字段，避免多次查库）
      *
      * @param userId 用户ID
-     * @return 辈分（第几世），用户不存在返回 null
+     * @return 用户信息，用户不存在返回 null
      */
-    public Integer getGeneration(Long userId) {
+    public UserProfileDTO getUserProfile(Long userId) {
         User user = userRepository.findById(userId);
-        return user != null ? user.getGeneration() : null;
-    }
-
-    /**
-     * 获取用户出生日期
-     *
-     * @param userId 用户ID
-     * @return 出生日期字符串，用户不存在返回 null
-     */
-    public String getBirthDate(Long userId) {
-        User user = userRepository.findById(userId);
-        return user != null ? user.getBirthDate() : null;
-    }
-
-    /**
-     * 获取用户关联的族谱节点ID
-     *
-     * @param userId 用户ID
-     * @return 节点ID，用户不存在返回 null
-     */
-    public Long getNodeId(Long userId) {
-        User user = userRepository.findById(userId);
-        return user != null ? user.getNodeId() : null;
+        if (user == null) {
+            return null;
+        }
+        UserProfileDTO dto = new UserProfileDTO();
+        dto.setNickname(user.getNickname());
+        dto.setGeneration(user.getGeneration());
+        dto.setBirthDate(user.getBirthDate());
+        dto.setNodeId(user.getNodeId());
+        return dto;
     }
 
     /**

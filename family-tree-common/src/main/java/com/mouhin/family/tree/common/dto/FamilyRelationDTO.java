@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.common.dto;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDate;
 
@@ -10,7 +11,8 @@ import java.time.LocalDate;
  * @author Family-Tree
  * @date 2026-07-30
  */
-@Data
+@Getter
+@Setter
 public class FamilyRelationDTO {
 
     private Long id;

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.time.Duration;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * 写接口限流拦截器。
@@ -29,9 +30,9 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private static final Logger logger = LoggerFactory.getLogger(RateLimitInterceptor.class);
 
     /**
-     * 限流缓存：key=userId，value=窗口内请求计数
+     * 限流缓存：key=userId，value=窗口内请求计数（线程安全）
      */
-    private final Cache<Long, int[]> rateLimitCache = Caffeine.newBuilder()
+    private final Cache<Long, LongAdder> rateLimitCache = Caffeine.newBuilder()
             .maximumSize(10_000)
             .expireAfterWrite(Duration.ofSeconds(FamilyTreeConsts.RATE_LIMIT_WINDOW_SECONDS))
             .build();
@@ -54,12 +55,12 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        int[] counter = rateLimitCache.get(userId, k -> new int[]{0});
-        counter[0]++;
+        LongAdder counter = rateLimitCache.get(userId, k -> new LongAdder());
+        counter.increment();
 
-        if (counter[0] > FamilyTreeConsts.RATE_LIMIT_MAX_REQUESTS) {
+        if (counter.sum() > FamilyTreeConsts.RATE_LIMIT_MAX_REQUESTS) {
             logger.warn("Rate limit exceeded: userId={}, path={}, count={}",
-                    userId, request.getRequestURI(), counter[0]);
+                    userId, request.getRequestURI(), counter.sum());
             response.setStatus(429);
             response.setContentType("application/json;charset=UTF-8");
             response.setHeader("Retry-After", String.valueOf(FamilyTreeConsts.RATE_LIMIT_WINDOW_SECONDS));

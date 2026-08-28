@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.common.dto;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 祭奠人员统计视图对象（某用户对某长辈的累计祭奠情况）
@@ -8,7 +9,8 @@ import lombok.Data;
  * @author Family-Tree
  * @date 2026-08-01
  */
-@Data
+@Getter
+@Setter
 public class OfferingUserVO {
 
     /**

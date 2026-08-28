@@ -32,11 +32,6 @@ public class FamilyMessageApplicationService {
 
     private static final Logger logger = LoggerFactory.getLogger(FamilyMessageApplicationService.class);
 
-    /**
-     * 留言内容最大长度
-     */
-    private static final int MAX_CONTENT_LENGTH = 500;
-
     private final FamilyMessageRepository familyMessageRepository;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -60,8 +55,8 @@ public class FamilyMessageApplicationService {
         if (content == null || content.isBlank()) {
             throw new BusinessException("留言内容不能为空");
         }
-        if (content.length() > MAX_CONTENT_LENGTH) {
-            throw new BusinessException("留言内容不能超过" + MAX_CONTENT_LENGTH + "字");
+        if (content.length() > FamilyMessage.MAX_CONTENT_LENGTH) {
+            throw new BusinessException("留言内容不能超过" + FamilyMessage.MAX_CONTENT_LENGTH + "字");
         }
 
         // 校验分类，默认普通留言

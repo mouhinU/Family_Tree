@@ -1,7 +1,8 @@
 package com.mouhin.family.tree.common.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 登录请求对象
@@ -9,7 +10,8 @@ import lombok.Data;
  * @author Family-Tree
  * @date 2026-07-30
  */
-@Data
+@Getter
+@Setter
 public class LoginDTO {
 
     @NotBlank(message = "用户名不能为空")

@@ -4,15 +4,20 @@ import com.mouhin.family.tree.application.service.FamilyApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.FamilyCreateDTO;
 import com.mouhin.family.tree.common.dto.FamilyDTO;
+import com.mouhin.family.tree.common.dto.FamilyInfoUpdateDTO;
 import com.mouhin.family.tree.common.dto.FamilyJoinDTO;
 import com.mouhin.family.tree.common.dto.FamilyMemberDTO;
+import com.mouhin.family.tree.common.dto.MemberRoleUpdateDTO;
 import com.mouhin.family.tree.common.result.Result;
 import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static com.mouhin.family.tree.common.constant.FamilyTreeConsts.SESSION_FAMILY_ID;
 
 /**
  * 家族管理控制器
@@ -38,7 +43,7 @@ public class FamilyController extends BaseController {
         Long userId = getCurrentUserId(session);
         Long familyId = familyService.createFamily(userId, dto);
         // 将家族ID写入会话
-        session.setAttribute(com.mouhin.family.tree.common.constant.FamilyTreeConsts.SESSION_FAMILY_ID, familyId);
+        session.setAttribute(SESSION_FAMILY_ID, familyId);
         Map<String, Object> data = new HashMap<>(4);
         data.put("familyId", familyId);
         return Result.success(data);
@@ -54,7 +59,7 @@ public class FamilyController extends BaseController {
         // 查询家族信息并写入会话
         FamilyDTO family = familyService.getCurrentFamily(userId);
         if (family != null) {
-            session.setAttribute(com.mouhin.family.tree.common.constant.FamilyTreeConsts.SESSION_FAMILY_ID, family.getId());
+            session.setAttribute(SESSION_FAMILY_ID, family.getId());
         }
         return Result.success();
     }
@@ -106,17 +111,13 @@ public class FamilyController extends BaseController {
      * 设置成员角色（仅族长可操作，可将成员设为管理员或取消管理员）
      */
     @PutMapping("/member/role")
-    public Result<Void> setMemberRole(@RequestBody Map<String, Object> body, HttpSession session) {
+    public Result<Void> setMemberRole(@Valid @RequestBody MemberRoleUpdateDTO dto, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
         Long operatorUserId = getCurrentUserId(session);
-        Object userIdObj = body.get("userId");
-        Object roleObj = body.get("role");
-        if (userIdObj == null || roleObj == null) {
+        if (dto.getUserId() == null || dto.getRole() == null) {
             return Result.fail(400, "参数不完整");
         }
-        Long targetUserId = Long.valueOf(userIdObj.toString());
-        String role = roleObj.toString();
-        familyService.setMemberRole(familyId, operatorUserId, targetUserId, role);
+        familyService.setMemberRole(familyId, operatorUserId, dto.getUserId(), dto.getRole());
         return Result.success();
     }
 
@@ -144,12 +145,10 @@ public class FamilyController extends BaseController {
      * 更新家族信息（堂号、籍贯，仅管理员可操作）
      */
     @PutMapping("/info")
-    public Result<Void> updateInfo(@RequestBody Map<String, Object> body, HttpSession session) {
+    public Result<Void> updateInfo(@Valid @RequestBody FamilyInfoUpdateDTO dto, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
-        String hallName = body.get("hallName") != null ? body.get("hallName").toString() : null;
-        String ancestralHome = body.get("ancestralHome") != null ? body.get("ancestralHome").toString() : null;
-        familyService.updateFamilyInfo(familyId, userId, hallName, ancestralHome);
+        familyService.updateFamilyInfo(familyId, userId, dto.getHallName(), dto.getAncestralHome());
         return Result.success();
     }
 }

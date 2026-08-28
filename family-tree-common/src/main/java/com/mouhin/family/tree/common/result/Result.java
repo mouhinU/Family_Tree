@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.common.result;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.io.Serializable;
 
@@ -10,7 +11,8 @@ import java.io.Serializable;
  * @author Family-Tree
  * @date 2026-07-30
  */
-@Data
+@Getter
+@Setter
 public class Result<T> implements Serializable {
 
     private static final long serialVersionUID = 1L;

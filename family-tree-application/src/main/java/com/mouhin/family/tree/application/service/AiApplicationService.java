@@ -21,7 +21,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * AI 应用服务
@@ -154,10 +156,21 @@ public class AiApplicationService {
         }
 
         try {
-            String jsonBody = "{\"model\":\"" + model + "\",\"messages\":["
-                    + "{\"role\":\"system\",\"content\":\"你是一个专业的族谱管理助手，精通中国家族文化和族谱编纂。请用中文回答。\"},"
-                    + "{\"role\":\"user\",\"content\":" + OBJECT_MAPPER.writeValueAsString(prompt) + "}"
-                    + "],\"temperature\":0.7,\"max_tokens\":4096}";
+            Map<String, Object> systemMsg = new LinkedHashMap<>(2);
+            systemMsg.put("role", "system");
+            systemMsg.put("content", "你是一个专业的族谱管理助手，精通中国家族文化和族谱编篁。请用中文回答。");
+        
+            Map<String, Object> userMsg = new LinkedHashMap<>(2);
+            userMsg.put("role", "user");
+            userMsg.put("content", prompt);
+        
+            Map<String, Object> requestBody = new LinkedHashMap<>(5);
+            requestBody.put("model", model);
+            requestBody.put("messages", List.of(systemMsg, userMsg));
+            requestBody.put("temperature", 0.7);
+            requestBody.put("max_tokens", 4096);
+        
+            String jsonBody = OBJECT_MAPPER.writeValueAsString(requestBody);
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(apiUrl))

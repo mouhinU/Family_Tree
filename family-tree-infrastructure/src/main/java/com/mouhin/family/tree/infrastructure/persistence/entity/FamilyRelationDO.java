@@ -4,7 +4,8 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -15,7 +16,8 @@ import java.time.LocalDateTime;
  * @author Family-Tree
  * @date 2026-08-25
  */
-@Data
+@Getter
+@Setter
 @TableName("family_relation")
 public class FamilyRelationDO {
 

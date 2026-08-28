@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.common.dto;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 个人信息更新请求对象
@@ -8,7 +9,8 @@ import lombok.Data;
  * @author Family-Tree
  * @date 2026-08-03
  */
-@Data
+@Getter
+@Setter
 public class ProfileUpdateDTO {
 
     /**

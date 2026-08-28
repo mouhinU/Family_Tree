@@ -81,17 +81,11 @@ public class FamilyNodeApplicationService {
         node.setFamilyId(familyId);
         node.setName(dto.getName().trim());
         node.setGender(dto.getGender() != null ? dto.getGender() : 0);
-        if (node.getGender() < 0 || node.getGender() > 2) {
-            throw new BusinessException("性别值无效，应为 0（未知）、1（男）或 2（女）");
-        }
         node.setBirthDate(parseDate(dto.getBirthDate()));
         node.setDeathDate(parseDate(dto.getDeathDate()));
 
-        // 生卒日期顺序校验
-        if (node.getBirthDate() != null && node.getDeathDate() != null
-                && node.getDeathDate().isBefore(node.getBirthDate())) {
-            throw new BusinessException("去世日期不能早于出生日期");
-        }
+        // 调用领域实体校验（包含性别、生卒日期、备注等校验）
+        node.validateForCreate();
 
         if (dto.getColorLabel() != null) {
             ColorLabelEnum.validateCode(dto.getColorLabel());

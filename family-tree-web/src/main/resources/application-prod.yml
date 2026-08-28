@@ -36,6 +36,9 @@ spring:
     baseline-on-migrate: true
 
 # 生产日志由 logback-spring.xml prod profile 控制
+logging:
+  level:
+    com.mouhin.family.tree: warn
 
 # Actuator 生产安全：仅暴露 health + info，metrics/prometheus 需认证
 management:

@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.common.dto;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.List;
 
@@ -10,7 +11,8 @@ import java.util.List;
  * @author Family-Tree
  * @date 2026-08-03
  */
-@Data
+@Getter
+@Setter
 public class PageResult<T> {
 
     /**

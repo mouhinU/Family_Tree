@@ -64,10 +64,6 @@ public class FamilyMember {
         } catch (IllegalArgumentException e) {
             throw new BusinessException("无效的成员角色：" + newRole);
         }
-        if (isOwner() && !Objects.equals(newRole, FamilyMemberRoleEnum.OWNER.getCode())) {
-            // 族长角色变更需要特殊处理（移交），此处仅做基本校验
-            return;
-        }
     }
 
     @Override

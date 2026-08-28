@@ -5,6 +5,7 @@ import com.mouhin.family.tree.application.service.OperationLogApplicationService
 import com.mouhin.family.tree.application.service.UserAuthApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.*;
+import com.mouhin.family.tree.common.dto.UserProfileDTO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.common.result.Result;
 import com.mouhin.family.tree.web.filter.CsrfFilter;
@@ -140,12 +141,15 @@ public class AuthController extends BaseController {
         // 每次请求刷新 CSRF Token，保持 token 新鲜（防止服务端重启后 token 失效）
         String csrfToken = CsrfFilter.generateToken(session);
 
+        // 一次查询获取用户所有信息
+        UserProfileDTO profile = userService.getUserProfile(userId);
+
         Map<String, Object> data = new HashMap<>(8);
         data.put("userId", userId);
-        data.put("nickname", session.getAttribute(FamilyTreeConsts.SESSION_USERNAME));
-        data.put("generation", userService.getGeneration(userId));
-        data.put("birthDate", userService.getBirthDate(userId));
-        data.put("nodeId", userService.getNodeId(userId));
+        data.put("nickname", profile != null ? profile.getNickname() : null);
+        data.put("generation", profile != null ? profile.getGeneration() : null);
+        data.put("birthDate", profile != null ? profile.getBirthDate() : null);
+        data.put("nodeId", profile != null ? profile.getNodeId() : null);
         data.put("csrfToken", csrfToken);
 
         // 返回家族信息

@@ -2,7 +2,8 @@ package com.mouhin.family.tree.common.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * AI OCR 解析请求对象
@@ -10,7 +11,8 @@ import lombok.Data;
  * @author Family-Tree
  * @date 2026-08-27
  */
-@Data
+@Getter
+@Setter
 public class AiOcrParseDTO {
 
     @NotBlank(message = "识别文本不能为空")

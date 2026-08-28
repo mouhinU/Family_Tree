@@ -2,7 +2,8 @@ package com.mouhin.family.tree.common.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 留言创建请求
@@ -10,7 +11,8 @@ import lombok.Data;
  * @author Family-Tree
  * @date 2026-08-25
  */
-@Data
+@Getter
+@Setter
 public class MessageCreateDTO {
 
     /**

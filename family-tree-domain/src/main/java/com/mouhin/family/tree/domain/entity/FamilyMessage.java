@@ -17,7 +17,7 @@ import java.util.Objects;
 @Setter
 public class FamilyMessage {
 
-    private static final int MAX_CONTENT_LENGTH = 500;
+    public static final int MAX_CONTENT_LENGTH = 500;
 
     private Long id;
     private Long familyId;

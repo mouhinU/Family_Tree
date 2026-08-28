@@ -2,7 +2,8 @@ package com.mouhin.family.tree.common.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 新增节点请求对象（可附带父节点或配偶关系）
@@ -10,7 +11,8 @@ import lombok.Data;
  * @author Family-Tree
  * @date 2026-07-30
  */
-@Data
+@Getter
+@Setter
 public class NodeCreateDTO {
 
     @NotBlank(message = "姓名不能为空")

@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.common.dto;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 祭奠操作数据传输对象（上香烛 / 烧纸）
@@ -8,7 +9,8 @@ import lombok.Data;
  * @author Family-Tree
  * @date 2026-08-01
  */
-@Data
+@Getter
+@Setter
 public class OfferingDTO {
 
     /**

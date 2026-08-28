@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.common.dto;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.List;
 
@@ -10,13 +11,15 @@ import java.util.List;
  * @author Family-Tree
  * @date 2026-08-27
  */
-@Data
+@Getter
+@Setter
 public class AiSmartEntryVO {
 
     private List<AiNodeDTO> nodes;
     private List<AiRelationDTO> relations;
 
-    @Data
+    @Getter
+    @Setter
     public static class AiNodeDTO {
         private String name;
         private Integer gender;
@@ -33,7 +36,8 @@ public class AiSmartEntryVO {
         private String remark;
     }
 
-    @Data
+    @Getter
+    @Setter
     public static class AiRelationDTO {
         private String fromName;
         private String toName;

@@ -377,10 +377,20 @@ public class FamilyApplicationService {
      */
     public List<FamilyDTO> listMyFamilies(Long userId) {
         List<FamilyMember> memberships = familyMemberRepository.findByUserId(userId);
+        if (memberships.isEmpty()) {
+            return List.of();
+        }
+
+        // 批量查询所有家族，避免 N+1
+        List<Long> familyIds = memberships.stream()
+                .map(FamilyMember::getFamilyId)
+                .collect(Collectors.toList());
+        Map<Long, Family> familyMap = familyRepository.findByIds(familyIds).stream()
+                .collect(Collectors.toMap(Family::getId, Function.identity()));
 
         List<FamilyDTO> result = new ArrayList<>();
         for (FamilyMember member : memberships) {
-            Family family = familyRepository.findById(member.getFamilyId());
+            Family family = familyMap.get(member.getFamilyId());
             if (family != null) {
                 result.add(toDTO(family, member.getRole()));
             }

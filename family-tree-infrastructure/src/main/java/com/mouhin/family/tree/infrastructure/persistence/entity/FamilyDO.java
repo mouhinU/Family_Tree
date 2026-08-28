@@ -3,7 +3,8 @@ package com.mouhin.family.tree.infrastructure.persistence.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.LocalDateTime;
 
@@ -13,7 +14,8 @@ import java.time.LocalDateTime;
  * @author Family-Tree
  * @date 2026-08-25
  */
-@Data
+@Getter
+@Setter
 @TableName("family")
 public class FamilyDO {
 

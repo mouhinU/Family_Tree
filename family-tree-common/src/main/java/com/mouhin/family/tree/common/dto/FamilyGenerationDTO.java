@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.common.dto;
 
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 族谱辈分（世代名称）数据传输对象
@@ -8,7 +9,8 @@ import lombok.Data;
  * @author Family-Tree
  * @date 2026-07-30
  */
-@Data
+@Getter
+@Setter
 public class FamilyGenerationDTO {
 
     private Long id;
