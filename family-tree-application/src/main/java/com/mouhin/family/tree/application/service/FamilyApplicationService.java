@@ -10,9 +10,14 @@ import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.Family;
 import com.mouhin.family.tree.domain.entity.FamilyMember;
 import com.mouhin.family.tree.domain.entity.User;
+import com.mouhin.family.tree.domain.event.FamilyCreatedEvent;
+import com.mouhin.family.tree.domain.event.MemberJoinedEvent;
+import com.mouhin.family.tree.domain.event.MemberRemovedEvent;
+import com.mouhin.family.tree.domain.event.MemberRoleChangedEvent;
 import com.mouhin.family.tree.domain.repository.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -53,6 +58,7 @@ public class FamilyApplicationService {
     private final FamilyGenerationRepository familyGenerationRepository;
     private final FamilyOfferingRepository familyOfferingRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public FamilyApplicationService(FamilyRepository familyRepository,
@@ -61,7 +67,8 @@ public class FamilyApplicationService {
                                     FamilyRelationRepository familyRelationRepository,
                                     FamilyGenerationRepository familyGenerationRepository,
                                     FamilyOfferingRepository familyOfferingRepository,
-                                    UserRepository userRepository) {
+                                    UserRepository userRepository,
+                                    ApplicationEventPublisher eventPublisher) {
         this.familyRepository = familyRepository;
         this.familyMemberRepository = familyMemberRepository;
         this.familyNodeRepository = familyNodeRepository;
@@ -69,6 +76,7 @@ public class FamilyApplicationService {
         this.familyGenerationRepository = familyGenerationRepository;
         this.familyOfferingRepository = familyOfferingRepository;
         this.userRepository = userRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -116,6 +124,7 @@ public class FamilyApplicationService {
         migrateUserDataToFamily(userId, family.getId());
 
         logger.info("Created family id={} name={} by user={}", family.getId(), familyName, userId);
+        eventPublisher.publishEvent(FamilyCreatedEvent.of(family.getId(), userId, familyName));
         return family.getId();
     }
 
@@ -163,6 +172,7 @@ public class FamilyApplicationService {
         migrateUserDataToFamily(userId, family.getId());
 
         logger.info("User={} joined family id={} name={}", userId, family.getId(), family.getName());
+        eventPublisher.publishEvent(MemberJoinedEvent.of(family.getId(), userId, null));
     }
 
     /**
@@ -260,6 +270,7 @@ public class FamilyApplicationService {
         familyMemberRepository.removeById(targetMember.getId());
         logger.info("Removed user={} from family={} by operator={}",
                 targetUserId, familyId, operatorUserId);
+        eventPublisher.publishEvent(MemberRemovedEvent.of(familyId, targetUserId));
     }
 
     /**
@@ -330,6 +341,8 @@ public class FamilyApplicationService {
 
         logger.info("Set role={} for user={} in family={} by operator={}",
                 targetRole.getCode(), targetUserId, familyId, operatorUserId);
+        eventPublisher.publishEvent(
+                MemberRoleChangedEvent.of(familyId, targetUserId, targetRole.getCode()));
     }
 
     /**

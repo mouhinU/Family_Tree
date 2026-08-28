@@ -8,11 +8,13 @@ import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyOffering;
 import com.mouhin.family.tree.domain.entity.User;
+import com.mouhin.family.tree.domain.event.FamilyOfferingMadeEvent;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyOfferingRepository;
 import com.mouhin.family.tree.domain.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,13 +47,16 @@ public class FamilyOfferingApplicationService {
     private final FamilyOfferingRepository familyOfferingRepository;
     private final FamilyNodeRepository familyNodeRepository;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public FamilyOfferingApplicationService(FamilyOfferingRepository familyOfferingRepository,
                                             FamilyNodeRepository familyNodeRepository,
-                                            UserRepository userRepository) {
+                                            UserRepository userRepository,
+                                            ApplicationEventPublisher eventPublisher) {
         this.familyOfferingRepository = familyOfferingRepository;
         this.familyNodeRepository = familyNodeRepository;
         this.userRepository = userRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -94,6 +99,7 @@ public class FamilyOfferingApplicationService {
         familyOfferingRepository.save(record);
 
         logger.info("Offering recorded id={} type={} user={} node={} family={}", record.getId(), type.getDescription(), userId, dto.getNodeId(), familyId);
+        eventPublisher.publishEvent(FamilyOfferingMadeEvent.of(familyId, dto.getNodeId(), userId));
     }
 
     /**

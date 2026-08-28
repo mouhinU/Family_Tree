@@ -10,10 +10,13 @@ import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
+import com.mouhin.family.tree.domain.event.FamilyTreeUpdatedEvent;
+import com.mouhin.family.tree.domain.event.NodeCreatedEvent;
 import com.mouhin.family.tree.domain.service.FamilyNodeDomainService;
 import com.mouhin.family.tree.domain.service.RelationValidationDomainService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,17 +42,20 @@ public class FamilyNodeApplicationService {
     private final RelationValidationDomainService relationValidationDomainService;
     private final FamilyNodeDomainService familyNodeDomainService;
     private final FamilyTreeApplicationService familyTreeApplicationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public FamilyNodeApplicationService(FamilyNodeRepository familyNodeRepository,
                                         FamilyRelationRepository familyRelationRepository,
                                         RelationValidationDomainService relationValidationDomainService,
                                         FamilyNodeDomainService familyNodeDomainService,
-                                        FamilyTreeApplicationService familyTreeApplicationService) {
+                                        FamilyTreeApplicationService familyTreeApplicationService,
+                                        ApplicationEventPublisher eventPublisher) {
         this.familyNodeRepository = familyNodeRepository;
         this.familyRelationRepository = familyRelationRepository;
         this.relationValidationDomainService = relationValidationDomainService;
         this.familyNodeDomainService = familyNodeDomainService;
         this.familyTreeApplicationService = familyTreeApplicationService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -192,7 +198,8 @@ public class FamilyNodeApplicationService {
         }
 
         // 树结构已变更，失效该家族的族谱树缓存（事务提交后生效）
-        familyTreeApplicationService.evictFamilyTree(familyId);
+        eventPublisher.publishEvent(NodeCreatedEvent.of(familyId, node.getId(), node.getName(), userId));
+        eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
 
         return node.getId();
     }
@@ -295,7 +302,7 @@ public class FamilyNodeApplicationService {
             throw new BusinessException("去世日期不能早于出生日期");
         }
 
-        familyTreeApplicationService.evictFamilyTree(familyId);
+        eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
     }
 
     /**
@@ -312,7 +319,7 @@ public class FamilyNodeApplicationService {
         familyNodeRepository.removeById(nodeId);
         logger.info("Deleted family node id={} for family={}", nodeId, familyId);
 
-        familyTreeApplicationService.evictFamilyTree(familyId);
+        eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
     }
 
     /**
@@ -384,7 +391,7 @@ public class FamilyNodeApplicationService {
         logger.info("Updated colorLabel={} for {} nodes for family={}",
                 colorLabel, nodeIds.size(), familyId);
 
-        familyTreeApplicationService.evictFamilyTree(familyId);
+        eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
     }
 
     /**
@@ -406,7 +413,7 @@ public class FamilyNodeApplicationService {
         logger.info("Synced descendant generations from node={} gen={} for family={} ({} nodes updated)",
                 nodeId, generation, familyId, updatedNodes.size());
 
-        familyTreeApplicationService.evictFamilyTree(familyId);
+        eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
     }
 
     /**

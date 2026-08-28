@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>族谱管理系统</title>
-    <link href="/css/style.css?v=20260827c" rel="stylesheet">
+    <link href="/css/style.css?v=20260827d" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -48,6 +48,10 @@
     </div>
     <div class="header-actions">
         <span class="nickname" id="user-nickname"></span>
+        <button class="notification-bell" id="btn-notification" title="通知">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="notification-badge" id="notification-badge" style="display:none;">0</span>
+        </button>
         <div class="header-more-wrap">
             <button class="btn-sm" id="btn-more" title="更多操作">更多 ▾</button>
             <div class="header-more-dropdown" id="header-more-dropdown" style="display:none;">
@@ -179,9 +183,11 @@
 <script src="/js/ft/modal-family.js?v=20260809a"></script>
 <script src="/js/ft/modal-tools.js?v=20260809a"></script>
 <script src="/js/ft/modal-message.js?v=20260827a"></script>
+<script src="/js/ft/modal-notification.js?v=20260827a"></script>
 <script src="/js/ft/modal-ai.js?v=20260827b"></script>
 <script src="/js/ft/message-carousel.js?v=20260825a"></script>
 <script src="/js/ft/context-menu.js?v=20260804b"></script>
+<script src="/js/ft/websocket.js?v=20260827a"></script>
 <script src="/js/ft/main.js?v=20260827a"></script>
 </body>
 </html>

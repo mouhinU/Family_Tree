@@ -11,6 +11,7 @@ import com.mouhin.family.tree.domain.entity.FamilyRelation;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
 import com.mouhin.family.tree.domain.service.FamilyNodeDomainService;
+import com.mouhin.family.tree.domain.event.FamilyTreeUpdatedEvent;
 import com.mouhin.family.tree.domain.service.RelationValidationDomainService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +19,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -55,6 +57,9 @@ class FamilyNodeApplicationServiceTest {
 
     @Mock
     private FamilyTreeApplicationService familyTreeApplicationService;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private FamilyNodeApplicationService familyNodeApplicationService;
@@ -140,7 +145,7 @@ class FamilyNodeApplicationServiceTest {
         assertEquals(RelationTypeEnum.PARENT_CHILD.getCode(), insertedRel.getRelationType());
 
         // 验证：缓存已失效
-        verify(familyTreeApplicationService).evictFamilyTree(FAMILY_ID);
+        verify(eventPublisher).publishEvent(any(FamilyTreeUpdatedEvent.class));
     }
 
     @Test
@@ -203,7 +208,7 @@ class FamilyNodeApplicationServiceTest {
         verify(familyNodeRepository).update(child2);
 
         // 验证：缓存已失效（syncDescendantGenerations 和 updateNode 各调用一次）
-        verify(familyTreeApplicationService, times(2)).evictFamilyTree(FAMILY_ID);
+        verify(eventPublisher, times(2)).publishEvent(any(FamilyTreeUpdatedEvent.class));
     }
 
     @Test
@@ -222,7 +227,7 @@ class FamilyNodeApplicationServiceTest {
         verify(familyNodeRepository).removeById(5L);
 
         // 验证：缓存已失效
-        verify(familyTreeApplicationService).evictFamilyTree(FAMILY_ID);
+        verify(eventPublisher).publishEvent(any(FamilyTreeUpdatedEvent.class));
     }
 
     @Test
@@ -289,6 +294,6 @@ class FamilyNodeApplicationServiceTest {
                 FAMILY_ID, List.of(1L, 2L, 3L), ColorLabelEnum.PATERNAL.getCode());
 
         // 验证：缓存已失效
-        verify(familyTreeApplicationService).evictFamilyTree(FAMILY_ID);
+        verify(eventPublisher).publishEvent(any(FamilyTreeUpdatedEvent.class));
     }
 }

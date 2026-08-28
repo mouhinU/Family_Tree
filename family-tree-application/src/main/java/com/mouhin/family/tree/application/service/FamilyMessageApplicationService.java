@@ -6,9 +6,12 @@ import com.mouhin.family.tree.common.dto.PageResult;
 import com.mouhin.family.tree.common.enums.MessageCategoryEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilyMessage;
+import com.mouhin.family.tree.domain.event.FamilyMessageDeletedEvent;
+import com.mouhin.family.tree.domain.event.FamilyMessagePostedEvent;
 import com.mouhin.family.tree.domain.repository.FamilyMessageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,9 +38,12 @@ public class FamilyMessageApplicationService {
     private static final int MAX_CONTENT_LENGTH = 500;
 
     private final FamilyMessageRepository familyMessageRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public FamilyMessageApplicationService(FamilyMessageRepository familyMessageRepository) {
+    public FamilyMessageApplicationService(FamilyMessageRepository familyMessageRepository,
+                                           ApplicationEventPublisher eventPublisher) {
         this.familyMessageRepository = familyMessageRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -100,6 +106,7 @@ public class FamilyMessageApplicationService {
         }
 
         logger.info("用户 {} 在家族 {} 发布留言: id={}, parentId={}, category={}", userId, familyId, message.getId(), parentId, category);
+        eventPublisher.publishEvent(FamilyMessagePostedEvent.of(familyId, message.getId(), userId, parentId));
     }
 
     /**
@@ -238,6 +245,7 @@ public class FamilyMessageApplicationService {
 
         familyMessageRepository.removeById(messageId);
         logger.info("用户 {} 删除留言: id={}", userId, messageId);
+        eventPublisher.publishEvent(FamilyMessageDeletedEvent.of(message.getFamilyId(), messageId, userId));
     }
 
     /**

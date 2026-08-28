@@ -4,9 +4,11 @@ import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.FamilyGenerationDTO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilyGeneration;
+import com.mouhin.family.tree.domain.event.GenerationUpdatedEvent;
 import com.mouhin.family.tree.domain.repository.FamilyGenerationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,9 +28,12 @@ public class FamilyGenerationApplicationService {
     private static final Logger logger = LoggerFactory.getLogger(FamilyGenerationApplicationService.class);
 
     private final FamilyGenerationRepository familyGenerationRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public FamilyGenerationApplicationService(FamilyGenerationRepository familyGenerationRepository) {
+    public FamilyGenerationApplicationService(FamilyGenerationRepository familyGenerationRepository,
+                                              ApplicationEventPublisher eventPublisher) {
         this.familyGenerationRepository = familyGenerationRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -65,6 +70,7 @@ public class FamilyGenerationApplicationService {
             saveSingleGeneration(familyId, dto);
         }
         logger.info("Saved {} generation names for family={}", dtos.size(), familyId);
+        eventPublisher.publishEvent(GenerationUpdatedEvent.of(familyId));
     }
 
     private void saveSingleGeneration(Long familyId, FamilyGenerationDTO dto) {

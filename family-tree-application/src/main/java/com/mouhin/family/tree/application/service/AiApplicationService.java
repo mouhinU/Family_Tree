@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -39,7 +41,7 @@ public class AiApplicationService {
     private final FamilyNodeRepository familyNodeRepository;
     private final FamilyRelationRepository familyRelationRepository;
     private final FamilyTreeApplicationService familyTreeApplicationService;
-    private final HttpClient httpClient;
+    private HttpClient httpClient;
     @Value("${ai.llm.enabled:false}")
     private boolean aiEnabled;
     @Value("${ai.llm.api-key:}")
@@ -57,7 +59,13 @@ public class AiApplicationService {
         this.familyNodeRepository = familyNodeRepository;
         this.familyRelationRepository = familyRelationRepository;
         this.familyTreeApplicationService = familyTreeApplicationService;
-        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(timeoutSeconds)).build();
+    }
+
+    @PostConstruct
+    void init() {
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(timeoutSeconds))
+                .build();
     }
 
     /**

@@ -5,11 +5,13 @@ import com.mouhin.family.tree.common.enums.RelationTypeEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
+import com.mouhin.family.tree.domain.event.FamilyTreeUpdatedEvent;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
 import com.mouhin.family.tree.domain.service.RelationValidationDomainService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,17 +36,20 @@ public class FamilyRelationApplicationService {
     private final RelationValidationDomainService relationValidationDomainService;
     private final FamilyNodeApplicationService familyNodeApplicationService;
     private final FamilyTreeApplicationService familyTreeApplicationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public FamilyRelationApplicationService(FamilyRelationRepository familyRelationRepository,
                                             FamilyNodeRepository familyNodeRepository,
                                             RelationValidationDomainService relationValidationDomainService,
                                             FamilyNodeApplicationService familyNodeApplicationService,
-                                            FamilyTreeApplicationService familyTreeApplicationService) {
+                                            FamilyTreeApplicationService familyTreeApplicationService,
+                                            ApplicationEventPublisher eventPublisher) {
         this.familyRelationRepository = familyRelationRepository;
         this.familyNodeRepository = familyNodeRepository;
         this.relationValidationDomainService = relationValidationDomainService;
         this.familyNodeApplicationService = familyNodeApplicationService;
         this.familyTreeApplicationService = familyTreeApplicationService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -125,7 +130,7 @@ public class FamilyRelationApplicationService {
                 relation.getId(), dto.getRelationType(),
                 dto.getFromNodeId(), dto.getToNodeId(), familyId, userId);
 
-        familyTreeApplicationService.evictFamilyTree(familyId);
+        eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
 
         return relation.getId();
     }
@@ -145,7 +150,7 @@ public class FamilyRelationApplicationService {
         familyRelationRepository.removeById(relationId);
         logger.info("Deleted relation id={} for family={}", relationId, familyId);
 
-        familyTreeApplicationService.evictFamilyTree(familyId);
+        eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
     }
 
     /**
@@ -191,7 +196,7 @@ public class FamilyRelationApplicationService {
         logger.info("Updated relation id={} divorced={} widowed={} for family={}",
                 dto.getId(), dto.getDivorced(), dto.getWidowed(), familyId);
 
-        familyTreeApplicationService.evictFamilyTree(familyId);
+        eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
     }
 
     /**

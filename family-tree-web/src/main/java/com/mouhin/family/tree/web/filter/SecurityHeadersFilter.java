@@ -50,7 +50,7 @@ public class SecurityHeadersFilter implements Filter {
                         + "style-src 'self' 'unsafe-inline'; "
                         + "img-src 'self' data:; "
                         + "font-src 'self' data:; "
-                        + "connect-src 'self'");
+                        + "connect-src 'self' ws: wss:");
 
         // Referrer 策略
         httpResp.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");

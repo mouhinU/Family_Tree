@@ -87,6 +87,10 @@
         if (FT.initMessageCarousel) {
             FT.initMessageCarousel();
         }
+        // 初始化 WebSocket 实时推送
+        if (FT.wsInit) {
+            FT.wsInit();
+        }
     }
 
     // ========== 事件绑定 ==========
@@ -201,6 +205,14 @@
         if (btnAi) {
             btnAi.addEventListener('click', function () {
                 FT.showAiModal();
+            });
+        }
+
+        // 通知铃铛按钮
+        var btnNotification = document.getElementById('btn-notification');
+        if (btnNotification) {
+            btnNotification.addEventListener('click', function () {
+                FT.showNotificationModal();
             });
         }
 
