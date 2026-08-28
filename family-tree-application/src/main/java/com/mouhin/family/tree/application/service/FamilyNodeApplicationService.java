@@ -14,6 +14,7 @@ import com.mouhin.family.tree.domain.event.FamilyTreeUpdatedEvent;
 import com.mouhin.family.tree.domain.event.NodeCreatedEvent;
 import com.mouhin.family.tree.domain.service.FamilyNodeDomainService;
 import com.mouhin.family.tree.domain.service.RelationValidationDomainService;
+import com.mouhin.family.tree.domain.service.VersionControlDomainService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -43,31 +44,37 @@ public class FamilyNodeApplicationService {
     private final FamilyNodeDomainService familyNodeDomainService;
     private final FamilyTreeApplicationService familyTreeApplicationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final VersionControlDomainService versionControlDomainService;
 
     public FamilyNodeApplicationService(FamilyNodeRepository familyNodeRepository,
                                         FamilyRelationRepository familyRelationRepository,
                                         RelationValidationDomainService relationValidationDomainService,
                                         FamilyNodeDomainService familyNodeDomainService,
                                         FamilyTreeApplicationService familyTreeApplicationService,
-                                        ApplicationEventPublisher eventPublisher) {
+                                        ApplicationEventPublisher eventPublisher,
+                                        VersionControlDomainService versionControlDomainService) {
         this.familyNodeRepository = familyNodeRepository;
         this.familyRelationRepository = familyRelationRepository;
         this.relationValidationDomainService = relationValidationDomainService;
         this.familyNodeDomainService = familyNodeDomainService;
         this.familyTreeApplicationService = familyTreeApplicationService;
         this.eventPublisher = eventPublisher;
+        this.versionControlDomainService = versionControlDomainService;
     }
 
     /**
      * 创建族谱节点
      *
-     * @param familyId 家族ID
-     * @param userId   操作者用户ID
-     * @param dto      创建请求
+     * @param familyId  家族ID
+     * @param userId    操作者用户ID
+     * @param username  操作者姓名
+     * @param ipAddress IP地址
+     * @param dto       创建请求
      * @return 新节点ID
      */
     @Transactional(rollbackFor = Exception.class)
-    public Long createNode(Long familyId, Long userId, NodeCreateDTO dto) {
+    public Long createNode(Long familyId, Long userId, String username, String ipAddress,
+                           NodeCreateDTO dto) {
         if (dto.getName() == null || dto.getName().isBlank()) {
             throw new BusinessException("节点名称不能为空");
         }
@@ -195,18 +202,28 @@ public class FamilyNodeApplicationService {
         eventPublisher.publishEvent(NodeCreatedEvent.of(familyId, node.getId(), node.getName(), userId));
         eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
 
+        // 记录版本历史
+        versionControlDomainService.recordNodeCreate(node, userId, username, ipAddress);
+
         return node.getId();
     }
 
     /**
      * 更新族谱节点
      *
-     * @param familyId 家族ID
-     * @param dto      更新请求
+     * @param familyId  家族ID
+     * @param userId    操作者用户ID
+     * @param username  操作者姓名
+     * @param ipAddress IP地址
+     * @param dto       更新请求
      */
     @Transactional(rollbackFor = Exception.class)
-    public void updateNode(Long familyId, FamilyNodeDTO dto) {
+    public void updateNode(Long familyId, Long userId, String username, String ipAddress,
+                           FamilyNodeDTO dto) {
         FamilyNode existing = checkNodeBelongsToFamily(familyId, dto.getId());
+
+        // 保存修改前的快照用于版本记录
+        FamilyNode beforeNode = cloneNode(existing);
 
         if (dto.getName() != null && !dto.getName().isBlank()) {
             if (dto.getName().trim().length() > FamilyTreeConsts.MAX_NAME_LENGTH) {
@@ -297,17 +314,26 @@ public class FamilyNodeApplicationService {
         }
 
         eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
+
+        // 记录版本历史
+        versionControlDomainService.recordNodeUpdate(beforeNode, existing, userId, username, ipAddress);
     }
 
     /**
      * 删除族谱节点
      *
-     * @param familyId 家族ID
-     * @param nodeId   节点ID
+     * @param familyId  家族ID
+     * @param nodeId    节点ID
+     * @param userId    操作者用户ID
+     * @param username  操作者姓名
+     * @param ipAddress IP地址
      */
     @Transactional(rollbackFor = Exception.class)
-    public void deleteNode(Long familyId, Long nodeId) {
-        checkNodeBelongsToFamily(familyId, nodeId);
+    public void deleteNode(Long familyId, Long nodeId, Long userId, String username, String ipAddress) {
+        FamilyNode node = checkNodeBelongsToFamily(familyId, nodeId);
+
+        // 记录版本历史（在删除前记录）
+        versionControlDomainService.recordNodeDelete(node, userId, username, ipAddress);
 
         familyRelationRepository.removeByNodeId(familyId, nodeId);
         familyNodeRepository.removeById(nodeId);
@@ -430,6 +456,36 @@ public class FamilyNodeApplicationService {
             logger.info("Synced generation={} to {} spouse(s) of node={} for family={}",
                     generation, spouseRelations.size(), nodeId, familyId);
         }
+    }
+
+    /**
+     * 浅拷贝节点（用于版本对比时保存修改前快照）
+     */
+    private FamilyNode cloneNode(FamilyNode source) {
+        FamilyNode clone = new FamilyNode();
+        clone.setId(source.getId());
+        clone.setUserId(source.getUserId());
+        clone.setFamilyId(source.getFamilyId());
+        clone.setName(source.getName());
+        clone.setGender(source.getGender());
+        clone.setBirthDate(source.getBirthDate());
+        clone.setDeathDate(source.getDeathDate());
+        clone.setGeneration(source.getGeneration());
+        clone.setBirthOrder(source.getBirthOrder());
+        clone.setColorLabel(source.getColorLabel());
+        clone.setAvatar(source.getAvatar());
+        clone.setRemark(source.getRemark());
+        clone.setLunarBirthDate(source.getLunarBirthDate());
+        clone.setLunarDeathDate(source.getLunarDeathDate());
+        clone.setZi(source.getZi());
+        clone.setHao(source.getHao());
+        clone.setHui(source.getHui());
+        clone.setGraveLocation(source.getGraveLocation());
+        clone.setSpouseName(source.getSpouseName());
+        clone.setSpouseOriginFamily(source.getSpouseOriginFamily());
+        clone.setCreateTime(source.getCreateTime());
+        clone.setUpdateTime(source.getUpdateTime());
+        return clone;
     }
 
     /**

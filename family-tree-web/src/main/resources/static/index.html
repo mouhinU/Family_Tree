@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta name="theme-color" content="#a63a2b">
     <title>族谱管理系统</title>
-    <link href="/css/style.css?v=20260827d" rel="stylesheet">
+    <link rel="manifest" href="/manifest.json">
+    <link href="/css/style.css?v=20260828j" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -58,14 +60,117 @@
                 <div class="header-more-item" id="btn-profile" title="维护个人信息">个人信息</div>
                 <div class="header-more-item" id="btn-family-switch" title="切换家族">切换家族</div>
                 <div class="header-more-item" id="btn-death-anniversary" title="忌日提醒">忌日提醒</div>
+                <div class="header-more-item" id="btn-invite" title="邀请族人加入">邀请族人</div>
                 <div class="header-more-item" id="btn-operation-log" style="display:none;">操作日志</div>
             </div>
         </div>
         <button class="btn-sm" id="btn-export" title="导出整棵族谱为 PDF（含宣纸背景与辈分水印）">导出族谱</button>
         <button class="btn-sm primary" id="btn-add-root">添加始祖</button>
         <button class="btn-sm" id="btn-logout">退出</button>
+        <!-- 移动端汉堡菜单按钮 -->
+        <button class="hamburger-btn" id="btn-hamburger" type="button" aria-label="菜单">
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+            <span class="hamburger-line"></span>
+        </button>
     </div>
 </header>
+
+<!-- 移动端侧滑抽屉菜单 -->
+<div class="mobile-drawer-overlay" id="mobile-drawer-overlay"></div>
+<aside class="mobile-drawer" id="mobile-drawer">
+    <div class="drawer-header">
+        <div class="drawer-user-info">
+            <span class="drawer-nickname" id="drawer-user-nickname"></span>
+            <span class="drawer-role-badge" id="drawer-role-badge" style="display:none;"></span>
+        </div>
+        <div class="drawer-family-info">
+            <span class="drawer-family-name" id="drawer-family-name"></span>
+        </div>
+        <button class="drawer-notification" id="drawer-btn-notification" title="通知">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="notification-badge" id="drawer-notification-badge" style="display:none;">0</span>
+        </button>
+    </div>
+    <nav class="drawer-nav">
+        <div class="drawer-section-title">族谱功能</div>
+        <div class="drawer-nav-item" id="drawer-btn-generation">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>辈分管理</span>
+        </div>
+        <div class="drawer-nav-item" id="drawer-btn-family">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>家族管理</span>
+        </div>
+        <div class="drawer-nav-item" id="drawer-btn-timeline">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <span>时间线</span>
+        </div>
+        <div class="drawer-nav-item" id="drawer-btn-relation-path">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-8.5"/><path d="M3 8l9-5 9 5"/><path d="M3 16l9 5 9-5"/></svg>
+            <span>关系路径</span>
+        </div>
+        <div class="drawer-nav-item" id="drawer-btn-message">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span>留言板</span>
+        </div>
+        <div class="drawer-section-title">更多操作</div>
+        <div class="drawer-nav-item" id="drawer-btn-profile">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <span>个人信息</span>
+        </div>
+        <div class="drawer-nav-item" id="drawer-btn-family-switch">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+            <span>切换家族</span>
+        </div>
+        <div class="drawer-nav-item" id="drawer-btn-death-anniversary">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span>忌日提醒</span>
+        </div>
+        <div class="drawer-nav-item" id="drawer-btn-invite">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+            <span>邀请族人</span>
+        </div>
+        <div class="drawer-nav-item" id="drawer-btn-operation-log" style="display:none;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <span>操作日志</span>
+        </div>
+    </nav>
+    <div class="drawer-footer">
+        <div class="drawer-footer-item" id="drawer-btn-export">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>导出族谱</span>
+        </div>
+        <div class="drawer-footer-item primary" id="drawer-btn-add-root">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>添加始祖</span>
+        </div>
+        <div class="drawer-footer-item danger" id="drawer-btn-logout">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            <span>退出登录</span>
+        </div>
+    </div>
+</aside>
+
+<!-- 移动端底部导航栏 -->
+<nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+    <div class="bottom-nav-item active" id="bottom-nav-tree" title="族谱">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22v-8"/><path d="M5 12H2a10 10 0 0 1 20 0h-3"/><path d="M8 6a4 4 0 1 1 8 0"/><path d="M12 14a4 4 0 0 0-4-4"/><path d="M12 14a4 4 0 0 1 4-4"/></svg>
+        <span>族谱</span>
+    </div>
+    <div class="bottom-nav-item" id="bottom-nav-message" title="留言板">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>留言板</span>
+    </div>
+    <div class="bottom-nav-item" id="bottom-nav-invite" title="邀请族人">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+        <span>邀请族人</span>
+    </div>
+    <div class="bottom-nav-item" id="bottom-nav-more" title="更多">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+        <span>更多</span>
+    </div>
+</nav>
 
 <!-- 工具栏（默认收起，点击底边把手展开） -->
 <div class="toolbar collapsed" id="toolbar">
@@ -120,6 +225,10 @@
         <span>隐藏外嫁</span>
     </label>
     <span class="hint">右键点击节点可操作 | 滚轮缩放 | 拖拽平移</span>
+    <span class="mobile-touch-hint-wrap">
+        <button class="mobile-touch-hint" id="btn-touch-hint" type="button" title="操作提示" data-hint="长按节点可操作 | 双指缩放 | 拖拽平移">?</button>
+        <span class="touch-hint-popup" id="touch-hint-popup">长按节点可操作 | 双指缩放 | 拖拽平移</span>
+    </span>
     <!-- 下拉把手：整体收起 / 展开工具栏 -->
     <button class="toolbar-handle" id="toolbar-handle" title="展开工具栏" type="button">
         <span class="handle-caret">▴</span>
@@ -133,6 +242,15 @@
     <div aria-hidden="true" id="generation-watermark"></div>
 </div>
 
+<!-- 移动端搜索浮层 -->
+<div class="mobile-search-overlay" id="mobile-search-overlay" style="display:none;">
+    <div class="mobile-search-bar">
+        <input autocomplete="off" id="mobile-search-input" placeholder="搜索族人姓名、字号..." type="text">
+        <button class="mobile-search-close" id="mobile-search-close" type="button">&times;</button>
+    </div>
+    <div class="mobile-search-results" id="mobile-search-results"></div>
+</div>
+
 <!-- 右键菜单 -->
 <div class="context-menu" id="context-menu">
     <div class="menu-item" data-action="add-child">添加子女</div>
@@ -140,11 +258,15 @@
     <div class="menu-item" data-action="link-spouse">关联配偶</div>
     <div class="menu-item" data-action="add-parent">添加父母</div>
     <div class="menu-item" data-action="adoption">过继/收养</div>
-    <div class="menu-item" data-action="birth-order">排次管理</div>
-    <div class="menu-item" data-action="mark-self">标记为我</div>
-    <div class="menu-item" data-action="edit">编辑信息</div>
-    <div class="menu-item" data-action="color">修改颜色</div>
-    <div class="menu-item danger" data-action="delete">删除节点</div>
+    <div class="menu-item menu-item-more-toggle" id="menu-more-toggle">更多 ▾</div>
+    <div class="context-menu-more" id="context-menu-more">
+        <div class="menu-item" data-action="birth-order">排次管理</div>
+        <div class="menu-item" data-action="mark-self">标记为我</div>
+        <div class="menu-item" data-action="edit">编辑信息</div>
+        <div class="menu-item" data-action="color">修改颜色</div>
+        <div class="menu-item" data-action="history">查看历史</div>
+        <div class="menu-item danger" data-action="delete">删除节点</div>
+    </div>
 </div>
 
 <!-- 留言轮播 -->
@@ -175,7 +297,7 @@
 <script src="/js/ft/core.js?v=20260804c"></script>
 <script src="/js/ft/api.js?v=20260809a"></script>
 <script src="/js/ft/layout.js?v=20260805c"></script>
-<script src="/js/ft/render.js?v=20260805j"></script>
+<script src="/js/ft/render.js?v=20260828b"></script>
 <script src="/js/ft/export.js?v=20260809a"></script>
 <script src="/js/ft/modals.js?v=20260809b"></script>
 <script src="/js/ft/modal-offering.js?v=20260809a"></script>
@@ -185,9 +307,18 @@
 <script src="/js/ft/modal-message.js?v=20260827a"></script>
 <script src="/js/ft/modal-notification.js?v=20260827a"></script>
 <script src="/js/ft/modal-ai.js?v=20260827b"></script>
-<script src="/js/ft/message-carousel.js?v=20260825a"></script>
-<script src="/js/ft/context-menu.js?v=20260804b"></script>
+<script src="/js/ft/modal-version.js?v=20260828a"></script>
+<script src="/js/ft/modal-invite.js?v=20260828a"></script>
+<script src="/js/ft/message-carousel.js?v=20260828a"></script>
+<script src="/js/ft/context-menu.js?v=20260828d"></script>
 <script src="/js/ft/websocket.js?v=20260827a"></script>
-<script src="/js/ft/main.js?v=20260827a"></script>
+<script src="/js/ft/main.js?v=20260828e"></script>
+<script>
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js').catch(function () {});
+    });
+}
+</script>
 </body>
 </html>

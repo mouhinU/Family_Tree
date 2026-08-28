@@ -13,6 +13,7 @@ import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
 import com.mouhin.family.tree.domain.service.FamilyNodeDomainService;
 import com.mouhin.family.tree.domain.event.FamilyTreeUpdatedEvent;
 import com.mouhin.family.tree.domain.service.RelationValidationDomainService;
+import com.mouhin.family.tree.domain.service.VersionControlDomainService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -60,6 +61,9 @@ class FamilyNodeApplicationServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private VersionControlDomainService versionControlDomainService;
 
     @InjectMocks
     private FamilyNodeApplicationService familyNodeApplicationService;
@@ -126,7 +130,7 @@ class FamilyNodeApplicationServiceTest {
 
         // 执行
         NodeCreateDTO dto = createDTO("蒙子", 10L);
-        Long newNodeId = familyNodeApplicationService.createNode(FAMILY_ID, USER_ID, dto);
+        Long newNodeId = familyNodeApplicationService.createNode(FAMILY_ID, USER_ID, "testUser", "127.0.0.1", dto);
 
         // 验证：新节点世代 = 父节点 + 1
         ArgumentCaptor<FamilyNode> nodeCaptor = ArgumentCaptor.forClass(FamilyNode.class);
@@ -156,7 +160,7 @@ class FamilyNodeApplicationServiceTest {
 
         // 执行 & 验证：抛出 BusinessException
         BusinessException exception = assertThrows(BusinessException.class,
-                () -> familyNodeApplicationService.createNode(FAMILY_ID, USER_ID, dto));
+                () -> familyNodeApplicationService.createNode(FAMILY_ID, USER_ID, "testUser", "127.0.0.1", dto));
         assertTrue(exception.getMessage().contains("不能超过"));
     }
 
@@ -169,7 +173,7 @@ class FamilyNodeApplicationServiceTest {
 
         // 执行 & 验证：抛出 BusinessException
         BusinessException exception = assertThrows(BusinessException.class,
-                () -> familyNodeApplicationService.createNode(FAMILY_ID, USER_ID, dto));
+                () -> familyNodeApplicationService.createNode(FAMILY_ID, USER_ID, "testUser", "127.0.0.1", dto));
         assertTrue(exception.getMessage().contains("去世日期不能早于出生日期"));
     }
 
@@ -197,7 +201,7 @@ class FamilyNodeApplicationServiceTest {
         FamilyNodeDTO dto = new FamilyNodeDTO();
         dto.setId(1L);
         dto.setGeneration(2);
-        familyNodeApplicationService.updateNode(FAMILY_ID, dto);
+        familyNodeApplicationService.updateNode(FAMILY_ID, USER_ID, "testUser", "127.0.0.1", dto);
 
         // 验证：节点自身保存
         verify(familyNodeRepository).update(existingNode);
@@ -218,7 +222,7 @@ class FamilyNodeApplicationServiceTest {
         when(familyNodeRepository.findById(5L)).thenReturn(existingNode);
 
         // 执行
-        familyNodeApplicationService.deleteNode(FAMILY_ID, 5L);
+        familyNodeApplicationService.deleteNode(FAMILY_ID, 5L, USER_ID, "testUser", "127.0.0.1");
 
         // 验证：删除了涉及该节点的所有关系
         verify(familyRelationRepository).removeByNodeId(FAMILY_ID, 5L);

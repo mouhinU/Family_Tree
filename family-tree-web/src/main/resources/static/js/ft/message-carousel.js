@@ -49,6 +49,7 @@
                     // 静默
                 }
                 carousel.style.display = 'none';
+                document.body.classList.remove('msg-carousel-visible');
                 if (refreshTimer) {
                     clearInterval(refreshTimer);
                     refreshTimer = null;
@@ -68,8 +69,10 @@
             if (res.code === 200 && res.data && res.data.records && res.data.records.length > 0) {
                 render(res.data.records);
                 carousel.style.display = 'flex';
+                document.body.classList.add('msg-carousel-visible');
             } else {
                 carousel.style.display = 'none';
+                document.body.classList.remove('msg-carousel-visible');
             }
         }).catch(function () {
             // 静默失败，不影响主功能

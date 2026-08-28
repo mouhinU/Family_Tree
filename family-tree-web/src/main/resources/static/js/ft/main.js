@@ -226,6 +226,40 @@
             });
         }
 
+        // 邀请族人按钮
+        var btnInvite = document.getElementById('btn-invite');
+        if (btnInvite) {
+            btnInvite.addEventListener('click', function () {
+                FT.showInviteModal();
+                document.getElementById('header-more-dropdown').style.display = 'none';
+            });
+        }
+
+        // 移动端触摸提示问号
+        var btnTouchHint = document.getElementById('btn-touch-hint');
+        var touchHintPopup = document.getElementById('touch-hint-popup');
+        var touchHintTimer = null;
+        if (btnTouchHint && touchHintPopup) {
+            btnTouchHint.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var isShown = touchHintPopup.classList.toggle('show');
+                if (touchHintTimer) {
+                    clearTimeout(touchHintTimer);
+                }
+                if (isShown) {
+                    touchHintTimer = setTimeout(function () {
+                        touchHintPopup.classList.remove('show');
+                    }, 3000);
+                }
+            });
+            document.addEventListener('click', function () {
+                touchHintPopup.classList.remove('show');
+                if (touchHintTimer) {
+                    clearTimeout(touchHintTimer);
+                }
+            });
+        }
+
         // ========== 更多操作下拉菜单 ==========
         var btnMore = document.getElementById('btn-more');
         var moreDropdown = document.getElementById('header-more-dropdown');
@@ -333,6 +367,210 @@
             });
         }
 
+        // ========== 移动端搜索浮层 ==========
+        var mobileSearchOverlay = document.getElementById('mobile-search-overlay');
+        var mobileSearchInput = document.getElementById('mobile-search-input');
+        var mobileSearchResults = document.getElementById('mobile-search-results');
+        var mobileSearchTimer = null;
+
+        if (mobileSearchInput) {
+            mobileSearchInput.addEventListener('input', function () {
+                clearTimeout(mobileSearchTimer);
+                var keyword = this.value.trim();
+                if (!keyword) {
+                    mobileSearchResults.innerHTML = '';
+                    return;
+                }
+                mobileSearchTimer = setTimeout(function () {
+                    FT.api('/api/node/search?keyword=' + encodeURIComponent(keyword)).then(function (res) {
+                        if (res.code === 200) {
+                            renderMobileSearchResults(res.data || [], keyword);
+                        }
+                    });
+                }, 300);
+            });
+
+            mobileSearchInput.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    closeMobileSearch();
+                }
+            });
+        }
+
+        function renderMobileSearchResults(nodes, keyword) {
+            if (nodes.length === 0) {
+                mobileSearchResults.innerHTML = '<div class="search-empty">未找到「' + escapeHtml(keyword) + '」</div>';
+                return;
+            }
+            var html = nodes.map(function (n) {
+                var meta = [];
+                if (n.generation) meta.push('第' + n.generation + '世');
+                if (n.gender === 1) meta.push('男');
+                else if (n.gender === 2) meta.push('女');
+                if (n.birthDate) meta.push(n.birthDate);
+                var nameDisplay = escapeHtml(n.name);
+                var subtitle = '';
+                if (n.hui || n.zi || n.hao) {
+                    var parts = [];
+                    if (n.hui) parts.push('讳' + escapeHtml(n.hui));
+                    if (n.zi) parts.push('字' + escapeHtml(n.zi));
+                    if (n.hao) parts.push('号' + escapeHtml(n.hao));
+                    subtitle = '<div class="search-subtitle">' + parts.join(' · ') + '</div>';
+                }
+                return '<div class="search-item" data-node-id="' + n.id + '">'
+                    + '<div class="search-name">' + nameDisplay + '</div>'
+                    + subtitle
+                    + (meta.length ? '<div class="search-meta">' + meta.join(' · ') + '</div>' : '')
+                    + '</div>';
+            }).join('');
+            mobileSearchResults.innerHTML = html;
+
+            mobileSearchResults.querySelectorAll('.search-item').forEach(function (item) {
+                item.addEventListener('click', function () {
+                    var nodeId = parseInt(this.getAttribute('data-node-id'));
+                    closeMobileSearch();
+                    FT.focusNode && FT.focusNode(nodeId);
+                });
+            });
+        }
+
+        function openMobileSearch() {
+            if (mobileSearchOverlay) {
+                mobileSearchOverlay.style.display = 'flex';
+                mobileSearchOverlay.classList.add('show');
+                setTimeout(function () { mobileSearchInput && mobileSearchInput.focus(); }, 100);
+            }
+        }
+
+        function closeMobileSearch() {
+            if (mobileSearchOverlay) {
+                mobileSearchOverlay.classList.remove('show');
+                setTimeout(function () { mobileSearchOverlay.style.display = 'none'; }, 50);
+                if (mobileSearchInput) mobileSearchInput.value = '';
+                if (mobileSearchResults) mobileSearchResults.innerHTML = '';
+            }
+        }
+
+        var mobileSearchClose = document.getElementById('mobile-search-close');
+        if (mobileSearchClose) {
+            mobileSearchClose.addEventListener('click', closeMobileSearch);
+        }
+
+        // ========== 移动端侧滑抽屉 ==========
+        var drawer = document.getElementById('mobile-drawer');
+        var drawerOverlay = document.getElementById('mobile-drawer-overlay');
+        var hamburgerBtn = document.getElementById('btn-hamburger');
+
+        function openDrawer() {
+            if (drawer && drawerOverlay) {
+                drawer.classList.add('open');
+                drawerOverlay.classList.add('show');
+                if (hamburgerBtn) hamburgerBtn.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeDrawer() {
+            if (drawer && drawerOverlay) {
+                drawer.classList.remove('open');
+                drawerOverlay.classList.remove('show');
+                if (hamburgerBtn) hamburgerBtn.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        }
+
+        if (hamburgerBtn) {
+            hamburgerBtn.addEventListener('click', function () {
+                if (drawer && drawer.classList.contains('open')) {
+                    closeDrawer();
+                } else {
+                    openDrawer();
+                }
+            });
+        }
+
+        if (drawerOverlay) {
+            drawerOverlay.addEventListener('click', closeDrawer);
+        }
+
+        // 抽屉内通知按钮
+        var drawerNotifBtn = document.getElementById('drawer-btn-notification');
+        if (drawerNotifBtn) {
+            drawerNotifBtn.addEventListener('click', function () {
+                closeDrawer();
+                FT.showNotificationModal();
+            });
+        }
+
+        // 抽屉导航项绑定
+        var drawerBindings = {
+            'drawer-btn-generation': function () { closeDrawer(); FT.showGenerationModal(); },
+            'drawer-btn-family': function () { closeDrawer(); FT.showFamilyModal(); },
+            'drawer-btn-timeline': function () { closeDrawer(); FT.showTimelineModal(); },
+            'drawer-btn-relation-path': function () { closeDrawer(); FT.showRelationPathModal(); },
+            'drawer-btn-message': function () { closeDrawer(); FT.showMessageModal(); },
+            'drawer-btn-profile': function () { closeDrawer(); FT.showProfileModal(); },
+            'drawer-btn-family-switch': function () { closeDrawer(); FT.showFamilySwitcherModal(); },
+            'drawer-btn-death-anniversary': function () { closeDrawer(); FT.showDeathAnniversaryModal(); },
+            'drawer-btn-invite': function () { closeDrawer(); FT.showInviteModal(); },
+            'drawer-btn-operation-log': function () { closeDrawer(); FT.showOperationLogModal(); },
+            'drawer-btn-export': function () { closeDrawer(); FT.exportToPdf(); },
+            'drawer-btn-add-root': function () { closeDrawer(); FT.showNodeModal('添加始祖', {}); },
+            'drawer-btn-logout': function () {
+                closeDrawer();
+                FT.api('/api/auth/logout', {method: 'POST'}).then(function () {
+                    window.location.href = '/login.html';
+                });
+            }
+        };
+
+        Object.keys(drawerBindings).forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('click', drawerBindings[id]);
+            }
+        });
+
+        // ========== 移动端底部导航栏 ==========
+        var bottomNavTree = document.getElementById('bottom-nav-tree');
+        var bottomNavMessage = document.getElementById('bottom-nav-message');
+        var bottomNavInvite = document.getElementById('bottom-nav-invite');
+        var bottomNavMore = document.getElementById('bottom-nav-more');
+
+        if (bottomNavTree) {
+            bottomNavTree.addEventListener('click', function () {
+                setActiveBottomNav(this);
+            });
+        }
+
+        if (bottomNavMessage) {
+            bottomNavMessage.addEventListener('click', function () {
+                setActiveBottomNav(this);
+                FT.showMessageModal();
+            });
+        }
+
+        if (bottomNavInvite) {
+            bottomNavInvite.addEventListener('click', function () {
+                setActiveBottomNav(this);
+                FT.showInviteModal();
+            });
+        }
+
+        if (bottomNavMore) {
+            bottomNavMore.addEventListener('click', function () {
+                setActiveBottomNav(this);
+                openDrawer();
+            });
+        }
+
+        function setActiveBottomNav(activeEl) {
+            document.querySelectorAll('.bottom-nav-item').forEach(function (item) {
+                item.classList.remove('active');
+            });
+            if (activeEl) activeEl.classList.add('active');
+        }
+
         function escapeHtml(text) {
             var div = document.createElement('div');
             div.textContent = text;
@@ -340,6 +578,38 @@
         }
     }
 
+    // 同步用户信息到抽屉菜单
+    function syncDrawerUserInfo() {
+        var user = FT.state.currentUser;
+        if (!user) return;
+
+        var drawerNickname = document.getElementById('drawer-user-nickname');
+        if (drawerNickname) drawerNickname.textContent = user.nickname || '';
+
+        var role = user.familyRole;
+        var drawerBadge = document.getElementById('drawer-role-badge');
+        if (drawerBadge && (role === 'OWNER' || role === 'ADMIN')) {
+            drawerBadge.style.display = 'inline-block';
+            drawerBadge.textContent = role === 'OWNER' ? '族长' : '管理员';
+        }
+
+        // 操作日志按钮（仅 OWNER/ADMIN 可见）
+        var drawerLogBtn = document.getElementById('drawer-btn-operation-log');
+        if (drawerLogBtn && (role === 'OWNER' || role === 'ADMIN')) {
+            drawerLogBtn.style.display = 'flex';
+        }
+
+        // 家族名称
+        var drawerFamilyName = document.getElementById('drawer-family-name');
+        if (drawerFamilyName) {
+            // 从 header 的 family-name 获取
+            var headerFamilyName = document.getElementById('family-name');
+            drawerFamilyName.textContent = (headerFamilyName && headerFamilyName.textContent) || '';
+        }
+    }
+
     // 启动
     init();
+    // 初始化完成后同步抽屉用户信息
+    setTimeout(syncDrawerUserInfo, 500);
 })();

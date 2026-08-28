@@ -9,6 +9,7 @@ import com.mouhin.family.tree.domain.event.FamilyTreeUpdatedEvent;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
 import com.mouhin.family.tree.domain.service.RelationValidationDomainService;
+import com.mouhin.family.tree.domain.service.VersionControlDomainService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -37,31 +38,37 @@ public class FamilyRelationApplicationService {
     private final FamilyNodeApplicationService familyNodeApplicationService;
     private final FamilyTreeApplicationService familyTreeApplicationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final VersionControlDomainService versionControlDomainService;
 
     public FamilyRelationApplicationService(FamilyRelationRepository familyRelationRepository,
                                             FamilyNodeRepository familyNodeRepository,
                                             RelationValidationDomainService relationValidationDomainService,
                                             FamilyNodeApplicationService familyNodeApplicationService,
                                             FamilyTreeApplicationService familyTreeApplicationService,
-                                            ApplicationEventPublisher eventPublisher) {
+                                            ApplicationEventPublisher eventPublisher,
+                                            VersionControlDomainService versionControlDomainService) {
         this.familyRelationRepository = familyRelationRepository;
         this.familyNodeRepository = familyNodeRepository;
         this.relationValidationDomainService = relationValidationDomainService;
         this.familyNodeApplicationService = familyNodeApplicationService;
         this.familyTreeApplicationService = familyTreeApplicationService;
         this.eventPublisher = eventPublisher;
+        this.versionControlDomainService = versionControlDomainService;
     }
 
     /**
      * 创建关系
      *
-     * @param familyId 家族ID
-     * @param userId   操作者用户ID
-     * @param dto      关系数据
+     * @param familyId  家族ID
+     * @param userId    操作者用户ID
+     * @param username  操作者姓名
+     * @param ipAddress IP地址
+     * @param dto       关系数据
      * @return 新关系ID
      */
     @Transactional(rollbackFor = Exception.class)
-    public Long createRelation(Long familyId, Long userId, FamilyRelationDTO dto) {
+    public Long createRelation(Long familyId, Long userId, String username, String ipAddress,
+                               FamilyRelationDTO dto) {
         checkNodesBelongToFamily(familyId, dto.getFromNodeId(), dto.getToNodeId());
 
         // 自身校验：不允许自己与自己建立关系
@@ -132,6 +139,9 @@ public class FamilyRelationApplicationService {
 
         eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
 
+        // 记录版本历史
+        versionControlDomainService.recordRelationCreate(relation, userId, username, ipAddress);
+
         return relation.getId();
     }
 
@@ -140,13 +150,20 @@ public class FamilyRelationApplicationService {
      *
      * @param familyId   家族ID
      * @param relationId 关系ID
+     * @param userId     操作者用户ID
+     * @param username   操作者姓名
+     * @param ipAddress  IP地址
      */
     @Transactional(rollbackFor = Exception.class)
-    public void deleteRelation(Long familyId, Long relationId) {
+    public void deleteRelation(Long familyId, Long relationId, Long userId, String username, String ipAddress) {
         FamilyRelation relation = familyRelationRepository.findById(relationId);
         if (relation == null || !Objects.equals(relation.getFamilyId(), familyId)) {
             throw new BusinessException("关系不存在或无权操作");
         }
+
+        // 记录版本历史（在删除前记录）
+        versionControlDomainService.recordRelationDelete(relation, userId, username, ipAddress);
+
         familyRelationRepository.removeById(relationId);
         logger.info("Deleted relation id={} for family={}", relationId, familyId);
 
@@ -156,15 +173,22 @@ public class FamilyRelationApplicationService {
     /**
      * 更新关系
      *
-     * @param familyId 家族ID
-     * @param dto      关系数据
+     * @param familyId  家族ID
+     * @param userId    操作者用户ID
+     * @param username  操作者姓名
+     * @param ipAddress IP地址
+     * @param dto       关系数据
      */
     @Transactional(rollbackFor = Exception.class)
-    public void updateRelation(Long familyId, FamilyRelationDTO dto) {
+    public void updateRelation(Long familyId, Long userId, String username, String ipAddress,
+                               FamilyRelationDTO dto) {
         FamilyRelation relation = familyRelationRepository.findById(dto.getId());
         if (relation == null || !Objects.equals(relation.getFamilyId(), familyId)) {
             throw new BusinessException("关系不存在或无权操作");
         }
+
+        // 保存修改前的快照用于版本记录
+        FamilyRelation beforeRelation = cloneRelation(relation);
 
         // 婚离日期顺序校验
         if (dto.getMarriageDate() != null && dto.getDivorceDate() != null
@@ -197,6 +221,9 @@ public class FamilyRelationApplicationService {
                 dto.getId(), dto.getDivorced(), dto.getWidowed(), familyId);
 
         eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
+
+        // 记录版本历史
+        versionControlDomainService.recordRelationUpdate(beforeRelation, relation, userId, username, ipAddress);
     }
 
     /**
@@ -240,6 +267,28 @@ public class FamilyRelationApplicationService {
             familyNodeApplicationService.syncDescendantGenerations(
                     familyId, child.getId(), childGen);
         }
+    }
+
+    /**
+     * 浅拷贝关系（用于版本对比时保存修改前快照）
+     */
+    private FamilyRelation cloneRelation(FamilyRelation source) {
+        FamilyRelation clone = new FamilyRelation();
+        clone.setId(source.getId());
+        clone.setUserId(source.getUserId());
+        clone.setFamilyId(source.getFamilyId());
+        clone.setFromNodeId(source.getFromNodeId());
+        clone.setToNodeId(source.getToNodeId());
+        clone.setRelationType(source.getRelationType());
+        clone.setMarriageDate(source.getMarriageDate());
+        clone.setDivorceDate(source.getDivorceDate());
+        clone.setDivorced(source.getDivorced());
+        clone.setWidowed(source.getWidowed());
+        clone.setMarriageOrder(source.getMarriageOrder());
+        clone.setEndType(source.getEndType());
+        clone.setCreateTime(source.getCreateTime());
+        clone.setUpdateTime(source.getUpdateTime());
+        return clone;
     }
 
     /**

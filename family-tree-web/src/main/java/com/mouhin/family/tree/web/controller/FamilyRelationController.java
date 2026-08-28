@@ -1,8 +1,10 @@
 package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.FamilyRelationApplicationService;
+import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.FamilyRelationDTO;
 import com.mouhin.family.tree.common.result.Result;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,26 +29,37 @@ public class FamilyRelationController extends BaseController {
     }
 
     @PostMapping
-    public Result<Map<String, Object>> create(@RequestBody FamilyRelationDTO dto, HttpSession session) {
+    public Result<Map<String, Object>> create(@RequestBody FamilyRelationDTO dto, HttpSession session,
+                                              HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
-        Long relationId = familyRelationService.createRelation(familyId, userId, dto);
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        String ipAddress = getClientIp(request);
+        Long relationId = familyRelationService.createRelation(familyId, userId, username, ipAddress, dto);
         Map<String, Object> data = new HashMap<>(4);
         data.put("relationId", relationId);
         return Result.success(data);
     }
 
     @DeleteMapping("/{relationId}")
-    public Result<Void> delete(@PathVariable Long relationId, HttpSession session) {
+    public Result<Void> delete(@PathVariable Long relationId, HttpSession session,
+                               HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
-        familyRelationService.deleteRelation(familyId, relationId);
+        Long userId = getCurrentUserId(session);
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        String ipAddress = getClientIp(request);
+        familyRelationService.deleteRelation(familyId, relationId, userId, username, ipAddress);
         return Result.success();
     }
 
     @PutMapping
-    public Result<Void> update(@RequestBody FamilyRelationDTO dto, HttpSession session) {
+    public Result<Void> update(@RequestBody FamilyRelationDTO dto, HttpSession session,
+                               HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
-        familyRelationService.updateRelation(familyId, dto);
+        Long userId = getCurrentUserId(session);
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        String ipAddress = getClientIp(request);
+        familyRelationService.updateRelation(familyId, userId, username, ipAddress, dto);
         return Result.success();
     }
 

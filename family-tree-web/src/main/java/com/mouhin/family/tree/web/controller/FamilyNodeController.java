@@ -40,11 +40,13 @@ public class FamilyNodeController extends BaseController {
                                               HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
-        Long nodeId = familyNodeService.createNode(familyId, userId, dto);
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        String ipAddress = getClientIp(request);
+        Long nodeId = familyNodeService.createNode(familyId, userId, username, ipAddress, dto);
 
-        operationLogService.log(userId, (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME),
+        operationLogService.log(userId, username,
                 "NODE_CREATE", "创建节点: " + dto.getName(),
-                "node", nodeId, familyId, getClientIp(request));
+                "node", nodeId, familyId, ipAddress);
 
         Map<String, Object> data = new HashMap<>(4);
         data.put("nodeId", nodeId);
@@ -56,11 +58,13 @@ public class FamilyNodeController extends BaseController {
                                HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
-        familyNodeService.updateNode(familyId, dto);
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        String ipAddress = getClientIp(request);
+        familyNodeService.updateNode(familyId, userId, username, ipAddress, dto);
 
-        operationLogService.log(userId, (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME),
+        operationLogService.log(userId, username,
                 "NODE_UPDATE", "更新节点: id=" + dto.getId(),
-                "node", dto.getId(), familyId, getClientIp(request));
+                "node", dto.getId(), familyId, ipAddress);
         return Result.success();
     }
 
@@ -69,11 +73,13 @@ public class FamilyNodeController extends BaseController {
                                HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
-        familyNodeService.deleteNode(familyId, nodeId);
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        String ipAddress = getClientIp(request);
+        familyNodeService.deleteNode(familyId, nodeId, userId, username, ipAddress);
 
-        operationLogService.log(userId, (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME),
+        operationLogService.log(userId, username,
                 "NODE_DELETE", "删除节点: id=" + nodeId,
-                "node", nodeId, familyId, getClientIp(request));
+                "node", nodeId, familyId, ipAddress);
         return Result.success();
     }
 
