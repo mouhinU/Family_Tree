@@ -121,17 +121,18 @@
                 var uid = this.getAttribute('data-uid');
                 var role = this.getAttribute('data-role');
                 var actionText = role === 'ADMIN' ? '设为管理员' : '取消管理员';
-                if (!confirm('确定' + actionText + '？')) return;
-                var res = await FT.api('/api/family/member/role', {
-                    method: 'PUT',
-                    body: JSON.stringify({userId: parseInt(uid, 10), role: role})
+                FT.confirm('确定' + actionText + '？', async function() {
+                    var res = await FT.api('/api/family/member/role', {
+                        method: 'PUT',
+                        body: JSON.stringify({userId: parseInt(uid, 10), role: role})
+                    });
+                    if (res.code === 200) {
+                        FT.closeModal();
+                        showFamilyModal();
+                    } else {
+                        FT.toast(res.message || '操作失败');
+                    }
                 });
-                if (res.code === 200) {
-                    FT.closeModal();
-                    showFamilyModal();
-                } else {
-                    FT.toast(res.message || '操作失败');
-                }
             });
         });
 
@@ -139,14 +140,15 @@
         document.querySelectorAll('.btn-remove-member').forEach(function(btn) {
             btn.addEventListener('click', async function() {
                 var uid = this.getAttribute('data-uid');
-                if (!confirm('确定移除该成员？')) return;
-                var res = await FT.api('/api/family/member/' + uid, {method: 'DELETE'});
-                if (res.code === 200) {
-                    FT.closeModal();
-                    showFamilyModal();
-                } else {
-                    FT.toast(res.message || '操作失败');
-                }
+                FT.confirm('确定移除该成员？', async function() {
+                    var res = await FT.api('/api/family/member/' + uid, {method: 'DELETE'});
+                    if (res.code === 200) {
+                        FT.closeModal();
+                        showFamilyModal();
+                    } else {
+                        FT.toast(res.message || '操作失败');
+                    }
+                });
             });
         });
 

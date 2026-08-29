@@ -753,13 +753,14 @@
     }
 
     async function deleteNode(nodeId) {
-        if (!confirm('确定删除该节点？关联的关系也会一并删除。')) return;
-        var res = await FT.api('/api/node/' + nodeId, {method: 'DELETE'});
-        if (res.code === 200) {
-            await FT.loadTree();
-        } else {
-            FT.toast(res.message || '删除失败');
-        }
+        FT.confirm('确定删除该节点？关联的关系也会一并删除。', async function () {
+            var res = await FT.api('/api/node/' + nodeId, {method: 'DELETE'});
+            if (res.code === 200) {
+                await FT.loadTree();
+            } else {
+                FT.toast(res.message || '删除失败');
+            }
+        });
     }
 
     // ========== 过继/收养 ==========

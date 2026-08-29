@@ -133,7 +133,13 @@
             document.getElementById('legend').classList.toggle('open');
         });
 
-        // 工具栏整体下拉隐藏：点击把手收起 / 展开，画布随之上移填补
+        // 工具栏整体下拉隐藏：点击把手收起 / 展开，画布随之上移填补；
+        // 移动端默认展开，保证搜索开关与工具项在族谱页面直接可见，桌面端保持默认收起
+        if (window.matchMedia('(max-width: 768px)').matches) {
+            document.getElementById('toolbar').classList.remove('collapsed');
+            document.body.classList.remove('toolbar-hidden');
+            document.getElementById('toolbar-handle').title = '收起工具栏';
+        }
         document.getElementById('toolbar-handle').addEventListener('click', function () {
             const collapsed = document.getElementById('toolbar').classList.toggle('collapsed');
             document.body.classList.toggle('toolbar-hidden', collapsed);
@@ -456,6 +462,12 @@
             mobileSearchClose.addEventListener('click', closeMobileSearch);
         }
 
+        // 移动端顶部导航搜索入口：打开搜索浮层
+        var btnMobileSearch = document.getElementById('btn-mobile-search');
+        if (btnMobileSearch) {
+            btnMobileSearch.addEventListener('click', openMobileSearch);
+        }
+
         // ========== 移动端侧滑抽屉 ==========
         var drawer = document.getElementById('mobile-drawer');
         var drawerOverlay = document.getElementById('mobile-drawer-overlay');
@@ -508,11 +520,9 @@
             'drawer-btn-family': function () { closeDrawer(); FT.showFamilyModal(); },
             'drawer-btn-timeline': function () { closeDrawer(); FT.showTimelineModal(); },
             'drawer-btn-relation-path': function () { closeDrawer(); FT.showRelationPathModal(); },
-            'drawer-btn-message': function () { closeDrawer(); FT.showMessageModal(); },
             'drawer-btn-profile': function () { closeDrawer(); FT.showProfileModal(); },
             'drawer-btn-family-switch': function () { closeDrawer(); FT.showFamilySwitcherModal(); },
             'drawer-btn-death-anniversary': function () { closeDrawer(); FT.showDeathAnniversaryModal(); },
-            'drawer-btn-invite': function () { closeDrawer(); FT.showInviteModal(); },
             'drawer-btn-operation-log': function () { closeDrawer(); FT.showOperationLogModal(); },
             'drawer-btn-export': function () { closeDrawer(); FT.exportToPdf(); },
             'drawer-btn-add-root': function () { closeDrawer(); FT.showNodeModal('添加始祖', {}); },

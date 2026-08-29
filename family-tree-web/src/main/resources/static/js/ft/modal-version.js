@@ -323,20 +323,21 @@
      * 删除快照
      */
     async function deleteSnapshot(snapshotId) {
-        if (!confirm('确定删除此快照？')) { return; }
-        try {
-            var res = await FT.api('/api/version/snapshot/' + snapshotId, {
-                method: 'DELETE'
-            });
-            if (res.code === 200) {
-                FT.toast('快照已删除');
-                loadSnapshots();
-            } else {
-                FT.toast('删除失败', 'error');
+        FT.confirm('确定删除此快照？', async function () {
+            try {
+                var res = await FT.api('/api/version/snapshot/' + snapshotId, {
+                    method: 'DELETE'
+                });
+                if (res.code === 200) {
+                    FT.toast('快照已删除');
+                    loadSnapshots();
+                } else {
+                    FT.toast('删除失败', 'error');
+                }
+            } catch (e) {
+                FT.toast('请求失败', 'error');
             }
-        } catch (e) {
-            FT.toast('请求失败', 'error');
-        }
+        });
     }
 
     /* ================================================================

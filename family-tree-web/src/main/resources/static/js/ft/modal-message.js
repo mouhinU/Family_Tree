@@ -259,15 +259,16 @@
         document.querySelectorAll('.msg-delete-btn').forEach(function (btn) {
             btn.addEventListener('click', async function () {
                 var msgId = btn.dataset.msgId;
-                if (!confirm('确定删除这条留言吗？删除后所有回复也将一并删除。')) return;
-                var delRes = await FT.api('/api/message/' + msgId, { method: 'DELETE' });
-                if (delRes.code === 200) {
-                    FT.toast('已删除');
-                    if (FT.refreshMessageCarousel) FT.refreshMessageCarousel();
-                    showMessageModal(page);
-                } else {
-                    FT.toast(delRes.message || '删除失败');
-                }
+                FT.confirm('确定删除这条留言吗？删除后所有回复也将一并删除。', async function () {
+                    var delRes = await FT.api('/api/message/' + msgId, { method: 'DELETE' });
+                    if (delRes.code === 200) {
+                        FT.toast('已删除');
+                        if (FT.refreshMessageCarousel) FT.refreshMessageCarousel();
+                        showMessageModal(page);
+                    } else {
+                        FT.toast(delRes.message || '删除失败');
+                    }
+                });
             });
         });
 
@@ -349,14 +350,15 @@
         document.querySelectorAll('.msg-reply-delete-btn').forEach(function (btn) {
             btn.addEventListener('click', async function () {
                 var replyId = btn.dataset.replyId;
-                if (!confirm('确定删除这条回复吗？')) return;
-                var delRes = await FT.api('/api/message/' + replyId, { method: 'DELETE' });
-                if (delRes.code === 200) {
-                    FT.toast('已删除');
-                    showMessageModal(page);
-                } else {
-                    FT.toast(delRes.message || '删除失败');
-                }
+                FT.confirm('确定删除这条回复吗？', async function () {
+                    var delRes = await FT.api('/api/message/' + replyId, { method: 'DELETE' });
+                    if (delRes.code === 200) {
+                        FT.toast('已删除');
+                        showMessageModal(page);
+                    } else {
+                        FT.toast(delRes.message || '删除失败');
+                    }
+                });
             });
         });
     }
