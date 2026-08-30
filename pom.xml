@@ -33,6 +33,11 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <mybatis-plus.version>3.5.9</mybatis-plus.version>
         <family-tree.version>1.0.0-SNAPSHOT</family-tree.version>
+        <!-- SonarCloud 分析配置 -->
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+        <sonar.organization>mouhinU</sonar.organization>
+        <sonar.projectKey>mouhinU_Family_Tree</sonar.projectKey>
+        <sonar.exclusions>**/target/**,data/**,logs/**,docs/**</sonar.exclusions>
     </properties>
 
     <dependencyManagement>
