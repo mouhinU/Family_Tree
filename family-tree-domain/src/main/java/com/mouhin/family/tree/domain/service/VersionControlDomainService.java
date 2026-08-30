@@ -1,8 +1,7 @@
 package com.mouhin.family.tree.domain.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
@@ -29,8 +28,7 @@ import java.util.*;
 public class VersionControlDomainService {
 
     private static final Logger logger = LoggerFactory.getLogger(VersionControlDomainService.class);
-    private static final ObjectMapper objectMapper = new ObjectMapper()
-            .registerModule(new JavaTimeModule());
+    private static final JsonMapper objectMapper = JsonMapper.builder().build();
 
     private final HistoryRepository historyRepository;
     private final SnapshotRepository snapshotRepository;
@@ -291,10 +289,10 @@ public class VersionControlDomainService {
             JsonNode node1 = objectMapper.readTree(version1);
             JsonNode node2 = objectMapper.readTree(version2);
 
-            // 遍历所有字段
+            // 遍历所有字段（Jackson 3 使用 properties() 替代 fieldNames()）
             Set<String> allFields = new HashSet<>();
-            node1.fieldNames().forEachRemaining(allFields::add);
-            node2.fieldNames().forEachRemaining(allFields::add);
+            node1.properties().forEach(entry -> allFields.add(entry.getKey()));
+            node2.properties().forEach(entry -> allFields.add(entry.getKey()));
 
             for (String field : allFields) {
                 JsonNode value1 = node1.get(field);

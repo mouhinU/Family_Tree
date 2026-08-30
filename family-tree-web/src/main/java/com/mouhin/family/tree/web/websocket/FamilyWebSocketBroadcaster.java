@@ -1,6 +1,6 @@
 package com.mouhin.family.tree.web.websocket;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.mouhin.family.tree.domain.event.MemberJoinedEvent;
 import com.mouhin.family.tree.domain.event.NodeCreatedEvent;
 import org.slf4j.Logger;
@@ -25,7 +25,7 @@ public class FamilyWebSocketBroadcaster {
     private static final Logger logger = LoggerFactory.getLogger(FamilyWebSocketBroadcaster.class);
 
     private final FamilyWebSocketHandler webSocketHandler;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final JsonMapper objectMapper = JsonMapper.builder().build();
 
     public FamilyWebSocketBroadcaster(FamilyWebSocketHandler webSocketHandler) {
         this.webSocketHandler = webSocketHandler;

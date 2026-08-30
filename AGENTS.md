@@ -1,7 +1,7 @@
 # AGENTS.md — Family_Tree 编码规范
 
-> 本规范基于《Java开发手册》v1.5.0（华山版），结合 Family_Tree 项目技术栈（Spring Boot 3.4.1 / Java 21 / MyBatis-Plus
-> 3.5.9 / H2 + MySQL / Flyway / D3.js）进行定制化裁剪。**所有 AI 生成的代码必须严格遵循以下规则。**
+> 本规范基于《Java开发手册》v1.5.0（华山版），结合 Family_Tree 项目技术栈（Spring Boot 4.0.8 / Java 21 / MyBatis-Plus
+> 3.5.17 / Spring AI 2.0 / Jackson 3 / H2 + MySQL / Flyway / D3.js）进行定制化裁剪。**所有 AI 生成的代码必须严格遵循以下规则。**
 
 ---
 

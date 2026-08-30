@@ -1,7 +1,7 @@
 package com.mouhin.family.tree.web.websocket;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -29,7 +29,7 @@ public class FamilyWebSocketHandler extends TextWebSocketHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(FamilyWebSocketHandler.class);
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final JsonMapper objectMapper = JsonMapper.builder().build();
 
     /** familyId → 在线会话集合 */
     private final ConcurrentHashMap<Long, Set<WebSocketSession>> familySessions = new ConcurrentHashMap<>();

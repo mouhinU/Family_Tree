@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.4.1</version>
+        <version>4.0.8</version>
         <relativePath/>
     </parent>
 
@@ -31,7 +31,10 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <mybatis-plus.version>3.5.9</mybatis-plus.version>
+        <mybatis-plus.version>3.5.17</mybatis-plus.version>
+        <spring-ai.version>2.0.0</spring-ai.version>
+        <!-- H2 2.4 移除了 DATETIME 类型，会破坏存量迁移脚本，固定在已验证的 2.3.232 -->
+        <h2.version>2.3.232</h2.version>
         <family-tree.version>1.0.0-SNAPSHOT</family-tree.version>
         <!-- SonarCloud 分析配置 -->
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
@@ -64,11 +67,20 @@
                 <version>${family-tree.version}</version>
             </dependency>
 
-            <!-- MyBatis-Plus -->
+            <!-- MyBatis-Plus（Spring Boot 4 专用 starter） -->
             <dependency>
                 <groupId>com.baomidou</groupId>
-                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+                <artifactId>mybatis-plus-spring-boot4-starter</artifactId>
                 <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <!-- Spring AI -->
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
 
             <!-- ZXing QR Code -->

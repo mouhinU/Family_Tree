@@ -1,6 +1,6 @@
 package com.mouhin.family.tree.web.filter;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.json.JsonMapper;
 import com.mouhin.family.tree.common.result.Result;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -35,7 +35,7 @@ public class CsrfFilter implements Filter {
      */
     public static final String CSRF_TOKEN_HEADER = "X-CSRF-TOKEN";
     private static final Logger logger = LoggerFactory.getLogger(CsrfFilter.class);
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final JsonMapper OBJECT_MAPPER = JsonMapper.builder().build();
 
     /**
      * 生成新的 CSRF Token 并存入 Session。

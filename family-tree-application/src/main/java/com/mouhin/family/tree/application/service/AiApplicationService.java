@@ -1,35 +1,23 @@
 package com.mouhin.family.tree.application.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mouhin.family.tree.common.dto.*;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
+import com.mouhin.family.tree.domain.gateway.AiChatGateway;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
-
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * AI 应用服务
  * <p>
  * 提供四大 AI 能力：智能录入、自然语言查询、家族故事生成、OCR 解析。
- * 通过 OpenAI 兼容格式调用大模型 API（支持 DeepSeek / OpenAI 等）。
+ * 大模型调用统一委托给 {@link AiChatGateway}（基础设施层基于 Spring AI 实现）。
  *
  * @author Family-Tree
  * @date 2026-08-27
@@ -39,35 +27,22 @@ public class AiApplicationService {
 
     private static final Logger logger = LoggerFactory.getLogger(AiApplicationService.class);
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final String SYSTEM_PROMPT =
+            "你是一个专业的族谱管理助手，精通中国家族文化和族谱编撰。请用中文回答。";
+
     private final FamilyNodeRepository familyNodeRepository;
     private final FamilyRelationRepository familyRelationRepository;
     private final FamilyTreeApplicationService familyTreeApplicationService;
-    private HttpClient httpClient;
-    @Value("${ai.llm.enabled:false}")
-    private boolean aiEnabled;
-    @Value("${ai.llm.api-key:}")
-    private String apiKey;
-    @Value("${ai.llm.api-url:https://api.deepseek.com/chat/completions}")
-    private String apiUrl;
-    @Value("${ai.llm.model:deepseek-chat}")
-    private String model;
-    @Value("${ai.llm.timeout-seconds:60}")
-    private int timeoutSeconds;
+    private final AiChatGateway aiChatGateway;
 
     public AiApplicationService(FamilyNodeRepository familyNodeRepository,
                                 FamilyRelationRepository familyRelationRepository,
-                                FamilyTreeApplicationService familyTreeApplicationService) {
+                                FamilyTreeApplicationService familyTreeApplicationService,
+                                AiChatGateway aiChatGateway) {
         this.familyNodeRepository = familyNodeRepository;
         this.familyRelationRepository = familyRelationRepository;
         this.familyTreeApplicationService = familyTreeApplicationService;
-    }
-
-    @PostConstruct
-    void init() {
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(timeoutSeconds))
-                .build();
+        this.aiChatGateway = aiChatGateway;
     }
 
     /**
@@ -78,10 +53,8 @@ public class AiApplicationService {
      * @return 结构化节点和关系
      */
     public AiSmartEntryVO smartEntry(Long familyId, AiSmartEntryDTO dto) {
-        checkAiEnabled();
         String prompt = buildSmartEntryPrompt(dto.getDescription());
-        String response = callLlm(prompt);
-        return parseSmartEntryResponse(response);
+        return aiChatGateway.chatForEntity(SYSTEM_PROMPT, prompt, AiSmartEntryVO.class);
     }
 
     /**
@@ -92,11 +65,10 @@ public class AiApplicationService {
      * @return AI 回答
      */
     public AiQueryVO query(Long familyId, AiQueryDTO dto) {
-        checkAiEnabled();
         List<TreeNodeVO> tree = familyTreeApplicationService.getFullTree(familyId);
         String treeSummary = buildTreeSummary(tree);
         String prompt = buildQueryPrompt(dto.getQuestion(), treeSummary);
-        String response = callLlm(prompt);
+        String response = aiChatGateway.chat(SYSTEM_PROMPT, prompt);
         AiQueryVO vo = new AiQueryVO();
         vo.setAnswer(response);
         return vo;
@@ -110,7 +82,6 @@ public class AiApplicationService {
      * @return 生成的故事文本
      */
     public AiStoryVO generateStory(Long familyId, AiStoryDTO dto) {
-        checkAiEnabled();
         FamilyNode node = familyNodeRepository.findById(dto.getNodeId());
         if (node == null || !node.getFamilyId().equals(familyId)) {
             throw new BusinessException("节点不存在或无权访问");
@@ -121,7 +92,7 @@ public class AiApplicationService {
 
         String nodeInfo = buildNodeDetailInfo(node, allNodes, allRelations);
         String prompt = buildStoryPrompt(node, nodeInfo);
-        String response = callLlm(prompt);
+        String response = aiChatGateway.chat(SYSTEM_PROMPT, prompt);
 
         AiStoryVO vo = new AiStoryVO();
         vo.setStory(response);
@@ -136,77 +107,8 @@ public class AiApplicationService {
      * @return 结构化节点和关系
      */
     public AiSmartEntryVO ocrParse(Long familyId, AiOcrParseDTO dto) {
-        checkAiEnabled();
         String prompt = buildOcrParsePrompt(dto.getRecognizedText());
-        String response = callLlm(prompt);
-        return parseSmartEntryResponse(response);
-    }
-
-    // ==================== LLM 调用 ====================
-
-    /**
-     * 调用大模型 API
-     *
-     * @param prompt 提示词
-     * @return 模型回复文本
-     */
-    private String callLlm(String prompt) {
-        if (apiKey == null || apiKey.isBlank()) {
-            throw new BusinessException("AI 功能未配置 API Key，请联系管理员");
-        }
-
-        try {
-            Map<String, Object> systemMsg = new LinkedHashMap<>(2);
-            systemMsg.put("role", "system");
-            systemMsg.put("content", "你是一个专业的族谱管理助手，精通中国家族文化和族谱编篁。请用中文回答。");
-        
-            Map<String, Object> userMsg = new LinkedHashMap<>(2);
-            userMsg.put("role", "user");
-            userMsg.put("content", prompt);
-        
-            Map<String, Object> requestBody = new LinkedHashMap<>(5);
-            requestBody.put("model", model);
-            requestBody.put("messages", List.of(systemMsg, userMsg));
-            requestBody.put("temperature", 0.7);
-            requestBody.put("max_tokens", 4096);
-        
-            String jsonBody = OBJECT_MAPPER.writeValueAsString(requestBody);
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(apiUrl))
-                    .timeout(Duration.ofSeconds(timeoutSeconds))
-                    .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer " + apiKey)
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() != 200) {
-                logger.error("LLM API 调用失败: status={}, body={}", response.statusCode(), response.body());
-                throw new BusinessException("AI 服务调用失败，请稍后重试");
-            }
-
-            JsonNode root = OBJECT_MAPPER.readTree(response.body());
-            String content = root.path("choices").path(0).path("message").path("content").asText("");
-
-            if (content.isBlank()) {
-                throw new BusinessException("AI 返回内容为空，请稍后重试");
-            }
-
-            return content;
-        } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            logger.error("LLM API 调用异常", e);
-            throw new BusinessException("AI 服务调用异常：" + e.getMessage());
-        }
-    }
-
-    private void checkAiEnabled() {
-        if (!aiEnabled) {
-            throw new BusinessException("AI 功能未启用，请在配置中设置 ai.llm.enabled=true");
-        }
+        return aiChatGateway.chatForEntity(SYSTEM_PROMPT, prompt, AiSmartEntryVO.class);
     }
 
     // ==================== 提示词工程 ====================
@@ -366,92 +268,5 @@ public class AiApplicationService {
             }
         }
         return null;
-    }
-
-    // ==================== 响应解析 ====================
-
-    private AiSmartEntryVO parseSmartEntryResponse(String response) {
-        try {
-            // 尝试从响应中提取 JSON（模型可能返回带说明的文字）
-            String jsonStr = extractJson(response);
-            JsonNode root = OBJECT_MAPPER.readTree(jsonStr);
-
-            AiSmartEntryVO vo = new AiSmartEntryVO();
-            List<AiSmartEntryVO.AiNodeDTO> nodes = new ArrayList<>();
-            List<AiSmartEntryVO.AiRelationDTO> relations = new ArrayList<>();
-
-            JsonNode nodesNode = root.path("nodes");
-            if (nodesNode.isArray()) {
-                for (JsonNode n : nodesNode) {
-                    AiSmartEntryVO.AiNodeDTO node = new AiSmartEntryVO.AiNodeDTO();
-                    node.setName(getTextOrNull(n, "name"));
-                    node.setGender(getIntOrNull(n, "gender"));
-                    node.setBirthDate(getTextOrNull(n, "birthDate"));
-                    node.setDeathDate(getTextOrNull(n, "deathDate"));
-                    node.setLunarBirthDate(getTextOrNull(n, "lunarBirthDate"));
-                    node.setLunarDeathDate(getTextOrNull(n, "lunarDeathDate"));
-                    node.setZi(getTextOrNull(n, "zi"));
-                    node.setHao(getTextOrNull(n, "hao"));
-                    node.setHui(getTextOrNull(n, "hui"));
-                    node.setGraveLocation(getTextOrNull(n, "graveLocation"));
-                    node.setSpouseName(getTextOrNull(n, "spouseName"));
-                    node.setSpouseOriginFamily(getTextOrNull(n, "spouseOriginFamily"));
-                    node.setRemark(getTextOrNull(n, "remark"));
-                    nodes.add(node);
-                }
-            }
-
-            JsonNode relationsNode = root.path("relations");
-            if (relationsNode.isArray()) {
-                for (JsonNode r : relationsNode) {
-                    AiSmartEntryVO.AiRelationDTO rel = new AiSmartEntryVO.AiRelationDTO();
-                    rel.setFromName(getTextOrNull(r, "fromName"));
-                    rel.setToName(getTextOrNull(r, "toName"));
-                    rel.setRelationType(getIntOrNull(r, "relationType"));
-                    rel.setMarriageDate(getTextOrNull(r, "marriageDate"));
-                    relations.add(rel);
-                }
-            }
-
-            vo.setNodes(nodes);
-            vo.setRelations(relations);
-            return vo;
-        } catch (Exception e) {
-            logger.error("解析 AI 响应失败: {}", response, e);
-            throw new BusinessException("AI 返回结果解析失败，请重试");
-        }
-    }
-
-    private String extractJson(String text) {
-        // 尝试找到 JSON 对象
-        int start = text.indexOf('{');
-        int end = text.lastIndexOf('}');
-        if (start >= 0 && end > start) {
-            return text.substring(start, end + 1);
-        }
-        // 尝试找到 JSON 数组
-        start = text.indexOf('[');
-        end = text.lastIndexOf(']');
-        if (start >= 0 && end > start) {
-            return text.substring(start, end + 1);
-        }
-        return text;
-    }
-
-    private String getTextOrNull(JsonNode node, String field) {
-        JsonNode value = node.path(field);
-        if (value.isNull() || value.isMissingNode()) {
-            return null;
-        }
-        String text = value.asText(null);
-        return (text != null && !text.isBlank()) ? text : null;
-    }
-
-    private Integer getIntOrNull(JsonNode node, String field) {
-        JsonNode value = node.path(field);
-        if (value.isNull() || value.isMissingNode()) {
-            return null;
-        }
-        return value.asInt(0);
     }
 }

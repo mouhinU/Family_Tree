@@ -11,8 +11,16 @@ spring:
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
     time-zone: Asia/Shanghai
-    serialization:
-      write-dates-as-timestamps: false
+
+  # Spring AI（OpenAI 兼容协议，默认对接 DeepSeek，可切换任意兼容服务）
+  ai:
+    openai:
+      base-url: ${AI_BASE_URL:https://api.deepseek.com}
+      api-key: ${AI_API_KEY:}
+      chat:
+        model: ${AI_MODEL:deepseek-chat}
+        temperature: 0.7
+        max-tokens: 4096
 
 mybatis-plus:
   configuration:
@@ -45,11 +53,7 @@ management:
   cache:
     cache-names: familyTreeCache
 
-# AI 大模型配置（OpenAI 兼容格式，支持 DeepSeek / OpenAI 等）
+# AI 功能开关（模型接入参数见 spring.ai.openai）
 ai:
   llm:
     enabled: false
-    api-key: ""
-    api-url: "https://api.deepseek.com/chat/completions"
-    model: "deepseek-chat"
-    timeout-seconds: 60

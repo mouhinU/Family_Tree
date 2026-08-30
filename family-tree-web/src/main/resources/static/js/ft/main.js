@@ -40,7 +40,6 @@
             if (familyNameEl) {
                 familyNameEl.textContent = res.data.familyName || '';
             }
-
             // 卷轴封面动态显示家族名称（如：蒙氏族谱、嬴氏族谱）
             var scrollSealEl = document.getElementById('scroll-seal-text');
             if (scrollSealEl && res.data.familyName) {

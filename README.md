@@ -7,10 +7,12 @@
 | 分类       | 技术                                         | 版本                   |
 |----------|--------------------------------------------|----------------------|
 | 语言 / 运行时 | Java                                       | 21                   |
-| 后端框架     | Spring Boot                                | 3.4.1                |
-| ORM      | MyBatis-Plus                               | 3.5.9                |
+| 后端框架     | Spring Boot                                | 4.0.8                |
+| AI 框架    | Spring AI（OpenAI 兼容，默认对接 DeepSeek）         | 2.0.0                |
+| ORM      | MyBatis-Plus（spring-boot4-starter）         | 3.5.17               |
+| JSON     | Jackson 3                                  | 3.x                  |
 | 数据库      | H2（开发，文件模式）/ MySQL（生产）                     | H2 2.3.x / MySQL 8.x |
-| 数据库迁移    | Flyway（H2 + MySQL 双轨）                      | 10.x（V1–V17）         |
+| 数据库迁移    | Flyway（H2 + MySQL 双轨）                      | 10.x（V1–V22）         |
 | 密码加密     | Spring Security Crypto（BCrypt，存量 MD5 透明迁移） | —                    |
 | 缓存       | Caffeine（族谱树缓存、登录限流）                       | 3.1.8                |
 | 监控       | Micrometer + Actuator                      | —                    |
@@ -122,7 +124,23 @@ cd family-tree-web
 | `dev`（默认） | H2 文件库 `./data/family-tree`（AUTO_SERVER 模式）     | `db/migration/h2`    |
 | `mysql`   | MySQL `jdbc:mysql://localhost:3306/family_tree` | `db/migration/mysql` |
 
-Flyway 在启动时自动执行迁移（V1~V17），`baseline-on-migrate: true`。
+Flyway 在启动时自动执行迁移（V1~V22），`baseline-on-migrate: true`。
+
+### AI 功能配置
+
+AI 能力（智能录入、自然语言问答、家族故事、OCR 解析）基于 Spring AI 2.0（OpenAI 兼容协议，默认对接 DeepSeek）。默认关闭，启用方式：
+
+| 配置项                    | 环境变量          | 默认值                          | 说明              |
+|------------------------|---------------|------------------------------|-----------------|
+| `ai.llm.enabled`       | `AI_LLM_ENABLED` | `false`                    | AI 功能总开关        |
+| `spring.ai.openai.api-key`  | `AI_API_KEY`  | 空                     | 模型服务 API Key    |
+| `spring.ai.openai.base-url` | `AI_BASE_URL` | `https://api.deepseek.com` | 模型服务地址（可切换任意 OpenAI 兼容服务） |
+| `spring.ai.openai.chat.model` | `AI_MODEL` | `deepseek-chat`            | 模型名称            |
+
+```bash
+# 示例：启用 AI 功能
+AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
+```
 
 ## 数据库模型
 
