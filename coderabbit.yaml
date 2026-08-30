@@ -1,0 +1,66 @@
+# CodeRabbit 代码评审配置
+# 文档: https://docs.coderabbit.ai/reference/configuration
+language: "zh-CN"
+
+reviews:
+  profile: "assertive"
+
+  auto_review:
+    enabled: true
+    drafts: true
+    auto_incremental_review: true
+
+  path_filters:
+    - "!**/target/**"
+    - "!**/logs/**"
+    - "!data/**"
+    - "!docs/**"
+
+  tools:
+    yamllint:
+      enabled: true
+    shellcheck:
+      enabled: true
+    gitleaks:
+      enabled: true
+
+# 按路径定制评审规则,与 AGENTS.md 编码规范保持一致
+path_instructions:
+  - path: "**/*.java"
+    instructions: |
+      依据仓库根目录的 AGENTS.md(Java 开发手册华山版定制规范)进行评审,重点关注:
+      - 命名规范:类名/方法名/常量命名,枚举以 Enum 结尾,布尔属性禁止 is 前缀
+      - 所有类必须有 Javadoc(@author Family-Tree + @date)
+      - 禁止魔法值,常量集中定义
+      - DDD 分层:领域层不得依赖基础设施;仓储接口在领域层、实现在基础设施层;
+        应用服务只做编排,事务边界在应用层(@Transactional)
+      - SQL 参数必须用 #{} 绑定,禁止 SELECT *
+      - 线程池必须用 ThreadPoolExecutor 明确参数,禁止 Executors 创建
+      - ThreadLocal 必须在 finally 中 remove
+      - 异常不得空 catch,业务异常使用带错误码的自定义异常
+      - POJO 属性使用包装类型且不设默认值
+  - path: "**/src/test/**/*.java"
+    instructions: |
+      评审测试代码时关注:
+      - 遵循 AIR 原则(自动化、独立、可重复),禁止 System.out 代替断言
+      - MyBatis-Plus BaseMapper 重载方法需使用显式泛型
+        ArgumentMatchers.<EntityDO>any() 避免编译歧义
+      - 测试需覆盖边界值与错误输入(BCDE 原则)
+  - path: "**/*.sql"
+    instructions: |
+      评审 SQL 迁移脚本时关注:
+      - 表必须包含 id、create_time、update_time 三字段
+      - 索引命名:主键 pk_、唯一索引 uk_、普通索引 idx_
+      - 禁止外键和级联;小数用 decimal,禁止 float/double
+      - H2 与 MySQL 两个版本的迁移脚本必须同步存在且语义一致
+  - path: "**/*.js"
+    instructions: |
+      评审前端 JS 时关注 XSS 防护:所有用户输入渲染前必须经过
+      escapeHtml()/escapeAttr() 转义。
+  - path: ".github/workflows/*.yml"
+    instructions: |
+      评审 CI/CD 配置时关注:密钥必须通过 secrets 引用,禁止硬编码;
+      Actions 版本应使用固定主版本标签。
+
+chat:
+  auto_reply: true
