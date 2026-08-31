@@ -1,5 +1,6 @@
 package com.mouhin.family.tree.web.controller;
 
+import com.mouhin.family.tree.application.service.OperationLogApplicationService;
 import com.mouhin.family.tree.application.service.VersionControlApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.result.Result;
@@ -25,9 +26,12 @@ import java.util.Map;
 public class VersionControlController extends BaseController {
 
     private final VersionControlApplicationService versionControlService;
+    private final OperationLogApplicationService operationLogService;
 
-    public VersionControlController(VersionControlApplicationService versionControlService) {
+    public VersionControlController(VersionControlApplicationService versionControlService,
+                                    OperationLogApplicationService operationLogService) {
         this.versionControlService = versionControlService;
+        this.operationLogService = operationLogService;
     }
 
     /**
@@ -164,6 +168,10 @@ public class VersionControlController extends BaseController {
                 username != null ? username : ""
         );
 
+        operationLogService.log(userId, username, "VERSION_SNAPSHOT",
+                "创建家族快照: " + snapshotName, "snapshot", snapshot.getId(),
+                familyId, getClientIp(request));
+
         Map<String, Object> data = new HashMap<>(2);
         data.put("snapshotId", snapshot.getId());
         data.put("createTime", snapshot.getCreateTime());
@@ -204,8 +212,15 @@ public class VersionControlController extends BaseController {
      * @return 操作结果
      */
     @DeleteMapping("/snapshot/{snapshotId}")
-    public Result<Void> deleteSnapshot(@PathVariable Long snapshotId, HttpSession session) {
+    public Result<Void> deleteSnapshot(@PathVariable Long snapshotId, HttpSession session,
+                                       HttpServletRequest request) {
+        Long familyId = getCurrentFamilyId(session);
         versionControlService.deleteSnapshot(snapshotId);
+
+        operationLogService.log(getCurrentUserId(session),
+                (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME),
+                "VERSION_SNAPSHOT_DELETE", "删除家族快照: id=" + snapshotId,
+                "snapshot", snapshotId, familyId, getClientIp(request));
         return Result.success();
     }
 

@@ -49,6 +49,7 @@ public final class FamilyNodeConverter {
         entity.setGraveLocation(doObj.getGraveLocation());
         entity.setSpouseName(doObj.getSpouseName());
         entity.setSpouseOriginFamily(doObj.getSpouseOriginFamily());
+        entity.setBiography(doObj.getBiography());
         entity.setCreateTime(doObj.getCreateTime());
         entity.setUpdateTime(doObj.getUpdateTime());
         return entity;
@@ -85,6 +86,7 @@ public final class FamilyNodeConverter {
         doObj.setGraveLocation(entity.getGraveLocation());
         doObj.setSpouseName(entity.getSpouseName());
         doObj.setSpouseOriginFamily(entity.getSpouseOriginFamily());
+        doObj.setBiography(entity.getBiography());
         doObj.setCreateTime(entity.getCreateTime());
         doObj.setUpdateTime(entity.getUpdateTime());
         return doObj;

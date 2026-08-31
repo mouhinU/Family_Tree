@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#a63a2b">
     <title>族谱管理系统</title>
     <link rel="manifest" href="/manifest.json">
-    <link href="/css/style.css?v=20260828n" rel="stylesheet">
+    <link href="/css/style.css?v=20260830a" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -60,6 +60,12 @@
                 <div class="header-more-item" id="btn-profile" title="维护个人信息">个人信息</div>
                 <div class="header-more-item" id="btn-family-switch" title="切换家族">切换家族</div>
                 <div class="header-more-item" id="btn-death-anniversary" title="忌日提醒">忌日提醒</div>
+                <div class="header-more-item" id="btn-birthday" title="生日提醒">生日提醒</div>
+                <div class="header-more-item" id="btn-anniversary" title="纪念日管理">纪念日管理</div>
+                <div class="header-more-item" id="btn-album" title="家族相册">家族相册</div>
+                <div class="header-more-item" id="btn-forum" title="家族论坛">家族论坛</div>
+                <div class="header-more-item" id="btn-chat" title="私信">私信</div>
+                <div class="header-more-item" id="btn-event" title="活动组织">活动组织</div>
                 <div class="header-more-item" id="btn-invite" title="邀请族人加入">邀请族人</div>
                 <div class="header-more-item" id="btn-operation-log" style="display:none;">操作日志</div>
             </div>
@@ -124,6 +130,30 @@
         <div class="drawer-nav-item" id="drawer-btn-death-anniversary">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             <span>忌日提醒</span>
+        </div>
+        <div class="drawer-nav-item" id="drawer-btn-birthday">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8"/><path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1"/><path d="M2 21h20"/><path d="M7 8v3"/><path d="M12 8v3"/><path d="M17 8v3"/><path d="M7 4h.01"/><path d="M12 4h.01"/><path d="M17 4h.01"/></svg>
+            <span>生日提醒</span>
+        </div>
+        <div class="drawer-nav-item" id="drawer-btn-anniversary">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            <span>纪念日管理</span>
+        </div>
+        <div class="drawer-nav-item" id="drawer-btn-album">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            <span>家族相册</span>
+        </div>
+        <div class="drawer-nav-item" id="drawer-btn-forum">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            <span>家族论坛</span>
+        </div>
+        <div class="drawer-nav-item" id="drawer-btn-chat">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <span>私信</span>
+        </div>
+        <div class="drawer-nav-item" id="drawer-btn-event">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>活动组织</span>
         </div>
         <div class="drawer-nav-item" id="drawer-btn-operation-log" style="display:none;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -258,6 +288,7 @@
         <div class="menu-item" data-action="mark-self">标记为我</div>
         <div class="menu-item" data-action="edit">编辑信息</div>
         <div class="menu-item" data-action="color">修改颜色</div>
+        <div class="menu-item" data-action="biography">撰写传记</div>
         <div class="menu-item" data-action="history">查看历史</div>
         <div class="menu-item danger" data-action="delete">删除节点</div>
     </div>
@@ -289,24 +320,31 @@
 
 <!-- 前端模块化拆分：core 定义命名空间/常量/状态，main 启动应用，顺序不可调换 -->
 <script src="/js/ft/core.js?v=20260804c"></script>
-<script src="/js/ft/api.js?v=20260809a"></script>
+<script src="/js/ft/api.js?v=20260830a"></script>
 <script src="/js/ft/layout.js?v=20260805c"></script>
 <script src="/js/ft/render.js?v=20260828b"></script>
 <script src="/js/ft/export.js?v=20260809a"></script>
 <script src="/js/ft/modals.js?v=20260828b"></script>
-<script src="/js/ft/modal-offering.js?v=20260809a"></script>
+<script src="/js/ft/modal-offering.js?v=20260830a"></script>
 <script src="/js/ft/modal-node.js?v=20260828a"></script>
 <script src="/js/ft/modal-family.js?v=20260828a"></script>
-<script src="/js/ft/modal-tools.js?v=20260809a"></script>
+<script src="/js/ft/modal-tools.js?v=20260830a"></script>
 <script src="/js/ft/modal-message.js?v=20260828a"></script>
 <script src="/js/ft/modal-notification.js?v=20260827a"></script>
 <script src="/js/ft/modal-ai.js?v=20260827b"></script>
 <script src="/js/ft/modal-version.js?v=20260828b"></script>
 <script src="/js/ft/modal-invite.js?v=20260828a"></script>
+<script src="/js/ft/modal-album.js?v=20260830a"></script>
+<script src="/js/ft/modal-forum.js?v=20260830a"></script>
+<script src="/js/ft/modal-chat.js?v=20260830a"></script>
+<script src="/js/ft/modal-event.js?v=20260830a"></script>
+<script src="/js/ft/modal-anniversary.js?v=20260830a"></script>
+<script src="/js/ft/modal-birthday.js?v=20260830a"></script>
+<script src="/js/ft/modal-biography.js?v=20260830a"></script>
 <script src="/js/ft/message-carousel.js?v=20260828a"></script>
-<script src="/js/ft/context-menu.js?v=20260828d"></script>
+<script src="/js/ft/context-menu.js?v=20260830a"></script>
 <script src="/js/ft/websocket.js?v=20260827a"></script>
-<script src="/js/ft/main.js?v=20260828g"></script>
+<script src="/js/ft/main.js?v=20260830a"></script>
 <script>
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {

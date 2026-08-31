@@ -3,10 +3,12 @@ package com.mouhin.family.tree.web.controller;
 import com.mouhin.family.tree.application.service.FamilyNodeApplicationService;
 import com.mouhin.family.tree.application.service.FamilyRelationApplicationService;
 import com.mouhin.family.tree.application.service.GedcomApplicationService;
+import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.FamilyNodeDTO;
 import com.mouhin.family.tree.common.dto.FamilyRelationDTO;
 import com.mouhin.family.tree.common.dto.GedcomImportResultVO;
 import com.mouhin.family.tree.common.result.Result;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
@@ -100,12 +102,14 @@ public class DataExportController extends BaseController {
     @PostMapping("/import/gedcom")
     public Result<GedcomImportResultVO> importGedcom(
             @RequestParam("file") MultipartFile file,
-            HttpSession session) throws IOException {
+            HttpSession session, HttpServletRequest request) throws IOException {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
         String content = readGedcomFile(file);
 
-        GedcomImportResultVO result = gedcomApplicationService.importGedcom(familyId, userId, content);
+        GedcomImportResultVO result = gedcomApplicationService.importGedcom(
+                familyId, userId, username, getClientIp(request), content);
         logger.info("GEDCOM import completed for family={}: {} nodes imported",
                 familyId, result.getImportedNodeCount());
         return Result.success(result);
@@ -121,13 +125,14 @@ public class DataExportController extends BaseController {
     @PostMapping("/import/gedcom/append")
     public Result<GedcomImportResultVO> appendImportGedcom(
             @RequestParam("file") MultipartFile file,
-            HttpSession session) throws IOException {
+            HttpSession session, HttpServletRequest request) throws IOException {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
         String content = readGedcomFile(file);
 
         GedcomImportResultVO result = gedcomApplicationService.appendImportGedcom(
-                familyId, userId, content);
+                familyId, userId, username, getClientIp(request), content);
         logger.info("GEDCOM append import completed for family={}: {} nodes imported",
                 familyId, result.getImportedNodeCount());
         return Result.success(result);

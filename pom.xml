@@ -36,11 +36,6 @@
         <!-- H2 2.4 移除了 DATETIME 类型，会破坏存量迁移脚本，固定在已验证的 2.3.232 -->
         <h2.version>2.3.232</h2.version>
         <family-tree.version>1.0.0-SNAPSHOT</family-tree.version>
-        <!-- SonarCloud 分析配置 -->
-        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
-        <sonar.organization>mouhinU</sonar.organization>
-        <sonar.projectKey>mouhinU_Family_Tree</sonar.projectKey>
-        <sonar.exclusions>**/target/**,data/**,logs/**,docs/**</sonar.exclusions>
     </properties>
 
     <dependencyManagement>
@@ -81,6 +76,13 @@
                 <version>${spring-ai.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- Jsoup：富文本 HTML 白名单清洗（XSS 防护） -->
+            <dependency>
+                <groupId>org.jsoup</groupId>
+                <artifactId>jsoup</artifactId>
+                <version>1.18.3</version>
             </dependency>
 
             <!-- ZXing QR Code -->

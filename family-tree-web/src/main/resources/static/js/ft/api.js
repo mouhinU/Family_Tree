@@ -20,6 +20,48 @@
         csrfToken = token;
     };
 
+    /**
+     * 获取当前 CSRF Token（multipart 上传等自定义请求使用）
+     */
+    FT.getCsrfToken = function () {
+        return csrfToken;
+    };
+
+    /**
+     * multipart 文件上传（FormData 不能携带 Content-Type 头，故不复用 api）
+     */
+    async function uploadFile(url, formData) {
+        var headers = {};
+        if (csrfToken) {
+            headers['X-CSRF-TOKEN'] = csrfToken;
+        }
+        var res;
+        try {
+            res = await fetch(url, {method: 'POST', headers: headers, body: formData});
+        } catch (networkErr) {
+            FT.toast('网络连接失败，请检查网络后重试', 'error');
+            throw new Error('network.error');
+        }
+        if (res.status === 401) {
+            FT.toast('登录已过期，请重新登录', 'warning');
+            window.location.href = '/login.html';
+            throw new Error('unauthorized');
+        }
+        var errMsg = '上传失败 (' + res.status + ')';
+        var body = null;
+        try {
+            body = await res.json();
+        } catch (parseErr) {
+            // 非 JSON 响应，使用默认错误信息
+        }
+        if (!res.ok) {
+            if (body && body.message) { errMsg = body.message; }
+            FT.toast(errMsg, 'error');
+            throw new Error(errMsg);
+        }
+        return body;
+    }
+
     async function api(url, options) {
         var headers = {'Content-Type': 'application/json'};
         if (csrfToken) {
@@ -91,6 +133,7 @@
     }
 
     FT.api = api;
+    FT.uploadFile = uploadFile;
     FT.loadTree = loadTree;
     FT.loadGenerationNames = loadGenerationNames;
 })();

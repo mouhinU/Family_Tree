@@ -6,6 +6,9 @@ import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
 import com.mouhin.family.tree.domain.event.FamilyTreeUpdatedEvent;
+import com.mouhin.family.tree.domain.event.RelationCreatedEvent;
+import com.mouhin.family.tree.domain.event.RelationDeletedEvent;
+import com.mouhin.family.tree.domain.event.RelationUpdatedEvent;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
 import com.mouhin.family.tree.domain.service.RelationValidationDomainService;
@@ -138,6 +141,9 @@ public class FamilyRelationApplicationService {
                 dto.getFromNodeId(), dto.getToNodeId(), familyId, userId);
 
         eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
+        eventPublisher.publishEvent(RelationCreatedEvent.of(familyId, relation.getId(),
+                relation.getRelationType(), findNodeName(relation.getFromNodeId()),
+                findNodeName(relation.getToNodeId()), userId, username, ipAddress));
 
         // 记录版本历史
         versionControlDomainService.recordRelationCreate(relation, userId, username, ipAddress);
@@ -168,6 +174,9 @@ public class FamilyRelationApplicationService {
         logger.info("Deleted relation id={} for family={}", relationId, familyId);
 
         eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
+        eventPublisher.publishEvent(RelationDeletedEvent.of(familyId, relationId,
+                relation.getRelationType(), findNodeName(relation.getFromNodeId()),
+                findNodeName(relation.getToNodeId()), userId, username, ipAddress));
     }
 
     /**
@@ -221,6 +230,9 @@ public class FamilyRelationApplicationService {
                 dto.getId(), dto.getDivorced(), dto.getWidowed(), familyId);
 
         eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
+        eventPublisher.publishEvent(RelationUpdatedEvent.of(familyId, relation.getId(),
+                relation.getRelationType(), findNodeName(relation.getFromNodeId()),
+                findNodeName(relation.getToNodeId()), userId, username, ipAddress));
 
         // 记录版本历史
         versionControlDomainService.recordRelationUpdate(beforeRelation, relation, userId, username, ipAddress);
@@ -267,6 +279,20 @@ public class FamilyRelationApplicationService {
             familyNodeApplicationService.syncDescendantGenerations(
                     familyId, child.getId(), childGen);
         }
+    }
+
+    /**
+     * 查找节点名称（不存在时返回占位描述，用于操作日志描述）
+     *
+     * @param nodeId 节点ID，可为 null
+     * @return 节点名称，不存在时返回“未知节点”
+     */
+    private String findNodeName(Long nodeId) {
+        if (nodeId == null) {
+            return "未知节点";
+        }
+        FamilyNode node = familyNodeRepository.findById(nodeId);
+        return node != null ? node.getName() : "未知节点";
     }
 
     /**

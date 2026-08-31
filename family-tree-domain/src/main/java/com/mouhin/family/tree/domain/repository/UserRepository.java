@@ -45,6 +45,14 @@ public interface UserRepository {
     List<User> findByIds(List<Long> ids);
 
     /**
+     * 查询当前家族下的全部用户（私信联系人）
+     *
+     * @param familyId 家族ID
+     * @return 用户领域对象列表（按用户名正序）
+     */
+    List<User> findByCurrentFamilyId(Long familyId);
+
+    /**
      * 更新用户
      *
      * @param user 用户领域对象

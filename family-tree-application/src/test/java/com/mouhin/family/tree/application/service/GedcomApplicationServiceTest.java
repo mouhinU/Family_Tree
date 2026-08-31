@@ -124,7 +124,7 @@ class GedcomApplicationServiceTest {
 
         // 执行
         GedcomImportResultVO result = gedcomApplicationService.importGedcom(
-                FAMILY_ID, USER_ID, SAMPLE_GEDCOM);
+                FAMILY_ID, USER_ID, "测试用户", "127.0.0.1", SAMPLE_GEDCOM);
 
         // 验证：清除了现有数据
         verify(familyNodeRepository).removeByFamilyId(FAMILY_ID);
@@ -147,7 +147,7 @@ class GedcomApplicationServiceTest {
                 """;
 
         BusinessException exception = assertThrows(BusinessException.class,
-                () -> gedcomApplicationService.importGedcom(FAMILY_ID, USER_ID, emptyGedcom));
+                () -> gedcomApplicationService.importGedcom(FAMILY_ID, USER_ID, "测试用户", "127.0.0.1", emptyGedcom));
         assertTrue(exception.getMessage().contains("未找到个人记录"));
     }
 
@@ -172,7 +172,7 @@ class GedcomApplicationServiceTest {
         when(familyRelationRepository.findByFamilyId(FAMILY_ID)).thenReturn(new ArrayList<>());
 
         // 执行
-        gedcomApplicationService.importGedcom(FAMILY_ID, USER_ID, SAMPLE_GEDCOM);
+        gedcomApplicationService.importGedcom(FAMILY_ID, USER_ID, "测试用户", "127.0.0.1", SAMPLE_GEDCOM);
 
         // 验证：创建了夫妻关系和亲子关系
         ArgumentCaptor<FamilyRelation> relCaptor = ArgumentCaptor.forClass(FamilyRelation.class);

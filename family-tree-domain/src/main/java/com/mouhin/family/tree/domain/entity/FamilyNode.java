@@ -39,6 +39,7 @@ public class FamilyNode {
     private String graveLocation;
     private String spouseName;
     private String spouseOriginFamily;
+    private String biography;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 

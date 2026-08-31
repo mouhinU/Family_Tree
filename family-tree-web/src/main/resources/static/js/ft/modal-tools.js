@@ -19,10 +19,31 @@
         'REGISTER': '注册',
         'PROFILE_UPDATE': '修改个人信息',
         'MARK_SELF': '标记自己',
+        'FAMILY_CREATE': '创建家族',
+        'MEMBER_JOIN': '成员加入',
+        'MEMBER_REMOVE': '成员移除',
+        'MEMBER_ROLE_CHANGE': '角色变更',
         'NODE_CREATE': '创建节点',
         'NODE_UPDATE': '更新节点',
         'NODE_DELETE': '删除节点',
-        'NODE_COLOR': '修改颜色'
+        'NODE_COLOR': '颜色标注',
+        'RELATION_CREATE': '创建关系',
+        'RELATION_UPDATE': '更新关系',
+        'RELATION_DELETE': '删除关系',
+        'GEDCOM_IMPORT': '导入GEDCOM',
+        'GENERATION_UPDATE': '更新辈分',
+        'MESSAGE_POST': '发布留言',
+        'MESSAGE_DELETE': '删除留言',
+        'OFFERING': '祭奠供奉',
+        'VERSION_SNAPSHOT': '创建快照',
+        'VERSION_SNAPSHOT_DELETE': '删除快照',
+        'PHOTO_UPLOAD': '上传照片',
+        'PHOTO_DELETE': '删除照片',
+        'FORUM_POST': '发布主题',
+        'FORUM_DELETE': '删除主题',
+        'EVENT_CREATE': '发起活动',
+        'EVENT_DELETE': '删除活动',
+        'BIOGRAPHY_UPDATE': '更新传记'
     };
 
     async function showOperationLogModal(currentPage, filterType) {

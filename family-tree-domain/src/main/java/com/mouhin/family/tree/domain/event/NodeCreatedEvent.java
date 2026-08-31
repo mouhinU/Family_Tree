@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
  * @date 2026-08-27
  */
 public record NodeCreatedEvent(Long familyId, Long nodeId, String nodeName, Long userId,
+                               String username, String ipAddress,
                                LocalDateTime occurredOn) implements DomainEvent {
 
     /**
@@ -20,9 +21,13 @@ public record NodeCreatedEvent(Long familyId, Long nodeId, String nodeName, Long
      * @param nodeId    节点ID
      * @param nodeName  节点名称
      * @param userId    操作用户ID
+     * @param username  操作用户名
+     * @param ipAddress 客户端IP
      * @return 事件实例
      */
-    public static NodeCreatedEvent of(Long familyId, Long nodeId, String nodeName, Long userId) {
-        return new NodeCreatedEvent(familyId, nodeId, nodeName, userId, LocalDateTime.now());
+    public static NodeCreatedEvent of(Long familyId, Long nodeId, String nodeName, Long userId,
+                                      String username, String ipAddress) {
+        return new NodeCreatedEvent(familyId, nodeId, nodeName, userId, username, ipAddress,
+                LocalDateTime.now());
     }
 }

@@ -64,15 +64,17 @@
             '</div>';
     }
 
-    // 依据后端统计渲染祭奠面板：敬献（香烛+烧纸合一）/ 送鲜花 按钮 + 各自的总次数
+    // 依据后端统计渲染祭奠面板：敬献（香烛+烧纸合一）/ 送鲜花 / 点灯 按钮 + 各自的总次数，
+    // 面板底部附缅怀留言区（祭堂留言）
     function buildOfferingPanelHtml(nodeId, stats) {
         var escId = FT.escapeAttr(nodeId);
         var html = '<div class="offering-actions">' +
             '<button class="offering-btn offering-btn--incense js-offering-btn" data-node-id="' + escId + '" data-type="4">敬献</button>' +
             '<button class="offering-btn offering-btn--flower js-offering-btn" data-node-id="' + escId + '" data-type="3">送鲜花</button>' +
+            '<button class="offering-btn offering-btn--lamp js-offering-btn" data-node-id="' + escId + '" data-type="5">点灯</button>' +
             '</div>';
-        var statClassMap = {3: 'flower', 4: 'worship'};
-        var emptyTextMap = {3: '暂无人送鲜花', 4: '暂无人敬献'};
+        var statClassMap = {3: 'flower', 4: 'worship', 5: 'lamp'};
+        var emptyTextMap = {3: '暂无人送鲜花', 4: '暂无人敬献', 5: '暂无人点灯'};
         html += '<div class="offering-stats">';
         (stats || []).forEach(function (stat) {
             if (stat.offeringType === 1 || stat.offeringType === 2) return;
@@ -87,6 +89,15 @@
                 '</div>';
         });
         html += '</div>';
+        // 缅怀留言区：留言列表 + 发表框（由 loadMemorialMessages 异步填充）
+        html += '<div class="memorial-box">' +
+            '<h4 class="memorial-title">缅怀留言</h4>' +
+            '<div class="memorial-list" id="memorial-list"><p style="color:#999;">载入中…</p></div>' +
+            '<div class="memorial-input-box">' +
+            '<textarea class="memorial-input" id="memorial-input" maxlength="500" placeholder="写下对亲人的思念（500字以内）"></textarea>' +
+            '<button class="btn-confirm memorial-send" id="memorial-send" data-node-id="' + escId + '">留言</button>' +
+            '</div>' +
+            '</div>';
         return html;
     }
 
@@ -103,6 +114,77 @@
         }
         panel.innerHTML = buildOfferingPanelHtml(nodeId, res.data || []);
         wireOfferingButtons(nodeId);
+        loadMemorialMessages(nodeId);
+        wireMemorialSend(nodeId);
+    }
+
+    // 加载缅怀留言列表并渲染（发布/删除后复用刷新）
+    async function loadMemorialMessages(nodeId) {
+        var listEl = document.getElementById('memorial-list');
+        if (!listEl) {
+            return;
+        }
+        var res = await FT.api('/api/memorial/node/' + nodeId);
+        if (res.code !== 200) {
+            listEl.innerHTML = '<p style="color:#999;">' + FT.escapeHtml(res.message || '载入失败') + '</p>';
+            return;
+        }
+        var messages = res.data || [];
+        if (messages.length === 0) {
+            listEl.innerHTML = '<p style="color:#999;">还没有留言，写下第一句思念吧</p>';
+            return;
+        }
+        var html = '';
+        messages.forEach(function (m) {
+            var time = m.createTime ? String(m.createTime).replace('T', ' ').substring(0, 16) : '';
+            html += '<div class="memorial-item">' +
+                '<div class="memorial-item-head">' +
+                '<span>' + FT.escapeHtml(m.username || '') + ' · ' + time + '</span>' +
+                (m.own ? '<span class="memorial-del js-memorial-del" data-id="' + m.id + '">删除</span>' : '') +
+                '</div>' +
+                '<div class="memorial-item-content">' + FT.escapeHtml(m.content) + '</div>' +
+                '</div>';
+        });
+        listEl.innerHTML = html;
+        listEl.querySelectorAll('.js-memorial-del').forEach(function (el) {
+            el.addEventListener('click', function () {
+                var id = parseInt(el.dataset.id, 10);
+                FT.confirm('确定删除这条留言吗？', async function () {
+                    var delRes = await FT.api('/api/memorial/' + id, {method: 'DELETE'});
+                    if (delRes.code === 200) {
+                        FT.toast('已删除', 'success');
+                        loadMemorialMessages(nodeId);
+                    }
+                }, {title: '删除留言'});
+            });
+        });
+    }
+
+    // 绑定缅怀留言发表按钮
+    function wireMemorialSend(nodeId) {
+        var sendBtn = document.getElementById('memorial-send');
+        if (!sendBtn) {
+            return;
+        }
+        sendBtn.addEventListener('click', async function () {
+            var input = document.getElementById('memorial-input');
+            var content = input.value.trim();
+            if (!content) {
+                FT.toast('请输入留言内容', 'warning');
+                return;
+            }
+            sendBtn.disabled = true;
+            var res = await FT.api('/api/memorial/node/' + nodeId, {
+                method: 'POST',
+                body: JSON.stringify({content: content})
+            });
+            sendBtn.disabled = false;
+            if (res.code === 200) {
+                input.value = '';
+                FT.toast('留言成功', 'success');
+                loadMemorialMessages(nodeId);
+            }
+        });
     }
 
     // 绑定敬献 / 送鲜花按钮：每次点击记录一次，成功后刷新统计
@@ -139,6 +221,8 @@
             fx.innerHTML = buildWorshipFxHtml();
         } else if (type === 3) {
             fx.innerHTML = buildFlowerFxHtml();
+        } else if (type === 5) {
+            fx.innerHTML = buildLampFxHtml();
         } else if (type === 1) {
             fx.innerHTML = buildIncenseFxHtml();
         } else {
@@ -204,6 +288,13 @@
             '<div class="fx-text fx-text--flower">鲜花已敬献</div>';
     }
 
+    // 点灯动效：长明灯亮起（暖光晕 + 烛焰），浮字"心灯已点亮"
+    function buildLampFxHtml() {
+        return '<div class="fx-glow fx-glow--lamp"></div>' +
+            '<span class="fx-lamp-flame"></span>' +
+            '<div class="fx-text fx-text--lamp">心灯已点亮</div>';
+    }
+
     FT.buildOfferingHtml = buildOfferingHtml;
     FT.offeringPanelShell = offeringPanelShell;
     FT.buildOfferingPanelHtml = buildOfferingPanelHtml;
@@ -214,4 +305,6 @@
     FT.buildIncenseFxHtml = buildIncenseFxHtml;
     FT.buildPaperFxHtml = buildPaperFxHtml;
     FT.buildFlowerFxHtml = buildFlowerFxHtml;
+    FT.buildLampFxHtml = buildLampFxHtml;
+    FT.loadMemorialMessages = loadMemorialMessages;
 })();

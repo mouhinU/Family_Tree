@@ -288,7 +288,8 @@ class FamilyNodeApplicationServiceTest {
 
         // 执行
         familyNodeApplicationService.updateColor(
-                FAMILY_ID, List.of(1L, 2L, 3L), ColorLabelEnum.PATERNAL.getCode());
+                FAMILY_ID, List.of(1L, 2L, 3L), ColorLabelEnum.PATERNAL.getCode(),
+                USER_ID, "测试用户", "127.0.0.1");
 
         // 验证：批量查询校验归属
         verify(familyNodeRepository).findByIds(List.of(1L, 2L, 3L));

@@ -8,6 +8,7 @@ import com.mouhin.family.tree.domain.entity.Family;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
 import com.mouhin.family.tree.domain.event.FamilyTreeUpdatedEvent;
+import com.mouhin.family.tree.domain.event.GedcomImportedEvent;
 import com.mouhin.family.tree.domain.gedcom.GedcomData;
 import com.mouhin.family.tree.domain.gedcom.GedcomFamily;
 import com.mouhin.family.tree.domain.gedcom.GedcomIndividual;
@@ -79,27 +80,33 @@ public class GedcomApplicationService {
     /**
      * 导入 GEDCOM 文件（覆盖模式：清空现有数据后导入）
      *
-     * @param familyId 目标家族ID
-     * @param userId   操作用户ID
-     * @param content  GEDCOM 文件文本内容
+     * @param familyId  目标家族ID
+     * @param userId    操作用户ID
+     * @param username  操作用户名
+     * @param ipAddress 客户端IP
+     * @param content   GEDCOM 文件文本内容
      * @return 导入结果
      */
     @Transactional(rollbackFor = Exception.class)
-    public GedcomImportResultVO importGedcom(Long familyId, Long userId, String content) {
-        return doImport(familyId, userId, content, true);
+    public GedcomImportResultVO importGedcom(Long familyId, Long userId, String username,
+                                             String ipAddress, String content) {
+        return doImport(familyId, userId, username, ipAddress, content, true);
     }
 
     /**
      * 追加导入 GEDCOM 文件（保留现有数据）
      *
-     * @param familyId 目标家族ID
-     * @param userId   操作用户ID
-     * @param content  GEDCOM 文件文本内容
+     * @param familyId  目标家族ID
+     * @param userId    操作用户ID
+     * @param username  操作用户名
+     * @param ipAddress 客户端IP
+     * @param content   GEDCOM 文件文本内容
      * @return 导入结果
      */
     @Transactional(rollbackFor = Exception.class)
-    public GedcomImportResultVO appendImportGedcom(Long familyId, Long userId, String content) {
-        return doImport(familyId, userId, content, false);
+    public GedcomImportResultVO appendImportGedcom(Long familyId, Long userId, String username,
+                                                   String ipAddress, String content) {
+        return doImport(familyId, userId, username, ipAddress, content, false);
     }
 
     /**
@@ -135,12 +142,14 @@ public class GedcomApplicationService {
      *
      * @param familyId  目标家族ID
      * @param userId    操作用户ID
+     * @param username  操作用户名
+     * @param ipAddress 客户端IP
      * @param content   GEDCOM 文件内容
      * @param overwrite 是否覆盖现有数据
      * @return 导入结果
      */
-    private GedcomImportResultVO doImport(Long familyId, Long userId, String content,
-                                          boolean overwrite) {
+    private GedcomImportResultVO doImport(Long familyId, Long userId, String username,
+                                          String ipAddress, String content, boolean overwrite) {
         GedcomData data = gedcomParserDomainService.parse(content);
 
         if (data.getIndividuals().isEmpty()) {
@@ -169,8 +178,10 @@ public class GedcomApplicationService {
         // 计算世代层级
         calculateAndSetGenerations(familyId);
 
-        // 发布事件
+        // 发布事件（树结构变更 + 导入操作日志）
         eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
+        eventPublisher.publishEvent(GedcomImportedEvent.of(familyId, xrefToNodeId.size(),
+                relationCount, overwrite, userId, username, ipAddress));
 
         // 构建结果
         GedcomImportResultVO result = new GedcomImportResultVO();

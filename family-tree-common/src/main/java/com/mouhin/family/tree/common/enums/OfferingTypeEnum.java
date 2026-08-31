@@ -17,7 +17,8 @@ public enum OfferingTypeEnum {
     INCENSE(1, "香烛"),
     PAPER(2, "烧纸"),
     FLOWER(3, "鲜花"),
-    WORSHIP(4, "敬献");
+    WORSHIP(4, "敬献"),
+    LAMP(5, "点灯");
 
     private final int code;
     private final String description;

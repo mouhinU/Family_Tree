@@ -135,6 +135,7 @@
                 case 'mark-self': FT.markAsSelf(nodeId); break;
                 case 'edit': FT.editNode(nodeId); break;
                 case 'color': FT.showColorModal(nodeId); break;
+                case 'biography': FT.showBiographyModal(nodeId); break;
                 case 'history': FT.showVersionHistoryModal(nodeId); break;
                 case 'delete': FT.deleteNode(nodeId); break;
             }

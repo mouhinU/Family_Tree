@@ -11,7 +11,10 @@ import com.mouhin.family.tree.domain.entity.FamilyRelation;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
 import com.mouhin.family.tree.domain.event.FamilyTreeUpdatedEvent;
+import com.mouhin.family.tree.domain.event.NodeColorUpdatedEvent;
 import com.mouhin.family.tree.domain.event.NodeCreatedEvent;
+import com.mouhin.family.tree.domain.event.NodeDeletedEvent;
+import com.mouhin.family.tree.domain.event.NodeUpdatedEvent;
 import com.mouhin.family.tree.domain.service.FamilyNodeDomainService;
 import com.mouhin.family.tree.domain.service.RelationValidationDomainService;
 import com.mouhin.family.tree.domain.service.VersionControlDomainService;
@@ -199,7 +202,8 @@ public class FamilyNodeApplicationService {
         }
 
         // 树结构已变更，失效该家族的族谱树缓存（事务提交后生效）
-        eventPublisher.publishEvent(NodeCreatedEvent.of(familyId, node.getId(), node.getName(), userId));
+        eventPublisher.publishEvent(NodeCreatedEvent.of(familyId, node.getId(), node.getName(),
+                userId, username, ipAddress));
         eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
 
         // 记录版本历史
@@ -314,6 +318,8 @@ public class FamilyNodeApplicationService {
         }
 
         eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
+        eventPublisher.publishEvent(NodeUpdatedEvent.of(familyId, existing.getId(),
+                existing.getName(), userId, username, ipAddress));
 
         // 记录版本历史
         versionControlDomainService.recordNodeUpdate(beforeNode, existing, userId, username, ipAddress);
@@ -340,6 +346,8 @@ public class FamilyNodeApplicationService {
         logger.info("Deleted family node id={} for family={}", nodeId, familyId);
 
         eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
+        eventPublisher.publishEvent(NodeDeletedEvent.of(familyId, nodeId, node.getName(),
+                userId, username, ipAddress));
     }
 
     /**
@@ -390,9 +398,13 @@ public class FamilyNodeApplicationService {
      * @param familyId   家族ID
      * @param nodeIds    节点ID列表
      * @param colorLabel 颜色标签
+     * @param userId     操作者用户ID
+     * @param username   操作者姓名
+     * @param ipAddress  IP地址
      */
     @Transactional(rollbackFor = Exception.class)
-    public void updateColor(Long familyId, List<Long> nodeIds, String colorLabel) {
+    public void updateColor(Long familyId, List<Long> nodeIds, String colorLabel,
+                            Long userId, String username, String ipAddress) {
         if (nodeIds == null || nodeIds.isEmpty()) {
             throw new BusinessException("节点ID列表不能为空");
         }
@@ -412,6 +424,8 @@ public class FamilyNodeApplicationService {
                 colorLabel, nodeIds.size(), familyId);
 
         eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
+        eventPublisher.publishEvent(NodeColorUpdatedEvent.of(familyId, nodeIds.size(),
+                colorLabel, userId, username, ipAddress));
     }
 
     /**

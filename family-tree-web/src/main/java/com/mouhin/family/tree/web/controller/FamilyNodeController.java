@@ -1,7 +1,6 @@
 package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.FamilyNodeApplicationService;
-import com.mouhin.family.tree.application.service.OperationLogApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.ColorUpdateDTO;
 import com.mouhin.family.tree.common.dto.FamilyNodeDTO;
@@ -27,12 +26,9 @@ import java.util.Map;
 public class FamilyNodeController extends BaseController {
 
     private final FamilyNodeApplicationService familyNodeService;
-    private final OperationLogApplicationService operationLogService;
 
-    public FamilyNodeController(FamilyNodeApplicationService familyNodeService,
-                                OperationLogApplicationService operationLogService) {
+    public FamilyNodeController(FamilyNodeApplicationService familyNodeService) {
         this.familyNodeService = familyNodeService;
-        this.operationLogService = operationLogService;
     }
 
     @PostMapping
@@ -44,10 +40,7 @@ public class FamilyNodeController extends BaseController {
         String ipAddress = getClientIp(request);
         Long nodeId = familyNodeService.createNode(familyId, userId, username, ipAddress, dto);
 
-        operationLogService.log(userId, username,
-                "NODE_CREATE", "创建节点: " + dto.getName(),
-                "node", nodeId, familyId, ipAddress);
-
+        // 操作日志由 NodeCreatedEvent 监听器统一记录（含 GEDCOM 等其他入口）
         Map<String, Object> data = new HashMap<>(4);
         data.put("nodeId", nodeId);
         return Result.success(data);
@@ -61,10 +54,6 @@ public class FamilyNodeController extends BaseController {
         String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
         String ipAddress = getClientIp(request);
         familyNodeService.updateNode(familyId, userId, username, ipAddress, dto);
-
-        operationLogService.log(userId, username,
-                "NODE_UPDATE", "更新节点: id=" + dto.getId(),
-                "node", dto.getId(), familyId, ipAddress);
         return Result.success();
     }
 
@@ -76,10 +65,6 @@ public class FamilyNodeController extends BaseController {
         String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
         String ipAddress = getClientIp(request);
         familyNodeService.deleteNode(familyId, nodeId, userId, username, ipAddress);
-
-        operationLogService.log(userId, username,
-                "NODE_DELETE", "删除节点: id=" + nodeId,
-                "node", nodeId, familyId, ipAddress);
         return Result.success();
     }
 
@@ -109,11 +94,9 @@ public class FamilyNodeController extends BaseController {
                                     HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
-        familyNodeService.updateColor(familyId, dto.getNodeIds(), dto.getColorLabel());
-
-        operationLogService.log(userId, (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME),
-                "NODE_COLOR", "批量修改颜色: " + dto.getNodeIds().size() + "个节点",
-                "node", null, familyId, getClientIp(request));
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        familyNodeService.updateColor(familyId, dto.getNodeIds(), dto.getColorLabel(),
+                userId, username, getClientIp(request));
         return Result.success();
     }
 }

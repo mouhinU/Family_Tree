@@ -88,6 +88,11 @@ public class FamilyNodeDO {
      */
     private String spouseOriginFamily;
 
+    /**
+     * 人物传记（富文本，服务端已白名单清洗）
+     */
+    private String biography;
+
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;

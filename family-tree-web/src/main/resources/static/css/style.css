@@ -886,6 +886,40 @@ body.toolbar-hidden .tree-container {
     background: var(--cinnabar-dark);
 }
 
+/* 通用确认/取消按钮：供弹窗体内非底部操作区（如聊天发送、论坛回复）复用 */
+.btn-cancel {
+    padding: 7px 16px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: #fffdf6;
+    color: var(--ink-light);
+    font-family: var(--font-kai);
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.btn-confirm {
+    padding: 7px 16px;
+    border: none;
+    border-radius: 4px;
+    background: var(--cinnabar);
+    color: #f7f1e0;
+    font-family: var(--font-kai);
+    font-size: 14px;
+    letter-spacing: 2px;
+    cursor: pointer;
+}
+
+.btn-confirm:hover {
+    background: var(--cinnabar-dark);
+}
+
+.btn-confirm:disabled,
+.btn-cancel:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
 /* ========== 确认弹窗 ========== */
 /* 二次确认弹窗：独立遮罩层，覆盖在已打开的普通弹窗之上，在视口中水平垂直居中 */
 .modal-overlay.confirm-overlay {
@@ -3001,7 +3035,8 @@ body.toolbar-hidden .tree-container {
 }
 
 /* --- 通用移动端优化（≤768px） --- */
-@media screen and (max-width: 768px) {
+/* 移动端适配：竖屏窄屏，或手机横屏（横屏时宽度会超过768px，用高度+触摸特征识别） */
+@media screen and (max-width: 768px), (orientation: landscape) and (max-height: 480px) and (hover: none) and (pointer: coarse) {
     /* 入场卷轴：移动端跳过动画，直接隐藏 */
     #scroll-overlay {
         display: none !important;
@@ -4879,4 +4914,622 @@ body.toolbar-hidden .tree-container {
 
 .empty-text.error {
     color: #a63a2b;
+}
+
+/* ========== 家族相册 ========== */
+.album-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.album-tip {
+    font-size: 12px;
+    color: var(--ink-faint);
+}
+
+.album-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    max-height: 420px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+}
+
+.album-card {
+    background: var(--paper-card);
+    border: 1px solid #e6dcc2;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.album-img {
+    display: block;
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    background: #f3ecda;
+    cursor: zoom-in;
+}
+
+.album-info {
+    padding: 8px 10px 4px;
+}
+
+.album-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.album-meta {
+    font-size: 11px;
+    color: var(--ink-faint);
+    margin-top: 2px;
+}
+
+.album-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.album-tag {
+    padding: 1px 8px;
+    background: #f3ecda;
+    border-radius: 999px;
+    font-size: 11px;
+    color: var(--ink-light);
+}
+
+.album-actions {
+    display: flex;
+    gap: 6px;
+    padding: 6px 10px 10px;
+}
+
+/* 大图预览浮层：点击任意处关闭 */
+.album-viewer {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(20, 16, 10, 0.85);
+    cursor: zoom-out;
+}
+
+.album-viewer img {
+    max-width: 90vw;
+    max-height: 90vh;
+    border-radius: 4px;
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5);
+}
+
+.album-viewer-close {
+    position: absolute;
+    top: 16px;
+    right: 28px;
+    border: none;
+    background: none;
+    font-size: 38px;
+    line-height: 1;
+    color: #fff;
+    cursor: pointer;
+}
+
+/* ========== 家族论坛 / 富文本编辑器 ========== */
+.forum-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.forum-list {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+}
+
+.forum-item {
+    padding: 10px 12px;
+    border-bottom: 1px solid #eee4cd;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.forum-item:hover {
+    background: #f7f1e2;
+}
+
+.forum-item-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.forum-item-summary {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 12px;
+    color: var(--ink-light);
+    margin: 4px 0;
+}
+
+.forum-item-meta {
+    font-size: 11px;
+    color: var(--ink-faint);
+}
+
+.forum-item-meta span {
+    cursor: pointer;
+}
+
+.forum-page {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 12px;
+    color: var(--ink-light);
+}
+
+.forum-page-btn {
+    margin-left: 6px;
+}
+
+.forum-editor-bar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.forum-editor-bar button {
+    min-width: 34px;
+    padding: 4px 10px;
+    border: 1px solid #e6dcc2;
+    border-radius: 4px;
+    background: var(--paper-card);
+    font-size: 13px;
+    color: var(--ink);
+    cursor: pointer;
+}
+
+.forum-editor-bar button:hover {
+    background: #f3ecda;
+}
+
+.forum-editor {
+    min-height: 180px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 10px;
+    border: 1px solid #e6dcc2;
+    border-radius: 4px;
+    background: #fff;
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+.forum-editor:focus,
+.bio-editor:focus {
+    outline: none;
+    border-color: var(--cinnabar);
+}
+
+.forum-editor img,
+.forum-content img {
+    max-width: 100%;
+}
+
+.bio-editor {
+    min-height: 260px;
+}
+
+.forum-content {
+    padding: 10px 0;
+    border-bottom: 1px solid #eee4cd;
+    font-size: 14px;
+    line-height: 1.8;
+    color: var(--ink);
+    word-break: break-word;
+}
+
+.forum-replies {
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.forum-reply-item {
+    padding: 8px 0;
+    border-bottom: 1px dashed #eee4cd;
+}
+
+.forum-reply-content {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--ink-light);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.forum-reply-box {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    margin-top: 10px;
+}
+
+.forum-reply-box textarea {
+    flex: 1;
+    min-height: 60px;
+    padding: 8px;
+    border: 1px solid #e6dcc2;
+    border-radius: 4px;
+    resize: vertical;
+    font-family: inherit;
+    font-size: 13px;
+}
+
+/* ========== 私信 ========== */
+.chat-list {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+}
+
+.chat-item {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #eee4cd;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.chat-item:hover {
+    background: #f7f1e2;
+}
+
+.chat-item-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.chat-item-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.chat-item-last {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--ink-faint);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-item-time {
+    flex-shrink: 0;
+    font-size: 11px;
+    color: var(--ink-faint);
+}
+
+.chat-badge {
+    display: inline-block;
+    min-width: 18px;
+    margin-left: 6px;
+    padding: 0 5px;
+    background: var(--cinnabar);
+    border-radius: 999px;
+    font-size: 11px;
+    text-align: center;
+    color: #fff;
+}
+
+.chat-window {
+    min-height: 160px;
+    max-height: 320px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    padding: 10px;
+    background: var(--paper-card);
+    border: 1px solid #e6dcc2;
+    border-radius: 6px;
+}
+
+.chat-bubble {
+    max-width: 75%;
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+}
+
+.chat-bubble--peer {
+    background: #fff;
+    border: 1px solid #e6dcc2;
+}
+
+.chat-bubble--own {
+    margin-left: auto;
+    background: #f6e7dd;
+    border: 1px solid #eacfbf;
+}
+
+.chat-bubble-name {
+    margin-bottom: 2px;
+    font-size: 11px;
+    color: var(--ink-faint);
+}
+
+.chat-bubble-text {
+    font-size: 13px;
+    color: var(--ink);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.chat-input-box {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    margin-bottom: 10px;
+}
+
+.chat-input-box textarea {
+    flex: 1;
+    min-height: 60px;
+    padding: 8px;
+    border: 1px solid #e6dcc2;
+    border-radius: 4px;
+    resize: vertical;
+    font-family: inherit;
+    font-size: 13px;
+}
+
+/* ========== 活动组织 ========== */
+.event-list {
+    max-height: 420px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+}
+
+.event-item {
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    background: var(--paper-card);
+    border: 1px solid #e6dcc2;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.event-item:hover {
+    background: #f7f1e2;
+    border-color: #d8c79d;
+}
+
+.event-item-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.event-item-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.event-status {
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+}
+
+.event-status--open {
+    background: #e3efe6;
+    color: #3a6b4f;
+}
+
+.event-status--closed {
+    background: #f0ece2;
+    color: #999;
+}
+
+.event-item-meta {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--ink-light);
+}
+
+.event-cost-box {
+    margin: 8px 0;
+    padding: 8px 12px;
+    background: #f7f1e2;
+    border: 1px dashed #d8c79d;
+    border-radius: 4px;
+    font-size: 13px;
+    color: var(--ink-light);
+}
+
+.event-cost-box b {
+    color: var(--cinnabar);
+}
+
+.event-signups {
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+.event-signup-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 4px;
+    border-bottom: 1px dashed #eee4cd;
+    font-size: 13px;
+    color: var(--ink);
+}
+
+/* ========== 纪念日 ========== */
+.anni-list {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+}
+
+.anni-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border-bottom: 1px solid #eee4cd;
+}
+
+.anni-item-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.anni-item-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.anni-item-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+/* ========== 缅怀留言（祭堂面板内） ========== */
+.memorial-box {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed #e6dcc2;
+}
+
+.memorial-title {
+    margin-bottom: 8px;
+    font-family: var(--font-kai);
+    font-size: 14px;
+    letter-spacing: 2px;
+    color: var(--ink);
+}
+
+.memorial-list {
+    max-height: 160px;
+    overflow-y: auto;
+    margin-bottom: 8px;
+}
+
+.memorial-item {
+    padding: 8px 0;
+    border-bottom: 1px dashed #eee4cd;
+}
+
+.memorial-item-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--ink-faint);
+}
+
+.memorial-del {
+    color: var(--cinnabar);
+    cursor: pointer;
+}
+
+.memorial-item-content {
+    margin-top: 4px;
+    font-size: 13px;
+    color: var(--ink-light);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.memorial-input-box {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+}
+
+.memorial-input {
+    flex: 1;
+    min-height: 52px;
+    padding: 8px;
+    border: 1px solid #e6dcc2;
+    border-radius: 4px;
+    background: #fff;
+    resize: vertical;
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.memorial-send {
+    flex-shrink: 0;
+}
+
+/* ========== 祭奠点灯 ========== */
+.offering-btn--lamp {
+    background: #c99b3f;
+}
+
+.offering-btn--lamp:hover {
+    background: #b3882f;
+}
+
+.offering-stat--lamp {
+    border-left-color: #c99b3f;
+}
+
+/* 点灯动效：暖金光晕 + 灯焰摇曳 */
+.fx-glow--lamp {
+    background: radial-gradient(ellipse at 50% 60%, rgba(255, 214, 120, 0.6) 0%, rgba(255, 178, 64, 0.3) 45%, rgba(255, 178, 64, 0) 75%);
+}
+
+.fx-lamp-flame {
+    position: absolute;
+    top: 32%;
+    left: 50%;
+    width: 16px;
+    height: 28px;
+    background: radial-gradient(ellipse at 50% 74%, #fffbe6 0%, #ffe082 30%, #ffb300 55%, #ff8f3d 80%, rgba(255, 143, 61, 0) 100%);
+    border-radius: 50% 50% 46% 46% / 64% 64% 36% 36%;
+    filter: drop-shadow(0 0 10px rgba(255, 196, 90, 0.8));
+    transform-origin: 50% 100%;
+    opacity: 0;
+    animation: fx-lamp-flame 2.2s ease-out forwards;
+}
+
+@keyframes fx-lamp-flame {
+    0%   { opacity: 0; transform: translateX(-50%) scale(0.4); }
+    20%  { opacity: 1; transform: translateX(-50%) scale(1); }
+    45%  { opacity: 1; transform: translateX(-50%) scale(1.06) rotate(2deg); }
+    70%  { opacity: 0.9; transform: translateX(-50%) scale(0.98) rotate(-2deg); }
+    100% { opacity: 0; transform: translateX(-50%) scale(0.6); }
+}
+
+.fx-text--lamp {
+    color: #c99b3f;
 }

@@ -56,6 +56,15 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     @Override
+    public List<User> findByCurrentFamilyId(Long familyId) {
+        LambdaQueryWrapper<SysUserDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysUserDO::getCurrentFamilyId, familyId)
+                .orderByAsc(SysUserDO::getUsername);
+        List<SysUserDO> doList = mapper.selectList(wrapper);
+        return UserConverter.toDomainList(doList);
+    }
+
+    @Override
     public void update(User entity) {
         SysUserDO doObj = UserConverter.toDO(entity);
         mapper.updateById(doObj);

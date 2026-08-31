@@ -29,5 +29,10 @@
             <groupId>jakarta.validation</groupId>
             <artifactId>jakarta.validation-api</artifactId>
         </dependency>
+        <!-- Jsoup：富文本 HTML 白名单清洗（XSS 防护） -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+        </dependency>
     </dependencies>
 </project>

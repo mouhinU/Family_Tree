@@ -134,7 +134,8 @@
 
         // 工具栏整体下拉隐藏：点击把手收起 / 展开，画布随之上移填补；
         // 移动端默认展开，保证搜索开关与工具项在族谱页面直接可见，桌面端保持默认收起
-        if (window.matchMedia('(max-width: 768px)').matches) {
+        // （手机横屏时宽度超过768px，需按横屏+矮高度+触摸特征识别）
+        if (window.matchMedia('(max-width: 768px), ((orientation: landscape) and (max-height: 480px) and (hover: none) and (pointer: coarse))').matches) {
             document.getElementById('toolbar').classList.remove('collapsed');
             document.body.classList.remove('toolbar-hidden');
             document.getElementById('toolbar-handle').title = '收起工具栏';
@@ -202,6 +203,54 @@
         if (btnDeathAnniversary) {
             btnDeathAnniversary.addEventListener('click', function () {
                 FT.showDeathAnniversaryModal();
+            });
+        }
+
+        // 生日提醒按钮（更多下拉）
+        var btnBirthday = document.getElementById('btn-birthday');
+        if (btnBirthday) {
+            btnBirthday.addEventListener('click', function () {
+                FT.showBirthdayModal();
+            });
+        }
+
+        // 纪念日管理按钮（更多下拉）
+        var btnAnniversary = document.getElementById('btn-anniversary');
+        if (btnAnniversary) {
+            btnAnniversary.addEventListener('click', function () {
+                FT.showAnniversaryModal();
+            });
+        }
+
+        // 家族相册按钮（更多下拉）
+        var btnAlbum = document.getElementById('btn-album');
+        if (btnAlbum) {
+            btnAlbum.addEventListener('click', function () {
+                FT.showAlbumModal();
+            });
+        }
+
+        // 家族论坛按钮（更多下拉）
+        var btnForum = document.getElementById('btn-forum');
+        if (btnForum) {
+            btnForum.addEventListener('click', function () {
+                FT.showForumModal();
+            });
+        }
+
+        // 私信按钮（更多下拉）
+        var btnChat = document.getElementById('btn-chat');
+        if (btnChat) {
+            btnChat.addEventListener('click', function () {
+                FT.showChatModal();
+            });
+        }
+
+        // 活动组织按钮（更多下拉）
+        var btnEvent = document.getElementById('btn-event');
+        if (btnEvent) {
+            btnEvent.addEventListener('click', function () {
+                FT.showEventModal();
             });
         }
 
@@ -522,6 +571,12 @@
             'drawer-btn-profile': function () { closeDrawer(); FT.showProfileModal(); },
             'drawer-btn-family-switch': function () { closeDrawer(); FT.showFamilySwitcherModal(); },
             'drawer-btn-death-anniversary': function () { closeDrawer(); FT.showDeathAnniversaryModal(); },
+            'drawer-btn-birthday': function () { closeDrawer(); FT.showBirthdayModal(); },
+            'drawer-btn-anniversary': function () { closeDrawer(); FT.showAnniversaryModal(); },
+            'drawer-btn-album': function () { closeDrawer(); FT.showAlbumModal(); },
+            'drawer-btn-forum': function () { closeDrawer(); FT.showForumModal(); },
+            'drawer-btn-chat': function () { closeDrawer(); FT.showChatModal(); },
+            'drawer-btn-event': function () { closeDrawer(); FT.showEventModal(); },
             'drawer-btn-operation-log': function () { closeDrawer(); FT.showOperationLogModal(); },
             'drawer-btn-export': function () { closeDrawer(); FT.exportToPdf(); },
             'drawer-btn-add-root': function () { closeDrawer(); FT.showNodeModal('添加始祖', {}); },
