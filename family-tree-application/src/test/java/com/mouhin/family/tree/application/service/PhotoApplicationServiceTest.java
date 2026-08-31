@@ -7,6 +7,7 @@ import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyPhoto;
 import com.mouhin.family.tree.domain.entity.PhotoTag;
+import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyPhotoRepository;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 
@@ -47,7 +49,7 @@ class PhotoApplicationServiceTest {
     private FamilyNodeRepository familyNodeRepository;
 
     @Mock
-    private OperationLogApplicationService operationLogService;
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private PhotoApplicationService photoApplicationService;
@@ -72,8 +74,16 @@ class PhotoApplicationServiceTest {
         assertEquals("测试用户", photo.getUsername());
         assertNotNull(photo.getCreateTime());
         assertTrue(vo.getOwn());
-        verify(operationLogService).log(eq(USER_ID), eq("测试用户"), eq("PHOTO_UPLOAD"),
-                anyString(), eq("photo"), eq(PHOTO_ID), eq(FAMILY_ID), isNull());
+
+        ArgumentCaptor<OperationPerformedEvent> eventCaptor =
+                ArgumentCaptor.forClass(OperationPerformedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        OperationPerformedEvent event = eventCaptor.getValue();
+        assertEquals("PHOTO_UPLOAD", event.operationType());
+        assertEquals(USER_ID, event.userId());
+        assertEquals("photo", event.targetType());
+        assertEquals(PHOTO_ID, event.targetId());
+        assertEquals(FAMILY_ID, event.familyId());
     }
 
     @Test

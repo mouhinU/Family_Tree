@@ -9,6 +9,7 @@ import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
 import com.mouhin.family.tree.domain.event.FamilyTreeUpdatedEvent;
 import com.mouhin.family.tree.domain.event.GedcomImportedEvent;
+import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import com.mouhin.family.tree.domain.gedcom.GedcomData;
 import com.mouhin.family.tree.domain.gedcom.GedcomFamily;
 import com.mouhin.family.tree.domain.gedcom.GedcomIndividual;
@@ -112,10 +113,13 @@ public class GedcomApplicationService {
     /**
      * 导出族谱数据为 GEDCOM 格式
      *
-     * @param familyId 家族ID
+     * @param familyId  家族ID
+     * @param userId    操作用户ID
+     * @param username  操作用户名
+     * @param ipAddress 客户端IP
      * @return GEDCOM 格式文本
      */
-    public String exportGedcom(Long familyId) {
+    public String exportGedcom(Long familyId, Long userId, String username, String ipAddress) {
         List<FamilyNode> nodes = familyNodeRepository.findByFamilyId(familyId);
         List<FamilyRelation> relations = familyRelationRepository.findByFamilyId(familyId);
 
@@ -124,6 +128,9 @@ public class GedcomApplicationService {
 
         logger.info("Exporting GEDCOM for family={}, nodes={}, relations={}",
                 familyId, nodes.size(), relations.size());
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "GEDCOM_EXPORT",
+                "导出族谱数据(GEDCOM): " + nodes.size() + " 个节点, " + relations.size() + " 条关系",
+                "export", null, familyId, ipAddress));
         return gedcomGeneratorDomainService.generate(nodes, relations, familyName);
     }
 

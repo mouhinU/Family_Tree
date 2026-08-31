@@ -16,6 +16,7 @@ import com.mouhin.family.tree.domain.event.NodeColorUpdatedEvent;
 import com.mouhin.family.tree.domain.event.NodeCreatedEvent;
 import com.mouhin.family.tree.domain.event.NodeDeletedEvent;
 import com.mouhin.family.tree.domain.event.NodeUpdatedEvent;
+import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import com.mouhin.family.tree.domain.event.RelationCreatedEvent;
 import com.mouhin.family.tree.domain.event.RelationDeletedEvent;
 import com.mouhin.family.tree.domain.event.RelationUpdatedEvent;
@@ -430,6 +431,31 @@ public class OperationLogEventListener {
         } catch (Exception e) {
             logger.error("Failed to log FamilyOfferingMadeEvent for family={}, nodeId={}",
                     event.familyId(), event.nodeId(), e);
+        }
+    }
+
+    /**
+     * 统一操作审计事件：消费后写入操作日志。
+     * <p>
+     * fallbackExecution=true 保证无事务场景（登录、导出等）也能立即记录。
+     *
+     * @param event 操作审计事件
+     */
+    @TransactionalEventListener(fallbackExecution = true)
+    public void handleOperationPerformed(OperationPerformedEvent event) {
+        try {
+            operationLogApplicationService.log(
+                    event.userId(),
+                    event.username(),
+                    event.operationType(),
+                    event.operationDesc(),
+                    event.targetType(),
+                    event.targetId(),
+                    event.familyId(),
+                    event.ipAddress()
+            );
+        } catch (Exception e) {
+            logger.error("Failed to log OperationPerformedEvent: type={}", event.operationType(), e);
         }
     }
 

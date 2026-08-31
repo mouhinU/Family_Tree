@@ -215,7 +215,7 @@ class GedcomApplicationServiceTest {
         when(familyRepository.findById(FAMILY_ID)).thenReturn(family);
 
         // 执行
-        String result = gedcomApplicationService.exportGedcom(FAMILY_ID);
+        String result = gedcomApplicationService.exportGedcom(FAMILY_ID, USER_ID, "测试用户", "127.0.0.1");
 
         // 验证
         assertNotNull(result);

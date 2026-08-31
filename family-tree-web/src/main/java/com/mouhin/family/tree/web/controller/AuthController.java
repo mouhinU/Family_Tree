@@ -1,19 +1,20 @@
 package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.FamilyApplicationService;
-import com.mouhin.family.tree.application.service.OperationLogApplicationService;
 import com.mouhin.family.tree.application.service.UserAuthApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.*;
 import com.mouhin.family.tree.common.dto.UserProfileDTO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.common.result.Result;
+import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import com.mouhin.family.tree.web.filter.CsrfFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -33,13 +34,13 @@ public class AuthController extends BaseController {
 
     private final UserAuthApplicationService userService;
     private final FamilyApplicationService familyService;
-    private final OperationLogApplicationService operationLogService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public AuthController(UserAuthApplicationService userService, FamilyApplicationService familyService,
-                          OperationLogApplicationService operationLogService) {
+                          ApplicationEventPublisher eventPublisher) {
         this.userService = userService;
         this.familyService = familyService;
-        this.operationLogService = operationLogService;
+        this.eventPublisher = eventPublisher;
     }
 
     @PostMapping("/register")
@@ -59,8 +60,8 @@ public class AuthController extends BaseController {
             }
         }
 
-        operationLogService.log(userId, dto.getUsername().trim(), "REGISTER",
-                "用户注册" + (familyId != null ? "并加入家族" : ""), "user", userId, familyId, ip);
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, dto.getUsername().trim(), "REGISTER",
+                "用户注册" + (familyId != null ? "并加入家族" : ""), "user", userId, familyId, ip));
 
         Map<String, Object> data = new HashMap<>(4);
         data.put("userId", userId);
@@ -77,8 +78,8 @@ public class AuthController extends BaseController {
             userId = userService.login(dto);
         } catch (BusinessException e) {
             // 登录失败也记录日志
-            operationLogService.log(null, username, "LOGIN_FAIL",
-                    "登录失败: " + e.getMessage(), "user", null, null, ip);
+            eventPublisher.publishEvent(OperationPerformedEvent.of(null, username, "LOGIN_FAIL",
+                    "登录失败: " + e.getMessage(), "user", null, null, ip));
             throw e;
         }
 
@@ -99,8 +100,8 @@ public class AuthController extends BaseController {
             session.setAttribute(FamilyTreeConsts.SESSION_FAMILY_ID, family.getId());
         }
 
-        operationLogService.log(userId, username, "LOGIN", "用户登录",
-                "user", userId, family != null ? family.getId() : null, ip);
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "LOGIN", "用户登录",
+                "user", userId, family != null ? family.getId() : null, ip));
 
         // 生成 CSRF Token 并写入响应
         String csrfToken = CsrfFilter.generateToken(session);
@@ -127,8 +128,8 @@ public class AuthController extends BaseController {
 
         session.invalidate();
 
-        operationLogService.log(userId, username, "LOGOUT", "用户登出",
-                "user", userId, familyId, ip);
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "LOGOUT", "用户登出",
+                "user", userId, familyId, ip));
         return Result.success();
     }
 
@@ -184,8 +185,8 @@ public class AuthController extends BaseController {
             session.setAttribute(FamilyTreeConsts.SESSION_USERNAME, dto.getNickname().trim());
         }
 
-        operationLogService.log(userId, username, "PROFILE_UPDATE",
-                "更新个人信息", "user", userId, familyId, getClientIp(request));
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "PROFILE_UPDATE",
+                "更新个人信息", "user", userId, familyId, getClientIp(request)));
         return Result.success();
     }
 
@@ -204,9 +205,9 @@ public class AuthController extends BaseController {
         Long nodeId = body.get("nodeId");
         userService.updateNodeId(userId, nodeId);
 
-        operationLogService.log(userId, username, "MARK_SELF",
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "MARK_SELF",
                 nodeId != null ? "标记自己为节点" + nodeId : "取消节点标记",
-                "node", nodeId, familyId, getClientIp(request));
+                "node", nodeId, familyId, getClientIp(request)));
         return Result.success();
     }
 }

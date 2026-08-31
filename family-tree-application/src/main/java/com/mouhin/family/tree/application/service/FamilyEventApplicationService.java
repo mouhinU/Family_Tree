@@ -7,9 +7,11 @@ import com.mouhin.family.tree.common.enums.EventStatusEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.EventSignup;
 import com.mouhin.family.tree.domain.entity.FamilyEvent;
+import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import com.mouhin.family.tree.domain.repository.FamilyEventRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,12 +42,12 @@ public class FamilyEventApplicationService {
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm[:ss]");
 
     private final FamilyEventRepository familyEventRepository;
-    private final OperationLogApplicationService operationLogService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public FamilyEventApplicationService(FamilyEventRepository familyEventRepository,
-                                         OperationLogApplicationService operationLogService) {
+                                         ApplicationEventPublisher eventPublisher) {
         this.familyEventRepository = familyEventRepository;
-        this.operationLogService = operationLogService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -74,8 +76,8 @@ public class FamilyEventApplicationService {
         event.validateForCreate();
         familyEventRepository.save(event);
         logger.info("用户 {} 在家族 {} 发起活动: id={}", userId, familyId, event.getId());
-        operationLogService.log(userId, username, "EVENT_CREATE",
-                "发起家族活动: " + event.getTitle(), "event", event.getId(), familyId, null);
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "EVENT_CREATE",
+                "发起家族活动: " + event.getTitle(), "event", event.getId(), familyId, null));
         return event.getId();
     }
 
@@ -197,8 +199,8 @@ public class FamilyEventApplicationService {
         familyEventRepository.removeSignupsByEventId(eventId);
         familyEventRepository.removeById(eventId);
         logger.info("用户 {} 删除活动: id={}", userId, eventId);
-        operationLogService.log(userId, event.getUsername(), "EVENT_DELETE",
-                "删除家族活动: " + event.getTitle(), "event", eventId, familyId, null);
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, event.getUsername(), "EVENT_DELETE",
+                "删除家族活动: " + event.getTitle(), "event", eventId, familyId, null));
     }
 
     private FamilyEvent getEventChecked(Long familyId, Long eventId) {

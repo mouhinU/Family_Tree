@@ -6,9 +6,11 @@ import com.mouhin.family.tree.common.dto.ColorUpdateDTO;
 import com.mouhin.family.tree.common.dto.FamilyNodeDTO;
 import com.mouhin.family.tree.common.dto.NodeCreateDTO;
 import com.mouhin.family.tree.common.result.Result;
+import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -26,9 +28,12 @@ import java.util.Map;
 public class FamilyNodeController extends BaseController {
 
     private final FamilyNodeApplicationService familyNodeService;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public FamilyNodeController(FamilyNodeApplicationService familyNodeService) {
+    public FamilyNodeController(FamilyNodeApplicationService familyNodeService,
+                                ApplicationEventPublisher eventPublisher) {
         this.familyNodeService = familyNodeService;
+        this.eventPublisher = eventPublisher;
     }
 
     @PostMapping
@@ -69,9 +74,15 @@ public class FamilyNodeController extends BaseController {
     }
 
     @GetMapping("/{nodeId}")
-    public Result<FamilyNodeDTO> get(@PathVariable Long nodeId, HttpSession session) {
+    public Result<FamilyNodeDTO> get(@PathVariable Long nodeId, HttpSession session,
+                                     HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
-        return Result.success(familyNodeService.getNode(familyId, nodeId));
+        Long userId = getCurrentUserId(session);
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        FamilyNodeDTO node = familyNodeService.getNode(familyId, nodeId);
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "NODE_VIEW",
+                "查看族人详情: " + node.getName(), "node", nodeId, familyId, getClientIp(request)));
+        return Result.success(node);
     }
 
     @GetMapping("/list")

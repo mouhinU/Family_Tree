@@ -8,11 +8,13 @@ import com.mouhin.family.tree.common.dto.FamilyNodeDTO;
 import com.mouhin.family.tree.common.dto.FamilyRelationDTO;
 import com.mouhin.family.tree.common.dto.GedcomImportResultVO;
 import com.mouhin.family.tree.common.result.Result;
+import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -43,20 +45,23 @@ public class DataExportController extends BaseController {
     private final FamilyNodeApplicationService familyNodeService;
     private final FamilyRelationApplicationService familyRelationService;
     private final GedcomApplicationService gedcomApplicationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public DataExportController(FamilyNodeApplicationService familyNodeService,
                                 FamilyRelationApplicationService familyRelationService,
-                                GedcomApplicationService gedcomApplicationService) {
+                                GedcomApplicationService gedcomApplicationService,
+                                ApplicationEventPublisher eventPublisher) {
         this.familyNodeService = familyNodeService;
         this.familyRelationService = familyRelationService;
         this.gedcomApplicationService = gedcomApplicationService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
      * 导出当前家族全部节点与关系为 JSON
      */
     @GetMapping("/export")
-    public Result<Map<String, Object>> exportData(HttpSession session) {
+    public Result<Map<String, Object>> exportData(HttpSession session, HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
         List<FamilyNodeDTO> nodes = familyNodeService.listNodes(familyId);
         List<FamilyRelationDTO> relations = familyRelationService.listAllRelations(familyId);
@@ -67,7 +72,11 @@ public class DataExportController extends BaseController {
         data.put("nodeCount", nodes.size());
         data.put("relationCount", relations.size());
 
-        logger.info("Exported {} nodes and {} relations for family={}", nodes.size(), relations.size(), familyId);
+        eventPublisher.publishEvent(OperationPerformedEvent.of(getCurrentUserId(session),
+                (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME),
+                "DATA_EXPORT", "导出族谱数据(JSON): " + nodes.size() + " 个节点, "
+                        + relations.size() + " 条关系",
+                "export", null, familyId, getClientIp(request)));
         return Result.success(data);
     }
 
@@ -78,9 +87,11 @@ public class DataExportController extends BaseController {
      * @param response HTTP响应
      */
     @GetMapping("/export/gedcom")
-    public void exportGedcom(HttpSession session, HttpServletResponse response) throws IOException {
+    public void exportGedcom(HttpSession session, HttpServletRequest request,
+                             HttpServletResponse response) throws IOException {
         Long familyId = getCurrentFamilyId(session);
-        String gedcomContent = gedcomApplicationService.exportGedcom(familyId);
+        String gedcomContent = gedcomApplicationService.exportGedcom(familyId, getCurrentUserId(session),
+                (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME), getClientIp(request));
 
         String fileName = "family-tree.ged";
         response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);

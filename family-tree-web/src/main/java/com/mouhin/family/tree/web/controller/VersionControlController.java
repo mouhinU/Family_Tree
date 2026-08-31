@@ -1,6 +1,5 @@
 package com.mouhin.family.tree.web.controller;
 
-import com.mouhin.family.tree.application.service.OperationLogApplicationService;
 import com.mouhin.family.tree.application.service.VersionControlApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.result.Result;
@@ -26,12 +25,9 @@ import java.util.Map;
 public class VersionControlController extends BaseController {
 
     private final VersionControlApplicationService versionControlService;
-    private final OperationLogApplicationService operationLogService;
 
-    public VersionControlController(VersionControlApplicationService versionControlService,
-                                    OperationLogApplicationService operationLogService) {
+    public VersionControlController(VersionControlApplicationService versionControlService) {
         this.versionControlService = versionControlService;
-        this.operationLogService = operationLogService;
     }
 
     /**
@@ -131,9 +127,13 @@ public class VersionControlController extends BaseController {
     @PostMapping("/node/{nodeId}/rollback")
     public Result<Map<String, Object>> rollbackNode(@PathVariable Long nodeId,
                                                      @RequestParam Integer versionId,
-                                                     HttpSession session) {
+                                                     HttpSession session,
+                                                     HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
-        String nodeData = versionControlService.rollbackNodeToVersion(nodeId, versionId, familyId);
+        String nodeData = versionControlService.rollbackNodeToVersion(nodeId, versionId, familyId,
+                getCurrentUserId(session),
+                (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME),
+                getClientIp(request));
 
         Map<String, Object> data = new HashMap<>(2);
         data.put("nodeData", nodeData);
@@ -165,12 +165,9 @@ public class VersionControlController extends BaseController {
                 snapshotName,
                 description != null ? description : "",
                 userId,
-                username != null ? username : ""
+                username != null ? username : "",
+                getClientIp(request)
         );
-
-        operationLogService.log(userId, username, "VERSION_SNAPSHOT",
-                "创建家族快照: " + snapshotName, "snapshot", snapshot.getId(),
-                familyId, getClientIp(request));
 
         Map<String, Object> data = new HashMap<>(2);
         data.put("snapshotId", snapshot.getId());
@@ -215,12 +212,8 @@ public class VersionControlController extends BaseController {
     public Result<Void> deleteSnapshot(@PathVariable Long snapshotId, HttpSession session,
                                        HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
-        versionControlService.deleteSnapshot(snapshotId);
-
-        operationLogService.log(getCurrentUserId(session),
-                (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME),
-                "VERSION_SNAPSHOT_DELETE", "删除家族快照: id=" + snapshotId,
-                "snapshot", snapshotId, familyId, getClientIp(request));
+        versionControlService.deleteSnapshot(snapshotId, familyId, getCurrentUserId(session),
+                (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME), getClientIp(request));
         return Result.success();
     }
 

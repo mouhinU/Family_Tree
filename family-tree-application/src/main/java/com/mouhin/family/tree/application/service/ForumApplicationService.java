@@ -8,9 +8,11 @@ import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.common.util.HtmlSanitizeUtils;
 import com.mouhin.family.tree.domain.entity.ForumReply;
 import com.mouhin.family.tree.domain.entity.ForumTopic;
+import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import com.mouhin.family.tree.domain.repository.ForumRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,12 +38,12 @@ public class ForumApplicationService {
     private static final int SUMMARY_MAX_LENGTH = 120;
 
     private final ForumRepository forumRepository;
-    private final OperationLogApplicationService operationLogService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public ForumApplicationService(ForumRepository forumRepository,
-                                   OperationLogApplicationService operationLogService) {
+                                   ApplicationEventPublisher eventPublisher) {
         this.forumRepository = forumRepository;
-        this.operationLogService = operationLogService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -76,8 +78,8 @@ public class ForumApplicationService {
         topic.validateForCreate();
         forumRepository.saveTopic(topic);
         logger.info("用户 {} 在家族 {} 发布论坛主题: id={}", userId, familyId, topic.getId());
-        operationLogService.log(userId, username, "FORUM_POST",
-                "发布论坛主题: " + topic.getTitle(), "forum_topic", topic.getId(), familyId, null);
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "FORUM_POST",
+                "发布论坛主题: " + topic.getTitle(), "forum_topic", topic.getId(), familyId, null));
         return topic.getId();
     }
 
@@ -181,8 +183,8 @@ public class ForumApplicationService {
         forumRepository.removeRepliesByTopicId(topicId);
         forumRepository.removeTopicById(topicId);
         logger.info("用户 {} 删除主题: id={}", userId, topicId);
-        operationLogService.log(userId, topic.getUsername(), "FORUM_DELETE",
-                "删除论坛主题: " + topic.getTitle(), "forum_topic", topicId, familyId, null);
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, topic.getUsername(), "FORUM_DELETE",
+                "删除论坛主题: " + topic.getTitle(), "forum_topic", topicId, familyId, null));
     }
 
     /**

@@ -4,6 +4,7 @@ import com.mouhin.family.tree.common.dto.BiographyUpdateDTO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.common.util.HtmlSanitizeUtils;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
+import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,12 +12,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 /**
@@ -38,7 +37,7 @@ class BiographyApplicationServiceTest {
     private FamilyNodeRepository familyNodeRepository;
 
     @Mock
-    private OperationLogApplicationService operationLogService;
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private BiographyApplicationService biographyApplicationService;
@@ -97,8 +96,17 @@ class BiographyApplicationServiceTest {
         verify(familyNodeRepository).update(captor.capture());
         assertTrue(captor.getValue().getBiography().contains("新的生平故事"));
         assertNotNull(captor.getValue().getUpdateTime());
-        verify(operationLogService).log(eq(USER_ID), eq("测试用户"), eq("BIOGRAPHY_UPDATE"),
-                anyString(), eq("node"), eq(NODE_ID), eq(FAMILY_ID), isNull());
+
+        ArgumentCaptor<OperationPerformedEvent> eventCaptor =
+                ArgumentCaptor.forClass(OperationPerformedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        OperationPerformedEvent event = eventCaptor.getValue();
+        assertEquals("BIOGRAPHY_UPDATE", event.operationType());
+        assertEquals(USER_ID, event.userId());
+        assertEquals("测试用户", event.username());
+        assertEquals("node", event.targetType());
+        assertEquals(NODE_ID, event.targetId());
+        assertEquals(FAMILY_ID, event.familyId());
     }
 
     @Test

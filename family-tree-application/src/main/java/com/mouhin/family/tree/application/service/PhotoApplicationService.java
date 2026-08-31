@@ -7,10 +7,12 @@ import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyPhoto;
 import com.mouhin.family.tree.domain.entity.PhotoTag;
+import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyPhotoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,14 +34,14 @@ public class PhotoApplicationService {
 
     private final FamilyPhotoRepository familyPhotoRepository;
     private final FamilyNodeRepository familyNodeRepository;
-    private final OperationLogApplicationService operationLogService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public PhotoApplicationService(FamilyPhotoRepository familyPhotoRepository,
                                    FamilyNodeRepository familyNodeRepository,
-                                   OperationLogApplicationService operationLogService) {
+                                   ApplicationEventPublisher eventPublisher) {
         this.familyPhotoRepository = familyPhotoRepository;
         this.familyNodeRepository = familyNodeRepository;
-        this.operationLogService = operationLogService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -61,8 +63,8 @@ public class PhotoApplicationService {
         photo.validateForCreate();
         familyPhotoRepository.save(photo);
         logger.info("用户 {} 在家族 {} 上传照片: id={}", userId, familyId, photo.getId());
-        operationLogService.log(userId, username, "PHOTO_UPLOAD",
-                "上传家族照片: " + photo.getTitle(), "photo", photo.getId(), familyId, null);
+        operationLogPublish(userId, username, "PHOTO_UPLOAD",
+                "上传家族照片: " + photo.getTitle(), "photo", photo.getId(), familyId);
         return toPhotoVO(photo, userId);
     }
 
@@ -98,8 +100,8 @@ public class PhotoApplicationService {
         familyPhotoRepository.removeTagsByPhotoId(photoId);
         familyPhotoRepository.removeById(photoId);
         logger.info("用户 {} 删除照片: id={}", userId, photoId);
-        operationLogService.log(userId, photo.getUsername(), "PHOTO_DELETE",
-                "删除家族照片: " + photo.getTitle(), "photo", photoId, photo.getFamilyId(), null);
+        operationLogPublish(userId, photo.getUsername(), "PHOTO_DELETE",
+                "删除家族照片: " + photo.getTitle(), "photo", photoId, photo.getFamilyId());
     }
 
     /**
@@ -183,5 +185,14 @@ public class PhotoApplicationService {
         vo.setNodeId(tag.getNodeId());
         vo.setNodeName(tag.getNodeName());
         return vo;
+    }
+
+    /**
+     * 发布统一操作审计事件（相册操作无请求上下文，IP 置空）
+     */
+    private void operationLogPublish(Long userId, String username, String operationType,
+                                     String operationDesc, String targetType, Long targetId, Long familyId) {
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, operationType,
+                operationDesc, targetType, targetId, familyId, null));
     }
 }

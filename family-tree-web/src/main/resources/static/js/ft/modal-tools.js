@@ -27,6 +27,7 @@
         'NODE_UPDATE': '更新节点',
         'NODE_DELETE': '删除节点',
         'NODE_COLOR': '颜色标注',
+        'NODE_VIEW': '查看详情',
         'RELATION_CREATE': '创建关系',
         'RELATION_UPDATE': '更新关系',
         'RELATION_DELETE': '删除关系',

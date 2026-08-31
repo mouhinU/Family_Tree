@@ -4,9 +4,11 @@ import com.mouhin.family.tree.common.dto.BiographyUpdateDTO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.common.util.HtmlSanitizeUtils;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
+import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,12 +27,12 @@ public class BiographyApplicationService {
     private static final Logger logger = LoggerFactory.getLogger(BiographyApplicationService.class);
 
     private final FamilyNodeRepository familyNodeRepository;
-    private final OperationLogApplicationService operationLogService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public BiographyApplicationService(FamilyNodeRepository familyNodeRepository,
-                                       OperationLogApplicationService operationLogService) {
+                                       ApplicationEventPublisher eventPublisher) {
         this.familyNodeRepository = familyNodeRepository;
-        this.operationLogService = operationLogService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -68,8 +70,8 @@ public class BiographyApplicationService {
         node.setUpdateTime(LocalDateTime.now());
         familyNodeRepository.update(node);
         logger.info("用户 {} 更新节点 {} 的人物传记", userId, nodeId);
-        operationLogService.log(userId, username, "BIOGRAPHY_UPDATE",
-                "更新人物传记: " + node.getName(), "node", nodeId, familyId, null);
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "BIOGRAPHY_UPDATE",
+                "更新人物传记: " + node.getName(), "node", nodeId, familyId, null));
     }
 
     private FamilyNode getNodeChecked(Long familyId, Long nodeId) {

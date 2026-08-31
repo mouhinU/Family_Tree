@@ -6,6 +6,7 @@ import com.mouhin.family.tree.domain.entity.FamilyRelation;
 import com.mouhin.family.tree.domain.entity.FamilySnapshot;
 import com.mouhin.family.tree.domain.entity.NodeHistory;
 import com.mouhin.family.tree.domain.entity.RelationHistory;
+import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
 import com.mouhin.family.tree.domain.repository.HistoryRepository;
@@ -13,6 +14,7 @@ import com.mouhin.family.tree.domain.repository.SnapshotRepository;
 import com.mouhin.family.tree.domain.service.VersionControlDomainService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,17 +38,20 @@ public class VersionControlApplicationService {
     private final FamilyNodeRepository familyNodeRepository;
     private final FamilyRelationRepository familyRelationRepository;
     private final VersionControlDomainService versionControlDomainService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public VersionControlApplicationService(HistoryRepository historyRepository,
                                             SnapshotRepository snapshotRepository,
                                             FamilyNodeRepository familyNodeRepository,
                                             FamilyRelationRepository familyRelationRepository,
-                                            VersionControlDomainService versionControlDomainService) {
+                                            VersionControlDomainService versionControlDomainService,
+                                            ApplicationEventPublisher eventPublisher) {
         this.historyRepository = historyRepository;
         this.snapshotRepository = snapshotRepository;
         this.familyNodeRepository = familyNodeRepository;
         this.familyRelationRepository = familyRelationRepository;
         this.versionControlDomainService = versionControlDomainService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -177,25 +182,32 @@ public class VersionControlApplicationService {
      * @param nodeId        节点ID
      * @param versionNumber 目标版本号
      * @param familyId      家族ID
+     * @param userId        操作用户ID
+     * @param username      操作用户名
+     * @param ipAddress     客户端IP
      * @return 回滚后的节点数据（JSON字符串）
      */
-    public String rollbackNodeToVersion(Long nodeId, Integer versionNumber, Long familyId) {
+    public String rollbackNodeToVersion(Long nodeId, Integer versionNumber, Long familyId,
+                                        Long userId, String username, String ipAddress) {
         NodeHistory history = historyRepository.findNodeHistoryByVersion(nodeId, versionNumber);
         if (history == null) {
             throw new BusinessException("版本" + versionNumber + "不存在");
         }
 
+        String nodeData;
         // 返回该版本的afterData（如果是CREATE或UPDATE操作）
         if (history.getAfterData() != null) {
-            return history.getAfterData();
+            nodeData = history.getAfterData();
+        } else if (history.getBeforeData() != null) {
+            // 如果是DELETE操作，返回beforeData
+            nodeData = history.getBeforeData();
+        } else {
+            throw new BusinessException("版本数据不完整，无法回滚");
         }
 
-        // 如果是DELETE操作，返回beforeData
-        if (history.getBeforeData() != null) {
-            return history.getBeforeData();
-        }
-
-        throw new BusinessException("版本数据不完整，无法回滚");
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "VERSION_ROLLBACK",
+                "回滚节点到版本" + versionNumber, "node", nodeId, familyId, ipAddress));
+        return nodeData;
     }
 
     /**
@@ -206,16 +218,17 @@ public class VersionControlApplicationService {
      * @param description  快照描述
      * @param creatorId    创建人ID
      * @param creatorName  创建人姓名
+     * @param ipAddress    客户端IP
      * @return 创建的快照
      */
     @Transactional(rollbackFor = Exception.class)
     public FamilySnapshot createSnapshot(Long familyId, String snapshotName, String description,
-                                          Long creatorId, String creatorName) {
+                                          Long creatorId, String creatorName, String ipAddress) {
         // 获取家族所有节点和关系
         List<FamilyNode> nodes = familyNodeRepository.findByFamilyId(familyId);
         List<FamilyRelation> relations = familyRelationRepository.findByFamilyId(familyId);
 
-        return versionControlDomainService.createSnapshot(
+        FamilySnapshot snapshot = versionControlDomainService.createSnapshot(
                 familyId,
                 snapshotName,
                 description,
@@ -224,6 +237,10 @@ public class VersionControlApplicationService {
                 nodes,
                 relations
         );
+
+        eventPublisher.publishEvent(OperationPerformedEvent.of(creatorId, creatorName, "VERSION_SNAPSHOT",
+                "创建家族快照: " + snapshotName, "snapshot", snapshot.getId(), familyId, ipAddress));
+        return snapshot;
     }
 
     /**
@@ -247,12 +264,27 @@ public class VersionControlApplicationService {
     }
 
     /**
-     * 删除快照
+     * 删除快照（校验归属后删除）
      *
      * @param snapshotId 快照ID
+     * @param familyId   当前家族ID
+     * @param userId     操作用户ID
+     * @param username   操作用户名
+     * @param ipAddress  客户端IP
      */
-    public void deleteSnapshot(Long snapshotId) {
+    public void deleteSnapshot(Long snapshotId, Long familyId, Long userId,
+                               String username, String ipAddress) {
+        FamilySnapshot snapshot = snapshotRepository.findById(snapshotId);
+        if (snapshot == null) {
+            throw new BusinessException("快照不存在");
+        }
+        if (!Objects.equals(snapshot.getFamilyId(), familyId)) {
+            throw new BusinessException("无权删除该快照");
+        }
         snapshotRepository.removeById(snapshotId);
+
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "VERSION_SNAPSHOT_DELETE",
+                "删除家族快照: " + snapshot.getSnapshotName(), "snapshot", snapshotId, familyId, ipAddress));
     }
 
     /**

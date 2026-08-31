@@ -14,6 +14,7 @@ import com.mouhin.family.tree.domain.event.FamilyCreatedEvent;
 import com.mouhin.family.tree.domain.event.MemberJoinedEvent;
 import com.mouhin.family.tree.domain.event.MemberRemovedEvent;
 import com.mouhin.family.tree.domain.event.MemberRoleChangedEvent;
+import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import com.mouhin.family.tree.domain.repository.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -278,10 +279,12 @@ public class FamilyApplicationService {
      *
      * @param familyId       家族ID
      * @param operatorUserId 操作者用户ID
+     * @param operatorName   操作者用户名
+     * @param ipAddress      客户端IP
      * @return 新邀请码
      */
     @Transactional(rollbackFor = Exception.class)
-    public String refreshInviteCode(Long familyId, Long operatorUserId) {
+    public String refreshInviteCode(Long familyId, Long operatorUserId, String operatorName, String ipAddress) {
         checkManager(familyId, operatorUserId);
 
         String newCode = generateUniqueInviteCode();
@@ -294,6 +297,8 @@ public class FamilyApplicationService {
         familyRepository.update(family);
 
         logger.info("Refreshed invite code for family={} by user={}", familyId, operatorUserId);
+        eventPublisher.publishEvent(OperationPerformedEvent.of(operatorUserId, operatorName,
+                "INVITE_CODE_REFRESH", "刷新家族邀请码", "family", familyId, familyId, ipAddress));
         return newCode;
     }
 
@@ -405,10 +410,13 @@ public class FamilyApplicationService {
      * @param operatorUserId 操作者用户ID
      * @param hallName       堂号
      * @param ancestralHome  祖籍
+     * @param operatorName   操作者用户名
+     * @param ipAddress      客户端IP
      */
     @Transactional(rollbackFor = Exception.class)
     public void updateFamilyInfo(Long familyId, Long operatorUserId,
-                                 String hallName, String ancestralHome) {
+                                 String hallName, String ancestralHome,
+                                 String operatorName, String ipAddress) {
         checkManager(familyId, operatorUserId);
 
         Family family = familyRepository.findById(familyId);
@@ -420,6 +428,8 @@ public class FamilyApplicationService {
         familyRepository.update(family);
 
         logger.info("Updated family info for family={} by user={}", familyId, operatorUserId);
+        eventPublisher.publishEvent(OperationPerformedEvent.of(operatorUserId, operatorName,
+                "FAMILY_INFO_UPDATE", "更新家族信息(堂号/籍贯)", "family", familyId, familyId, ipAddress));
     }
 
     /**
@@ -429,10 +439,13 @@ public class FamilyApplicationService {
      * @param operatorUserId 操作者用户ID
      * @param cols           列数
      * @param rows           行数
+     * @param operatorName   操作者用户名
+     * @param ipAddress      客户端IP
      */
     @Transactional(rollbackFor = Exception.class)
     public void updateGenerationLayout(Long familyId, Long operatorUserId,
-                                       Integer cols, Integer rows) {
+                                       Integer cols, Integer rows,
+                                       String operatorName, String ipAddress) {
         checkManager(familyId, operatorUserId);
 
         Family family = familyRepository.findById(familyId);
@@ -446,6 +459,8 @@ public class FamilyApplicationService {
 
         logger.info("Updated generation layout for family={} cols={} rows={} by user={}",
                 familyId, cols, rows, operatorUserId);
+        eventPublisher.publishEvent(OperationPerformedEvent.of(operatorUserId, operatorName,
+                "GENERATION_LAYOUT", "保存辈分管理行列布局", "generation", null, familyId, ipAddress));
     }
 
     /**

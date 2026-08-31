@@ -2,9 +2,11 @@ package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.FamilyApplicationService;
 import com.mouhin.family.tree.application.service.FamilyGenerationApplicationService;
+import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.FamilyGenerationDTO;
 import com.mouhin.family.tree.common.dto.GenerationLayoutDTO;
 import com.mouhin.family.tree.common.result.Result;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.*;
 
@@ -68,10 +70,12 @@ public class FamilyGenerationController extends BaseController {
      * 保存辈分管理行列布局
      */
     @PutMapping("/layout")
-    public Result<Void> saveLayout(@RequestBody GenerationLayoutDTO dto, HttpSession session) {
+    public Result<Void> saveLayout(@RequestBody GenerationLayoutDTO dto, HttpSession session,
+                                   HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
-        familyService.updateGenerationLayout(familyId, userId, dto.getCols(), dto.getRows());
+        familyService.updateGenerationLayout(familyId, userId, dto.getCols(), dto.getRows(),
+                (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME), getClientIp(request));
         return Result.success();
     }
 }

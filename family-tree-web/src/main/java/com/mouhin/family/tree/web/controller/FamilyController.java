@@ -9,6 +9,7 @@ import com.mouhin.family.tree.common.dto.FamilyJoinDTO;
 import com.mouhin.family.tree.common.dto.FamilyMemberDTO;
 import com.mouhin.family.tree.common.dto.MemberRoleUpdateDTO;
 import com.mouhin.family.tree.common.result.Result;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
@@ -98,10 +99,12 @@ public class FamilyController extends BaseController {
      * 刷新邀请码（族长/管理员）
      */
     @PutMapping("/invite-code")
-    public Result<Map<String, Object>> refreshInviteCode(HttpSession session) {
+    public Result<Map<String, Object>> refreshInviteCode(HttpSession session, HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
-        String newCode = familyService.refreshInviteCode(familyId, userId);
+        String newCode = familyService.refreshInviteCode(familyId, userId,
+                (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME), getClientIp(request));
+
         Map<String, Object> data = new HashMap<>(4);
         data.put("inviteCode", newCode);
         return Result.success(data);
@@ -145,10 +148,12 @@ public class FamilyController extends BaseController {
      * 更新家族信息（堂号、籍贯，仅管理员可操作）
      */
     @PutMapping("/info")
-    public Result<Void> updateInfo(@Valid @RequestBody FamilyInfoUpdateDTO dto, HttpSession session) {
+    public Result<Void> updateInfo(@Valid @RequestBody FamilyInfoUpdateDTO dto, HttpSession session,
+                                   HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
-        familyService.updateFamilyInfo(familyId, userId, dto.getHallName(), dto.getAncestralHome());
+        familyService.updateFamilyInfo(familyId, userId, dto.getHallName(), dto.getAncestralHome(),
+                (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME), getClientIp(request));
         return Result.success();
     }
 }

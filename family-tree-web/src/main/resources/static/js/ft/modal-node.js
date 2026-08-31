@@ -469,6 +469,10 @@
     // ========== 节点详情 ==========
     // 节点详情（含去世日期编辑 + 配偶离异管理）
     function showDetailModal(node) {
+        // 详情渲染使用树加载缓存的数据，此处异步通知后端记录查看日志（不阻塞弹窗，失败静默）
+        if (node.id != null) {
+            Promise.resolve(FT.api('/api/node/' + node.id)).catch(function () {});
+        }
         var generationNames = FT.state.generationNames;
         var genderText = node.gender === 1 ? '男' : node.gender === 2 ? '女' : '未知';
         var deceased = node.deathDate != null && node.deathDate !== '';
