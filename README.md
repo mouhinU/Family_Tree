@@ -12,7 +12,7 @@
 | ORM      | MyBatis-Plus（spring-boot4-starter）         | 3.5.17               |
 | JSON     | Jackson 3                                  | 3.x                  |
 | 数据库      | H2（开发，文件模式）/ MySQL（生产）                     | H2 2.3.x / MySQL 8.x |
-| 数据库迁移    | Flyway（H2 + MySQL 双轨）                      | 10.x（V1–V22）         |
+| 数据库迁移    | Flyway（H2 + MySQL 双轨）                      | 10.x（V1–V23）         |
 | 密码加密     | Spring Security Crypto（BCrypt，存量 MD5 透明迁移） | —                    |
 | 缓存       | Caffeine（族谱树缓存、登录限流）                       | 3.1.8                |
 | 监控       | Micrometer + Actuator                      | —                    |
@@ -59,6 +59,7 @@ web → application → domain ← infrastructure
 - **颜色标注**：默认 / 父系 / 母系 / 姻亲 / 过继 / 高亮，已故统一灰色，支持批量修改。
 - **PDF 导出**：全量布局计算生成独立 SVG（含宣纸背景 + 龙纹辈分水印），栅格化后下载自定义尺寸 PDF。
 - **数据导出**：导出全量家族节点和关系数据为 JSON 格式。
+- **GEDCOM 导入导出**：支持国际标准家谱格式（GEDCOM 5.x）导入（覆盖/增量模式）与导出，自动重建代际关系，实现与其他家谱软件的数据互通。
 
 ### 多用户与协作
 
@@ -66,14 +67,33 @@ web → application → domain ← infrastructure
 - **成员角色**：OWNER 可设/取消管理员、移除任何人、修改家族信息（堂号/籍贯）；ADMIN 可移除普通成员；邀请码刷新与链接生成。
 - **多家族切换**：用户可加入多个家族，随时切换当前活跃家族。
 - **标记为我**：登录用户可标记自己在族谱中对应的节点，节点卡片显示金色边框与"我"徽章。
-- **操作日志**：记录登录/注册/节点增删改/颜色修改等操作，OWNER/ADMIN 可分页查询并按类型筛选。
-- **族言留言板**：家族成员可发布留言，底部轮播条实时滚动展示最新留言，支持悬停暂停和关闭。
+- **操作日志**：记录登录/注册/节点增删改/颜色修改等操作（各应用服务发布 `OperationPerformedEvent`，监听器在事务提交后解耦落库），OWNER/ADMIN 可分页查询并按类型筛选。
+- **族言留言板**：家族成员可发布留言，支持分类、点赞、回复（二级结构 + 回复计数），底部轮播条实时滚动展示最新留言，支持悬停暂停和关闭。
+- **通知中心**：系统内通知的列表查询、未读计数与标记已读。
+
+### 协作与版本控制
+
+- **操作历史回溯**：节点与关系的每次变更自动写入历史表，支持查看修改记录并回滚到任意版本。
+- **族谱快照**：对整棵族谱打快照，支持快照间对比与恢复。
+- **变更审计**：版本记录关联操作人、操作时间与变更前后数据，详见 `docs/version-control-README.md`。
+
+### 社交互动
+
+- **家族相册**：上传共享照片，为照片标记族谱中的人物（照片-节点关联），仅上传者可管理。
+- **家族论坛**：话题讨论区，富文本编辑（服务端 Jsoup 白名单清洗防 XSS），列表纯文本摘要、浏览/回复计数，发帖人可删主题（级联删回复）。
+- **私信系统**：族人间一对一聊天，会话聚合（未读计数、最近消息）、进入会话自动标记已读，仅限同家族成员互发。
+- **活动组织**：发起家族活动（时间/地点/预算），报名与取消报名、发起人截止/重开报名，自动汇总参与人数与人均费用（AA 计算）。
+- **AI 能力**：智能录入、自然语言问答、家族故事生成、照片 OCR 解析（默认关闭，见 AI 功能配置）。
 
 ### 祭奠与缅怀
 
 - **敬献**：为已故长辈敬献祭品，详情弹框中展示祭奠统计面板与敬献动效（glow + 烟雾 + 火焰）。
 - **送鲜花**：为已故长辈送鲜花，效果为白色与黄色菊花（CSS conic-gradient 绘制），素雅庄重。
 - **长辈校验**：前后端双重校验，只能为辈分高于自己的已故成员祭奠。
+- **在线祭堂**：为已故亲人发布缅怀留言（仅限已故节点），留言列表与删除。
+- **生日提醒**：查询未来 N 天内过生日的在世成员（含年龄与剩余天数），与忌日提醒互补。
+- **纪念日管理**：自定义家族纪念日（结婚周年/入学毕业/纪念/其他），可关联族人，自动计算周年数与距下次纪念日天数并按临近排序。
+- **人物传记**：为族人撰写富文本传记（服务端清洗防 XSS），详情弹框中编辑与展示。
 
 ### 安全
 
@@ -124,7 +144,7 @@ cd family-tree-web
 | `dev`（默认） | H2 文件库 `./data/family-tree`（AUTO_SERVER 模式）     | `db/migration/h2`    |
 | `mysql`   | MySQL `jdbc:mysql://localhost:3306/family_tree` | `db/migration/mysql` |
 
-Flyway 在启动时自动执行迁移（V1~V22），`baseline-on-migrate: true`。
+Flyway 在启动时自动执行迁移（V1~V23），`baseline-on-migrate: true`。
 
 ### AI 功能配置
 
@@ -144,19 +164,33 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 
 ## 数据库模型
 
-共 9 张表，通过 17 个 Flyway 迁移版本管理：
+共 23 张表，通过 23 个 Flyway 迁移版本管理：
 
-| 表名                  | 说明        | 核心字段                                                                       |
-|---------------------|-----------|----------------------------------------------------------------------------|
-| `sys_user`          | 用户账号      | username, password_hash, nickname, current_family_id, node_id              |
-| `family`            | 家族/宗族     | name, invite_code, creator_id, hall_name, ancestral_home                   |
-| `family_member`     | 用户-家族成员关系 | family_id, user_id, role (OWNER/ADMIN/MEMBER)                              |
-| `family_node`       | 族谱节点（人物）  | name, gender, birth_date, death_date, generation, color_label, birth_order |
-| `family_relation`   | 节点间关系     | from_node_id, to_node_id, relation_type (亲子/配偶/过继)                         |
-| `family_generation` | 辈分名（字辈）   | family_id, generation, name                                                |
-| `family_offering`   | 祭奠记录      | node_id, offering_type (敬献/鲜花)                                             |
-| `operation_log`     | 操作审计日志    | operation_type, operation_desc, target_type, ip_address                    |
-| `family_message`    | 家族留言板     | family_id, user_id, username, content                                      |
+| 表名                      | 说明        | 核心字段                                                                       |
+|-------------------------|-----------|----------------------------------------------------------------------------|
+| `sys_user`              | 用户账号      | username, password_hash, nickname, current_family_id, node_id              |
+| `family`                | 家族/宗族     | name, invite_code, creator_id, hall_name, ancestral_home                   |
+| `family_member`         | 用户-家族成员关系 | family_id, user_id, role (OWNER/ADMIN/MEMBER)                              |
+| `family_node`           | 族谱节点（人物）  | name, gender, birth_date, death_date, generation, color_label, birth_order, biography |
+| `family_relation`       | 节点间关系     | from_node_id, to_node_id, relation_type (亲子/配偶/过继)                         |
+| `family_generation`     | 辈分名（字辈）   | family_id, generation, name                                                |
+| `family_offering`       | 祭奠记录      | node_id, offering_type (敬献/鲜花)                                             |
+| `operation_log`         | 操作审计日志    | operation_type, operation_desc, target_type, ip_address                    |
+| `family_message`        | 家族留言板     | family_id, user_id, content, category, parent_id, reply_count              |
+| `family_message_like`   | 留言点赞      | message_id, user_id                                                        |
+| `notification`          | 站内通知      | user_id, type, content, is_read                                            |
+| `family_node_history`   | 节点变更历史    | node_id, operation_type, before_data, after_data                           |
+| `family_relation_history` | 关系变更历史  | relation_id, operation_type, before_data, after_data                       |
+| `family_snapshot`       | 族谱快照      | family_id, snapshot_data                                                   |
+| `family_photo`          | 家族相册照片    | family_id, user_id, title, photo_url                                       |
+| `family_photo_tag`      | 照片人物标记    | photo_id, node_id, node_name                                               |
+| `family_forum_topic`    | 论坛主题      | family_id, user_id, title, content, view_count, reply_count                |
+| `family_forum_reply`    | 论坛回复      | topic_id, user_id, content                                                 |
+| `family_private_message` | 私信消息     | family_id, sender_id, receiver_id, content, is_read                        |
+| `family_event`          | 家族活动      | family_id, user_id, title, event_time, total_cost, status                  |
+| `family_event_signup`   | 活动报名      | event_id, user_id, attendee_count, remark                                  |
+| `family_anniversary`    | 家族纪念日     | family_id, node_id, title, category, anniversary_date                      |
+| `family_memorial_message` | 祭堂缅怀留言  | family_id, node_id, user_id, content                                       |
 
 ### 迁移历史
 
@@ -179,27 +213,45 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 | V15 | 清理已废弃的香烛(1)和烧纸(2)祭奠记录，统一由敬献(4)替代                      |
 | V16 | 搜索优化：组合索引 (family_id, name)；MySQL 增加 FULLTEXT 索引      |
 | V17 | 家族留言板（family_message）                                 |
+| V18 | 留言点赞（family_message_like）                              |
+| V19 | 留言分类字段（family_message.category）                        |
+| V20 | 留言回复支持（parent_id、reply_count）                          |
+| V21 | 站内通知（notification）                                     |
+| V22 | 版本控制（节点/关系变更历史表、族谱快照表）                                |
+| V23 | 社交与纪念功能（相册/照片标记、论坛主题与回复、私信、活动与报名、纪念日、祭堂留言，节点传记字段） |
 
 ## API 概览
 
-共 14 个控制器、46 个 API 端点：
+共 26 个控制器、103 个 API 端点：
 
 | 前缀                       | 端点数 | 说明                                            |
 |--------------------------|-----|-----------------------------------------------|
 | `/api/auth`              | 6   | 注册 / 登录 / 登出 / 当前用户信息 / 修改个人资料 / 标记为我         |
 | `/api/family`            | 10  | 创建 / 加入 / 查询 / 修改家族、成员管理、角色设置、邀请码、切换家族、我的家族列表 |
+| `/api/invite`            | 2   | 邀请链接校验与邀请加入                                  |
 | `/api/node`              | 7   | 节点增删改查、列表、搜索、批量修改颜色                           |
 | `/api/relation`          | 5   | 关系增删改查（配偶 / 亲子 / 过继）、单节点关系列表、全量关系列表           |
 | `/api/tree`              | 2   | 完整族谱树（Caffeine 缓存）/ 子树                        |
 | `/api/generation`        | 4   | 辈分名列表 / 批量保存 / 布局查询 / 布局保存                    |
 | `/api/offering`          | 2   | 祭奠记录 / 节点祭奠统计                                 |
-| `/api/message`           | 3   | 发布留言 / 分页留言列表 / 删除留言                          |
+| `/api/message`           | 6   | 留言发布（含回复）/ 分页列表 / 回复列表 / 点赞与取消 / 删除         |
 | `/api/timeline`          | 1   | 家族事件时间线（分页）                                   |
 | `/api/death-anniversary` | 1   | 忌日提醒（可指定天数范围）                                 |
+| `/api/birthday`          | 1   | 生日提醒（未来 N 天内在世成员）                              |
+| `/api/anniversary`       | 4   | 纪念日增删改查（含周数与距下次纪念日天数）                          |
+| `/api/memorial`          | 3   | 祭堂缅怀留言：列表 / 发布 / 删除                            |
+| `/api/biography`         | 2   | 人物传记查询 / 更新（富文本清洗）                             |
+| `/api/photo`             | 6   | 相册：照片上传/列表/删除、人物标记增删                          |
+| `/api/forum`             | 7   | 论坛：主题发布/分页/详情/删除、回复/删回复                       |
+| `/api/private-message`   | 5   | 私信：发送 / 会话列表 / 会话详情 / 未读计数 / 联系人               |
+| `/api/event`             | 8   | 活动：发起/列表/详情/删除、报名/取消、状态切换                     |
+| `/api/notification`      | 4   | 通知：列表 / 未读计数 / 标记已读 / 全部已读                     |
+| `/api/version`           | 10  | 版本控制：节点/关系变更历史、回滚、快照创建/列表/详情/恢复               |
 | `/api/relation-path`     | 1   | 两节点间关系路径分析（BFS）                               |
 | `/api/operation-log`     | 1   | 操作日志分页查询（OWNER/ADMIN）                         |
 | `/api/avatar`            | 2   | 头像上传 / 头像文件服务                                 |
-| `/api/data`              | 1   | 全量数据导出（JSON）                                  |
+| `/api/data`              | 4   | 全量数据导出（JSON）/ GEDCOM 导入与导出                    |
+| `/api/ai`                | 4   | AI 智能录入 / 问答 / 家族故事 / OCR 解析                  |
 
 ## 前端
 
@@ -224,9 +276,16 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 | `modal-node.js`       | 节点弹窗：新增/编辑/删除/排次/辈分/详情/颜色/关联配偶/过继                                   |
 | `modal-family.js`     | 家族弹窗：成员管理、个人资料、标记为我、切换家族                                            |
 | `modal-offering.js`   | 祭奠弹窗：敬献/送花动效（glow + 烟雾 + 火焰）、统计面板                                   |
-| `modal-tools.js`      | 工具弹窗：操作日志、时间线、关系路径分析、忌日提醒                                           |
-| `modal-message.js`    | 留言板弹窗：发布留言、留言列表、删除留言                                                |
-| `message-carousel.js` | 底部留言轮播：自动加载、无缝滚动、悬停暂停、关闭记忆（sessionStorage）                          |
+| `modal-tools.js`      | 工具弹窗：操作日志、时间线、关系路径分析、忌日提醒、版本控制                                    |
+| `modal-message.js`    | 留言板弹窗：发布留言、留言列表、删除留言、点赞与回复                                       |
+| `modal-album.js`      | 家族相册弹窗：照片上传/列表/删除、人物标记                                          |
+| `modal-forum.js`      | 论坛弹窗：主题列表/详情/发布、回复                                               |
+| `modal-chat.js`       | 私信弹窗：会话列表、聊天详情、联系人选择                                             |
+| `modal-event.js`      | 活动弹窗：活动列表/发起/详情、报名与取消、人均费用展示                                     |
+| `modal-anniversary.js` | 纪念日弹窗：纪念日列表/新增/编辑/删除                                            |
+| `modal-birthday.js`   | 生日提醒弹窗：未来 N 天寿星列表                                                |
+| `modal-biography.js`  | 人物传记弹窗：富文本编辑与展示                                                  |
+| `message-carousel.js` | 底部留言轮播：自动加载、无缝滚动、悬停暂停、关闭记忆（sessionStorage）                      |
 | `context-menu.js`     | 右键菜单（10 个操作：添加子女/配偶/关联配偶/添加父母/过继/排次/标记为我/编辑/颜色/删除）                  |
 | `main.js`             | 应用入口：工具栏事件绑定、搜索（防抖 + 下拉）、布局方向切换、健在/外嫁过滤                             |
 
@@ -246,7 +305,7 @@ Family_Tree/
 │   ├── src/main/java/.../web/
 │   │   ├── FamilyTreeApplication.java  # 启动类
 │   │   ├── config/                     # 全局异常处理、Web MVC 配置
-│   │   ├── controller/                 # 14 个 REST 控制器
+│   │   ├── controller/                 # 26 个 REST 控制器
 │   │   ├── filter/                     # CSRF 过滤器、安全响应头过滤器
 │   │   └── interceptor/                # 登录拦截器、限流拦截器
 │   └── src/main/resources/
@@ -256,7 +315,7 @@ Family_Tree/
 │           ├── index.html / login.html / family-setup.html
 │           ├── css/style.css           # 古典族谱主题样式（CSS 变量）
 │           ├── img/longwen.png         # 龙纹水印背景图
-│           └── js/ft/                  # 14 个前端模块
+│           └── js/ft/                  # 21 个前端模块
 ├── deploy/                             # 部署配置
 │   ├── DEPLOY.md                       # 部署指南
 │   ├── nginx/family-tree.conf          # Nginx 反向代理模板
@@ -265,6 +324,7 @@ Family_Tree/
 ├── .github/workflows/                  # CI/CD
 │   ├── ci.yml                          # 构建 + 测试（push/PR）
 │   └── release.yml                     # 发布流程
+├── docs/                               # 功能文档（版本控制使用/集成指南等）
 ├── AGENTS.md                           # 编码规范（基于《Java 开发手册》华山版）
 ├── OPTIMIZATION.md                     # 系统优化跟踪
 └── README.md
@@ -278,5 +338,4 @@ Family_Tree/
   `./mvnw install -pl <模块> -DskipTests` 并重启应用。
 - **逻辑删除**：MyBatis-Plus 全局配置 `deleted` 字段逻辑删除。
 - **编码规范**：遵循根目录 `AGENTS.md`（基于《Java 开发手册》华山版裁剪，含 DDD 分层规范）。
-- **测试**：测试代码位于 `family-tree-application/src/test/`，使用 Mockito Mock 仓储接口，运行
-  `./mvnw test -pl family-tree-application`。
+- **测试**：测试代码位于 `family-tree-domain/src/test/` 与 `family-tree-application/src/test/`（160+ 用例），使用 Mockito Mock 仓储接口，运行 `./mvnw test`。
