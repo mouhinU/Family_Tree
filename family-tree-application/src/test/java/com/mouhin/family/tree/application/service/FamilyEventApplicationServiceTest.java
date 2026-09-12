@@ -47,6 +47,9 @@ class FamilyEventApplicationServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private TimelineApplicationService timelineApplicationService;
+
     @InjectMocks
     private FamilyEventApplicationService familyEventApplicationService;
 

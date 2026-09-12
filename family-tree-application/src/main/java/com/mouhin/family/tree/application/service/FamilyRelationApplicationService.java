@@ -42,6 +42,7 @@ public class FamilyRelationApplicationService {
     private final FamilyTreeApplicationService familyTreeApplicationService;
     private final ApplicationEventPublisher eventPublisher;
     private final VersionControlDomainService versionControlDomainService;
+    private final TimelineApplicationService timelineApplicationService;
 
     public FamilyRelationApplicationService(FamilyRelationRepository familyRelationRepository,
                                             FamilyNodeRepository familyNodeRepository,
@@ -49,7 +50,8 @@ public class FamilyRelationApplicationService {
                                             FamilyNodeApplicationService familyNodeApplicationService,
                                             FamilyTreeApplicationService familyTreeApplicationService,
                                             ApplicationEventPublisher eventPublisher,
-                                            VersionControlDomainService versionControlDomainService) {
+                                            VersionControlDomainService versionControlDomainService,
+                                            TimelineApplicationService timelineApplicationService) {
         this.familyRelationRepository = familyRelationRepository;
         this.familyNodeRepository = familyNodeRepository;
         this.relationValidationDomainService = relationValidationDomainService;
@@ -57,6 +59,7 @@ public class FamilyRelationApplicationService {
         this.familyTreeApplicationService = familyTreeApplicationService;
         this.eventPublisher = eventPublisher;
         this.versionControlDomainService = versionControlDomainService;
+        this.timelineApplicationService = timelineApplicationService;
     }
 
     /**
@@ -148,6 +151,13 @@ public class FamilyRelationApplicationService {
         // 记录版本历史
         versionControlDomainService.recordRelationCreate(relation, userId, username, ipAddress);
 
+        // 记录时间线事件（仅夫妻关系且有结婚日期时）
+        if (Objects.equals(dto.getRelationType(), RelationTypeEnum.SPOUSE.getCode())) {
+            timelineApplicationService.recordMarriageEvent(familyId, relation.getId(),
+                    findNodeName(relation.getFromNodeId()), findNodeName(relation.getToNodeId()),
+                    relation.getMarriageDate(), true);
+        }
+
         return relation.getId();
     }
 
@@ -177,6 +187,9 @@ public class FamilyRelationApplicationService {
         eventPublisher.publishEvent(RelationDeletedEvent.of(familyId, relationId,
                 relation.getRelationType(), findNodeName(relation.getFromNodeId()),
                 findNodeName(relation.getToNodeId()), userId, username, ipAddress));
+
+        // 清理时间线事件
+        timelineApplicationService.removeRelationEvents(relationId);
     }
 
     /**
@@ -236,6 +249,13 @@ public class FamilyRelationApplicationService {
 
         // 记录版本历史
         versionControlDomainService.recordRelationUpdate(beforeRelation, relation, userId, username, ipAddress);
+
+        // 记录时间线事件（修改）
+        if (Objects.equals(relation.getRelationType(), RelationTypeEnum.SPOUSE.getCode())) {
+            timelineApplicationService.recordMarriageEvent(familyId, relation.getId(),
+                    findNodeName(relation.getFromNodeId()), findNodeName(relation.getToNodeId()),
+                    relation.getMarriageDate(), false);
+        }
     }
 
     /**

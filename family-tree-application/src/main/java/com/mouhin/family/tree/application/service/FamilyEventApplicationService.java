@@ -43,11 +43,14 @@ public class FamilyEventApplicationService {
 
     private final FamilyEventRepository familyEventRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final TimelineApplicationService timelineApplicationService;
 
     public FamilyEventApplicationService(FamilyEventRepository familyEventRepository,
-                                         ApplicationEventPublisher eventPublisher) {
+                                         ApplicationEventPublisher eventPublisher,
+                                         TimelineApplicationService timelineApplicationService) {
         this.familyEventRepository = familyEventRepository;
         this.eventPublisher = eventPublisher;
+        this.timelineApplicationService = timelineApplicationService;
     }
 
     /**
@@ -78,6 +81,11 @@ public class FamilyEventApplicationService {
         logger.info("用户 {} 在家族 {} 发起活动: id={}", userId, familyId, event.getId());
         eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "EVENT_CREATE",
                 "发起家族活动: " + event.getTitle(), "event", event.getId(), familyId, null));
+
+        // 记录时间线事件
+        timelineApplicationService.recordActivityEvent(familyId, event.getId(),
+                event.getTitle(), event.getEventTime().toLocalDate(), true);
+
         return event.getId();
     }
 
@@ -201,6 +209,9 @@ public class FamilyEventApplicationService {
         logger.info("用户 {} 删除活动: id={}", userId, eventId);
         eventPublisher.publishEvent(OperationPerformedEvent.of(userId, event.getUsername(), "EVENT_DELETE",
                 "删除家族活动: " + event.getTitle(), "event", eventId, familyId, null));
+
+        // 清理时间线事件
+        timelineApplicationService.removeActivityEvents(eventId);
     }
 
     private FamilyEvent getEventChecked(Long familyId, Long eventId) {

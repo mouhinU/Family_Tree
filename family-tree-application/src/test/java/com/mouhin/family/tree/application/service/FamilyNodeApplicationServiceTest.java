@@ -65,6 +65,9 @@ class FamilyNodeApplicationServiceTest {
     @Mock
     private VersionControlDomainService versionControlDomainService;
 
+    @Mock
+    private TimelineApplicationService timelineApplicationService;
+
     @InjectMocks
     private FamilyNodeApplicationService familyNodeApplicationService;
 

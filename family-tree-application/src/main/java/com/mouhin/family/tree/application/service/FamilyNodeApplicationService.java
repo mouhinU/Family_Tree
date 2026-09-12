@@ -48,6 +48,7 @@ public class FamilyNodeApplicationService {
     private final FamilyTreeApplicationService familyTreeApplicationService;
     private final ApplicationEventPublisher eventPublisher;
     private final VersionControlDomainService versionControlDomainService;
+    private final TimelineApplicationService timelineApplicationService;
 
     public FamilyNodeApplicationService(FamilyNodeRepository familyNodeRepository,
                                         FamilyRelationRepository familyRelationRepository,
@@ -55,7 +56,8 @@ public class FamilyNodeApplicationService {
                                         FamilyNodeDomainService familyNodeDomainService,
                                         FamilyTreeApplicationService familyTreeApplicationService,
                                         ApplicationEventPublisher eventPublisher,
-                                        VersionControlDomainService versionControlDomainService) {
+                                        VersionControlDomainService versionControlDomainService,
+                                        TimelineApplicationService timelineApplicationService) {
         this.familyNodeRepository = familyNodeRepository;
         this.familyRelationRepository = familyRelationRepository;
         this.relationValidationDomainService = relationValidationDomainService;
@@ -63,6 +65,7 @@ public class FamilyNodeApplicationService {
         this.familyTreeApplicationService = familyTreeApplicationService;
         this.eventPublisher = eventPublisher;
         this.versionControlDomainService = versionControlDomainService;
+        this.timelineApplicationService = timelineApplicationService;
     }
 
     /**
@@ -209,6 +212,12 @@ public class FamilyNodeApplicationService {
         // 记录版本历史
         versionControlDomainService.recordNodeCreate(node, userId, username, ipAddress);
 
+        // 记录时间线事件
+        timelineApplicationService.recordBirthEvent(familyId, node.getId(), node.getName(),
+                node.getBirthDate(), true);
+        timelineApplicationService.recordDeathEvent(familyId, node.getId(), node.getName(),
+                node.getDeathDate(), true);
+
         return node.getId();
     }
 
@@ -323,6 +332,12 @@ public class FamilyNodeApplicationService {
 
         // 记录版本历史
         versionControlDomainService.recordNodeUpdate(beforeNode, existing, userId, username, ipAddress);
+
+        // 记录时间线事件（修改）
+        timelineApplicationService.recordBirthEvent(familyId, existing.getId(), existing.getName(),
+                existing.getBirthDate(), false);
+        timelineApplicationService.recordDeathEvent(familyId, existing.getId(), existing.getName(),
+                existing.getDeathDate(), false);
     }
 
     /**
@@ -348,6 +363,9 @@ public class FamilyNodeApplicationService {
         eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
         eventPublisher.publishEvent(NodeDeletedEvent.of(familyId, nodeId, node.getName(),
                 userId, username, ipAddress));
+
+        // 清理时间线事件
+        timelineApplicationService.removeNodeEvents(nodeId);
     }
 
     /**
