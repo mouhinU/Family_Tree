@@ -1,7 +1,5 @@
 package com.mouhin.family.tree.application.listener;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.mouhin.family.tree.domain.event.FamilyCreatedEvent;
 import com.mouhin.family.tree.domain.event.MemberJoinedEvent;
 import com.mouhin.family.tree.domain.event.NodeCreatedEvent;
@@ -12,14 +10,15 @@ import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.event.EventListener;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 
 /**
  * 家族统计事件监听器。
  * <p>
- * 使用 Caffeine 本地缓存维护家族成员数和节点数的实时统计，
+ * 使用 Redis 分布式缓存维护家族成员数和节点数的实时统计，
  * 并通过 Micrometer 计数器暴露 Prometheus 指标。
  *
  * @author Family-Tree
@@ -30,33 +29,28 @@ public class FamilyStatisticsEventListener {
 
     private static final Logger logger = LoggerFactory.getLogger(FamilyStatisticsEventListener.class);
 
-    private static final int MAX_CACHE_SIZE = 10_000;
-    private static final int CACHE_EXPIRE_MINUTES = 60;
+    /**
+     * Redis Key 前缀
+     */
+    private static final String MEMBER_COUNT_KEY_PREFIX = "family:stats:member:";
+    private static final String NODE_COUNT_KEY_PREFIX = "family:stats:node:";
 
-    private final Cache<Long, Long> memberCountCache;
-    private final Cache<Long, Long> nodeCountCache;
+    private static final Duration CACHE_EXPIRE_DURATION = Duration.ofMinutes(60);
 
     private final FamilyMemberRepository familyMemberRepository;
     private final FamilyNodeRepository familyNodeRepository;
+    private final StringRedisTemplate stringRedisTemplate;
 
     private final Counter memberJoinCounter;
     private final Counter nodeCreateCounter;
 
     public FamilyStatisticsEventListener(FamilyMemberRepository familyMemberRepository,
                                          FamilyNodeRepository familyNodeRepository,
-                                         MeterRegistry meterRegistry) {
+                                         MeterRegistry meterRegistry,
+                                         StringRedisTemplate stringRedisTemplate) {
         this.familyMemberRepository = familyMemberRepository;
         this.familyNodeRepository = familyNodeRepository;
-
-        this.memberCountCache = Caffeine.newBuilder()
-                .maximumSize(MAX_CACHE_SIZE)
-                .expireAfterWrite(CACHE_EXPIRE_MINUTES, TimeUnit.MINUTES)
-                .build();
-
-        this.nodeCountCache = Caffeine.newBuilder()
-                .maximumSize(MAX_CACHE_SIZE)
-                .expireAfterWrite(CACHE_EXPIRE_MINUTES, TimeUnit.MINUTES)
-                .build();
+        this.stringRedisTemplate = stringRedisTemplate;
 
         this.memberJoinCounter = Counter.builder("family.member.join")
                 .description("Total number of member join events")
@@ -76,7 +70,8 @@ public class FamilyStatisticsEventListener {
     public void handleMemberJoined(MemberJoinedEvent event) {
         try {
             long count = familyMemberRepository.countByFamilyId(event.familyId());
-            memberCountCache.put(event.familyId(), count);
+            stringRedisTemplate.opsForValue().set(MEMBER_COUNT_KEY_PREFIX + event.familyId(),
+                    String.valueOf(count), CACHE_EXPIRE_DURATION);
             memberJoinCounter.increment();
             logger.debug("Refreshed member count for family={}, count={}", event.familyId(), count);
         } catch (Exception e) {
@@ -93,7 +88,8 @@ public class FamilyStatisticsEventListener {
     public void handleNodeCreated(NodeCreatedEvent event) {
         try {
             long count = familyNodeRepository.countByFamilyId(event.familyId());
-            nodeCountCache.put(event.familyId(), count);
+            stringRedisTemplate.opsForValue().set(NODE_COUNT_KEY_PREFIX + event.familyId(),
+                    String.valueOf(count), CACHE_EXPIRE_DURATION);
             nodeCreateCounter.increment();
             logger.debug("Refreshed node count for family={}, count={}", event.familyId(), count);
         } catch (Exception e) {
@@ -108,8 +104,10 @@ public class FamilyStatisticsEventListener {
      */
     @EventListener
     public void handleFamilyCreated(FamilyCreatedEvent event) {
-        memberCountCache.put(event.familyId(), 1L);
-        nodeCountCache.put(event.familyId(), 0L);
+        stringRedisTemplate.opsForValue().set(MEMBER_COUNT_KEY_PREFIX + event.familyId(),
+                "1", CACHE_EXPIRE_DURATION);
+        stringRedisTemplate.opsForValue().set(NODE_COUNT_KEY_PREFIX + event.familyId(),
+                "0", CACHE_EXPIRE_DURATION);
         logger.debug("Initialized statistics cache for new family={}", event.familyId());
     }
 
@@ -120,12 +118,13 @@ public class FamilyStatisticsEventListener {
      * @return 成员数量
      */
     public long getMemberCount(Long familyId) {
-        Long cached = memberCountCache.getIfPresent(familyId);
+        String cached = stringRedisTemplate.opsForValue().get(MEMBER_COUNT_KEY_PREFIX + familyId);
         if (cached != null) {
-            return cached;
+            return Long.parseLong(cached);
         }
         long count = familyMemberRepository.countByFamilyId(familyId);
-        memberCountCache.put(familyId, count);
+        stringRedisTemplate.opsForValue().set(MEMBER_COUNT_KEY_PREFIX + familyId,
+                String.valueOf(count), CACHE_EXPIRE_DURATION);
         return count;
     }
 
@@ -136,12 +135,13 @@ public class FamilyStatisticsEventListener {
      * @return 节点数量
      */
     public long getNodeCount(Long familyId) {
-        Long cached = nodeCountCache.getIfPresent(familyId);
+        String cached = stringRedisTemplate.opsForValue().get(NODE_COUNT_KEY_PREFIX + familyId);
         if (cached != null) {
-            return cached;
+            return Long.parseLong(cached);
         }
         long count = familyNodeRepository.countByFamilyId(familyId);
-        nodeCountCache.put(familyId, count);
+        stringRedisTemplate.opsForValue().set(NODE_COUNT_KEY_PREFIX + familyId,
+                String.valueOf(count), CACHE_EXPIRE_DURATION);
         return count;
     }
 }

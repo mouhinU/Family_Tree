@@ -1,23 +1,22 @@
 package com.mouhin.family.tree.web.interceptor;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.time.Duration;
-import java.util.concurrent.atomic.LongAdder;
 
 /**
  * 写接口限流拦截器。
  * <p>
- * 基于 Caffeine 滑动窗口计数器，按用户 ID 限流。仅对 POST/PUT/DELETE 请求生效，
+ * 基于 Redis 原子计数器（INCR），按用户 ID 限流。仅对 POST/PUT/DELETE 请求生效，
  * 防止已登录用户（或自动化脚本）短时间内大量调用写接口。
  * 超限返回 HTTP 429 Too Many Requests。
  *
@@ -30,18 +29,20 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private static final Logger logger = LoggerFactory.getLogger(RateLimitInterceptor.class);
 
     /**
-     * 限流缓存：key=userId，value=窗口内请求计数（线程安全）
+     * Redis Key 前缀
      */
-    private final Cache<Long, LongAdder> rateLimitCache = Caffeine.newBuilder()
-            .maximumSize(10_000)
-            .expireAfterWrite(Duration.ofSeconds(FamilyTreeConsts.RATE_LIMIT_WINDOW_SECONDS))
-            .build();
+    private static final String RATE_LIMIT_KEY_PREFIX = "rate:limit:";
+
+    private final StringRedisTemplate stringRedisTemplate;
+
+    public RateLimitInterceptor(StringRedisTemplate stringRedisTemplate) {
+        this.stringRedisTemplate = stringRedisTemplate;
+    }
 
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
+    public boolean preHandle(HttpServletRequest request, @NotNull HttpServletResponse response, @NotNull Object handler)
             throws Exception {
         String method = request.getMethod().toUpperCase();
-        // 仅对写操作限流
         if (!"POST".equals(method) && !"PUT".equals(method) && !"DELETE".equals(method)) {
             return true;
         }
@@ -55,12 +56,15 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        LongAdder counter = rateLimitCache.get(userId, k -> new LongAdder());
-        counter.increment();
+        String key = RATE_LIMIT_KEY_PREFIX + userId;
+        Long count = stringRedisTemplate.opsForValue().increment(key);
+        if (count != null && count == 1L) {
+            stringRedisTemplate.expire(key, Duration.ofSeconds(FamilyTreeConsts.RATE_LIMIT_WINDOW_SECONDS));
+        }
 
-        if (counter.sum() > FamilyTreeConsts.RATE_LIMIT_MAX_REQUESTS) {
+        if (count != null && count > FamilyTreeConsts.RATE_LIMIT_MAX_REQUESTS) {
             logger.warn("Rate limit exceeded: userId={}, path={}, count={}",
-                    userId, request.getRequestURI(), counter.sum());
+                    userId, request.getRequestURI(), count);
             response.setStatus(429);
             response.setContentType("application/json;charset=UTF-8");
             response.setHeader("Retry-After", String.valueOf(FamilyTreeConsts.RATE_LIMIT_WINDOW_SECONDS));

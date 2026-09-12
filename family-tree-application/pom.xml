@@ -43,10 +43,10 @@
             <artifactId>spring-security-crypto</artifactId>
         </dependency>
 
-        <!-- Caffeine 缓存（族谱树缓存 + 登录尝试计数） -->
+        <!-- Spring Data Redis（分布式缓存，替代 Caffeine 本地缓存） -->
         <dependency>
-            <groupId>com.github.ben-manes.caffeine</groupId>
-            <artifactId>caffeine</artifactId>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
         <!-- Micrometer 指标 -->

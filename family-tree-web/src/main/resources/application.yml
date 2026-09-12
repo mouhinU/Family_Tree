@@ -6,7 +6,7 @@ spring:
     name: family-tree
 
   profiles:
-    active: dev
+    active: mysql
 
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
@@ -21,6 +21,20 @@ spring:
         model: ${AI_MODEL:deepseek-chat}
         temperature: 0.7
         max-tokens: 4096
+
+  # Redis 分布式缓存（Docker 容器，端口 6380）
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6380}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 2
+          max-wait: 2000ms
 
 mybatis-plus:
   configuration:
@@ -49,7 +63,7 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
-  # Caffeine 缓存统计（需在代码中为 Cache 注册 metrics）
+  # Redis 缓存统计
   cache:
     cache-names: familyTreeCache
 

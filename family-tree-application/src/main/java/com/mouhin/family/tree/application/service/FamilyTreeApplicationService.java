@@ -1,7 +1,5 @@
 package com.mouhin.family.tree.application.service;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.mouhin.family.tree.common.dto.TreeNodeVO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
@@ -13,6 +11,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -33,9 +32,9 @@ public class FamilyTreeApplicationService {
     private static final Logger logger = LoggerFactory.getLogger(FamilyTreeApplicationService.class);
 
     /**
-     * 树缓存最大家族数：家庭内部系统，远超实际规模，仅作内存保护
+     * Redis 缓存 Key 前缀
      */
-    private static final int MAX_CACHED_FAMILIES = 200;
+    private static final String TREE_CACHE_KEY_PREFIX = "family:tree:";
 
     /**
      * 树缓存过期时间：除写操作主动失效外的兜底，防止遗漏写路径导致长期脏读
@@ -46,24 +45,27 @@ public class FamilyTreeApplicationService {
     private final FamilyRelationRepository familyRelationRepository;
     private final FamilyTreeDomainService familyTreeDomainService;
     private final Counter treeBuildCounter;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     /**
      * 整棵族谱树缓存（key=familyId）。族谱为读多写少场景，命中时省去全表查询与建树。
      * 注意：缓存值为构建好的 VO 列表，读取方只可以序列化展示，不得修改其内容。
+     *
+     * @param familyNodeRepository     节点仓储
+     * @param familyRelationRepository 关系仓储
+     * @param familyTreeDomainService  树构建领域服务
+     * @param meterRegistry            指标注册表
+     * @param redisTemplate            Redis 模板（JSON 序列化）
      */
-    private final Cache<Long, List<TreeNodeVO>> fullTreeCache = Caffeine.newBuilder()
-            .maximumSize(MAX_CACHED_FAMILIES)
-            .expireAfterWrite(TREE_CACHE_TTL)
-            .recordStats()
-            .build();
-
     public FamilyTreeApplicationService(FamilyNodeRepository familyNodeRepository,
                                         FamilyRelationRepository familyRelationRepository,
                                         FamilyTreeDomainService familyTreeDomainService,
-                                        MeterRegistry meterRegistry) {
+                                        MeterRegistry meterRegistry,
+                                        RedisTemplate<String, Object> redisTemplate) {
         this.familyNodeRepository = familyNodeRepository;
         this.familyRelationRepository = familyRelationRepository;
         this.familyTreeDomainService = familyTreeDomainService;
+        this.redisTemplate = redisTemplate;
         this.treeBuildCounter = Counter.builder("family.tree.build")
                 .description("族谱树构建次数")
                 .tag("type", "full")
@@ -76,13 +78,20 @@ public class FamilyTreeApplicationService {
      * @param familyId 家族ID
      * @return 树形结构列表（可能有多个根节点）
      */
+    @SuppressWarnings("unchecked")
     public List<TreeNodeVO> getFullTree(Long familyId) {
-        return fullTreeCache.get(familyId, fid -> {
-            treeBuildCounter.increment();
-            List<FamilyNode> allNodes = familyNodeRepository.findByFamilyId(fid);
-            List<FamilyRelation> allRelations = familyRelationRepository.findByFamilyId(fid);
-            return familyTreeDomainService.buildTree(allNodes, allRelations);
-        });
+        String cacheKey = TREE_CACHE_KEY_PREFIX + familyId;
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached instanceof List) {
+            return (List<TreeNodeVO>) cached;
+        }
+
+        treeBuildCounter.increment();
+        List<FamilyNode> allNodes = familyNodeRepository.findByFamilyId(familyId);
+        List<FamilyRelation> allRelations = familyRelationRepository.findByFamilyId(familyId);
+        List<TreeNodeVO> tree = familyTreeDomainService.buildTree(allNodes, allRelations);
+        redisTemplate.opsForValue().set(cacheKey, tree, TREE_CACHE_TTL);
+        return tree;
     }
 
     /**
@@ -117,11 +126,11 @@ public class FamilyTreeApplicationService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    fullTreeCache.invalidate(familyId);
+                    redisTemplate.delete(TREE_CACHE_KEY_PREFIX + familyId);
                 }
             });
         } else {
-            fullTreeCache.invalidate(familyId);
+            redisTemplate.delete(TREE_CACHE_KEY_PREFIX + familyId);
         }
     }
 }

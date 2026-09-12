@@ -11,6 +11,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 
 import java.nio.charset.StandardCharsets;
@@ -35,6 +37,20 @@ class UserAuthApplicationServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private StringRedisTemplate stringRedisTemplate;
+
+    @Mock
+    private ValueOperations<String, String> valueOperations;
+
+    /**
+     * 创建使用模拟 Redis 的 LoginAttemptService
+     */
+    private LoginAttemptService createLoginAttemptService() {
+        lenient().when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        return new LoginAttemptService(stringRedisTemplate);
+    }
 
     private static String md5(String raw) {
         try {
@@ -74,7 +90,7 @@ class UserAuthApplicationServiceTest {
         User user = userWithHash(md5(RAW_PASSWORD));
         when(userRepository.findByUsername("botest")).thenReturn(user);
 
-        UserAuthApplicationService service = createService(new LoginAttemptService());
+        UserAuthApplicationService service = createService(createLoginAttemptService());
         Long userId = service.login(loginDto(RAW_PASSWORD));
 
         assertEquals(1L, userId);
@@ -92,7 +108,7 @@ class UserAuthApplicationServiceTest {
         User user = userWithHash(BCrypt.hashpw(RAW_PASSWORD, BCrypt.gensalt()));
         when(userRepository.findByUsername("botest")).thenReturn(user);
 
-        UserAuthApplicationService service = createService(new LoginAttemptService());
+        UserAuthApplicationService service = createService(createLoginAttemptService());
         Long userId = service.login(loginDto(RAW_PASSWORD));
 
         assertEquals(1L, userId);
@@ -105,7 +121,7 @@ class UserAuthApplicationServiceTest {
         User user = userWithHash(md5(RAW_PASSWORD));
         when(userRepository.findByUsername("botest")).thenReturn(user);
 
-        UserAuthApplicationService service = createService(new LoginAttemptService());
+        UserAuthApplicationService service = createService(createLoginAttemptService());
         assertThrows(BusinessException.class,
                 () -> service.login(loginDto("wrongPwd")));
         verify(userRepository, never()).save(any(User.class));
@@ -116,7 +132,7 @@ class UserAuthApplicationServiceTest {
         User user = userWithHash(BCrypt.hashpw(RAW_PASSWORD, BCrypt.gensalt()));
         when(userRepository.findByUsername("botest")).thenReturn(user);
 
-        UserAuthApplicationService service = createService(new LoginAttemptService());
+        UserAuthApplicationService service = createService(createLoginAttemptService());
         assertThrows(BusinessException.class,
                 () -> service.login(loginDto("wrongPwd")));
     }
@@ -125,7 +141,7 @@ class UserAuthApplicationServiceTest {
     void loginWithUnknownUsernameThrows() {
         when(userRepository.findByUsername(anyString())).thenReturn(null);
 
-        UserAuthApplicationService service = createService(new LoginAttemptService());
+        UserAuthApplicationService service = createService(createLoginAttemptService());
         assertThrows(BusinessException.class,
                 () -> service.login(loginDto(RAW_PASSWORD)));
     }
@@ -139,7 +155,7 @@ class UserAuthApplicationServiceTest {
             return u;
         });
 
-        UserAuthApplicationService service = createService(new LoginAttemptService());
+        UserAuthApplicationService service = createService(createLoginAttemptService());
         RegisterDTO dto = new RegisterDTO();
         dto.setUsername("newuser");
         dto.setPassword(RAW_PASSWORD);
@@ -156,7 +172,7 @@ class UserAuthApplicationServiceTest {
     @Test
     void loginLockedAfterMaxFailedAttempts() {
         // 使用真实计数器实现，验证完整锁定链路
-        UserAuthApplicationService service = createService(new LoginAttemptService());
+        UserAuthApplicationService service = createService(createLoginAttemptService());
         User user = userWithHash(BCrypt.hashpw(RAW_PASSWORD, BCrypt.gensalt()));
         when(userRepository.findByUsername("botest")).thenReturn(user);
 
@@ -174,7 +190,7 @@ class UserAuthApplicationServiceTest {
 
     @Test
     void successfulLoginResetsFailureCount() {
-        UserAuthApplicationService service = createService(new LoginAttemptService());
+        UserAuthApplicationService service = createService(createLoginAttemptService());
         User user = userWithHash(BCrypt.hashpw(RAW_PASSWORD, BCrypt.gensalt()));
         when(userRepository.findByUsername("botest")).thenReturn(user);
 

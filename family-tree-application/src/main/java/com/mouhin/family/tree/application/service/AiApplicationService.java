@@ -27,8 +27,7 @@ public class AiApplicationService {
 
     private static final Logger logger = LoggerFactory.getLogger(AiApplicationService.class);
 
-    private static final String SYSTEM_PROMPT =
-            "你是一个专业的族谱管理助手，精通中国家族文化和族谱编撰。请用中文回答。";
+    private static final String SYSTEM_PROMPT = "你是一个专业的族谱管理助手，精通中国家族文化和族谱编撰。请用中文回答。";
 
     private final FamilyNodeRepository familyNodeRepository;
     private final FamilyRelationRepository familyRelationRepository;

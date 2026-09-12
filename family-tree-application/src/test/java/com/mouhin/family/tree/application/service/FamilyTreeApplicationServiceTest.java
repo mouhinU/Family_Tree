@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -46,13 +48,20 @@ class FamilyTreeApplicationServiceTest {
     @Mock
     private FamilyTreeDomainService familyTreeDomainService;
 
+    @Mock
+    private RedisTemplate<String, Object> redisTemplate;
+
+    @Mock
+    private ValueOperations<String, Object> valueOperations;
+
     private FamilyTreeApplicationService familyTreeApplicationService;
 
     @BeforeEach
     void setUp() {
+        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         familyTreeApplicationService = new FamilyTreeApplicationService(
                 familyNodeRepository, familyRelationRepository,
-                familyTreeDomainService, new SimpleMeterRegistry());
+                familyTreeDomainService, new SimpleMeterRegistry(), redisTemplate);
     }
 
     // ========== 数据构造辅助 ==========

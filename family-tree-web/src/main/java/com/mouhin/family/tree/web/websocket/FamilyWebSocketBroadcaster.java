@@ -33,16 +33,12 @@ public class FamilyWebSocketBroadcaster {
 
     @EventListener
     public void onNodeCreated(NodeCreatedEvent event) {
-        broadcast(event.familyId(), "NODE_CREATED", Map.of(
-                "nodeId", event.nodeId(),
-                "nodeName", event.nodeName(),
-                "userId", event.userId()));
+        broadcast(event.familyId(), "NODE_CREATED", Map.of("nodeId", event.nodeId(), "nodeName", event.nodeName(), "userId", event.userId()));
     }
 
     @EventListener
     public void onMemberJoined(MemberJoinedEvent event) {
-        broadcast(event.familyId(), "MEMBER_JOINED", Map.of(
-                "userId", event.userId()));
+        broadcast(event.familyId(), "MEMBER_JOINED", Map.of("userId", event.userId()));
     }
 
     private void broadcast(Long familyId, String type, Map<String, Object> data) {
