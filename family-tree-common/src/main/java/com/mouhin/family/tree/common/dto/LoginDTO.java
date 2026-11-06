@@ -14,6 +14,9 @@ import lombok.Setter;
 @Setter
 public class LoginDTO {
 
+    /**
+     * 登录标识：支持用户名、手机号或邮箱（字段名沿用 username 以兼容既有前端）
+     */
     @NotBlank(message = "用户名不能为空")
     private String username;
 

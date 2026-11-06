@@ -33,9 +33,10 @@ public final class UserConverter {
         entity.setUsername(doObj.getUsername());
         entity.setPasswordHash(doObj.getPasswordHash());
         entity.setNickname(doObj.getNickname());
+        entity.setEmail(doObj.getEmail());
+        entity.setPhone(doObj.getPhone());
         entity.setGeneration(doObj.getGeneration());
         entity.setBirthDate(doObj.getBirthDate());
-        entity.setNodeId(doObj.getNodeId());
         entity.setCurrentFamilyId(doObj.getCurrentFamilyId());
         entity.setCreateTime(doObj.getCreateTime());
         entity.setUpdateTime(doObj.getUpdateTime());
@@ -57,9 +58,10 @@ public final class UserConverter {
         doObj.setUsername(entity.getUsername());
         doObj.setPasswordHash(entity.getPasswordHash());
         doObj.setNickname(entity.getNickname());
+        doObj.setEmail(entity.getEmail());
+        doObj.setPhone(entity.getPhone());
         doObj.setGeneration(entity.getGeneration());
         doObj.setBirthDate(entity.getBirthDate());
-        doObj.setNodeId(entity.getNodeId());
         doObj.setCurrentFamilyId(entity.getCurrentFamilyId());
         doObj.setCreateTime(entity.getCreateTime());
         doObj.setUpdateTime(entity.getUpdateTime());

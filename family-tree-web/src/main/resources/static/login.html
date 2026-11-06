@@ -20,8 +20,9 @@
         <!-- 登录表单 -->
         <form class="login-form" id="login-form">
             <div class="form-group">
-                <label for="login-username">用户名</label>
-                <input id="login-username" name="username" placeholder="请输入用户名" required type="text">
+                <label for="login-username">用户名 / 手机号 / 邮箱</label>
+                <input id="login-username" name="username" placeholder="请输入用户名、手机号或邮箱" required type="text"
+                       autocomplete="username">
             </div>
             <div class="form-group">
                 <label for="login-password">密码</label>
@@ -40,6 +41,16 @@
                 <label for="reg-password">密码</label>
                 <input id="reg-password" minlength="6" name="password" placeholder="至少6位密码" required
                        type="password">
+            </div>
+            <div class="form-group">
+                <label for="reg-email">邮箱 <span
+                        style="color:#999;font-size:12px">（可选，可用于登录）</span></label>
+                <input id="reg-email" maxlength="100" name="email" placeholder="请输入邮箱" type="email">
+            </div>
+            <div class="form-group">
+                <label for="reg-phone">手机号 <span
+                        style="color:#999;font-size:12px">（可选，可用于登录）</span></label>
+                <input id="reg-phone" maxlength="20" name="phone" placeholder="11位大陆手机号" type="tel">
             </div>
             <div class="form-group">
                 <label for="reg-invite-code">家族邀请码 <span

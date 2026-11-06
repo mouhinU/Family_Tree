@@ -68,6 +68,9 @@ class FamilyNodeApplicationServiceTest {
     @Mock
     private TimelineApplicationService timelineApplicationService;
 
+    @Mock
+    private FamilyUserNodeApplicationService familyUserNodeApplicationService;
+
     @InjectMocks
     private FamilyNodeApplicationService familyNodeApplicationService;
 
@@ -233,8 +236,52 @@ class FamilyNodeApplicationServiceTest {
         // 验证：删除了节点本身
         verify(familyNodeRepository).removeById(5L);
 
+        // 验证：删除前做了用户绑定校验
+        verify(familyUserNodeApplicationService).assertNotBound(FAMILY_ID, 5L);
+
         // 验证：缓存已失效
         verify(eventPublisher).publishEvent(any(FamilyTreeUpdatedEvent.class));
+    }
+
+    @Test
+    void deleteNode_nodeBoundByUser_isRejected() {
+        FamilyNode existingNode = node(5L, "蒙人", 2);
+        when(familyNodeRepository.findById(5L)).thenReturn(existingNode);
+        doThrow(new BusinessException("该节点已被族人标记为本人，请先解除标记后再删除"))
+                .when(familyUserNodeApplicationService).assertNotBound(FAMILY_ID, 5L);
+
+        assertThrows(BusinessException.class, () -> familyNodeApplicationService
+                .deleteNode(FAMILY_ID, 5L, USER_ID, "testUser", "127.0.0.1"));
+
+        // 被绑定节点不得删除，关系与时间线也不应被动到
+        verify(familyNodeRepository, never()).removeById(any());
+        verify(familyRelationRepository, never()).removeByNodeId(any(), any());
+    }
+
+    @Test
+    void updateNode_renamed_syncsBoundUserNickname() {
+        FamilyNode existingNode = node(7L, "蒙一", 3);
+        when(familyNodeRepository.findById(7L)).thenReturn(existingNode);
+
+        FamilyNodeDTO dto = new FamilyNodeDTO();
+        dto.setId(7L);
+        dto.setName("蒙二");
+        familyNodeApplicationService.updateNode(FAMILY_ID, USER_ID, "testUser", "127.0.0.1", dto);
+
+        verify(familyUserNodeApplicationService).syncNicknameFromNode(FAMILY_ID, 7L, "蒙二");
+    }
+
+    @Test
+    void updateNode_nameUnchanged_doesNotSyncNickname() {
+        FamilyNode existingNode = node(7L, "蒙一", 3);
+        when(familyNodeRepository.findById(7L)).thenReturn(existingNode);
+
+        FamilyNodeDTO dto = new FamilyNodeDTO();
+        dto.setId(7L);
+        dto.setRemark("新增备注");
+        familyNodeApplicationService.updateNode(FAMILY_ID, USER_ID, "testUser", "127.0.0.1", dto);
+
+        verify(familyUserNodeApplicationService, never()).syncNicknameFromNode(any(), any(), any());
     }
 
     @Test

@@ -220,7 +220,7 @@
     }
 
     // ========== 个人信息维护 ==========
-    // 编辑当前登录用户的基本信息：昵称、出生日期、辈分
+    // 编辑当前登录用户的基本信息：昵称、出生日期、辈分、邮箱、手机号
     async function showProfileModal() {
         var user = FT.state.currentUser;
         if (!user) { return; }
@@ -245,6 +245,8 @@
             '<div class="form-group"><label>昵称</label><input type="text" id="profile-nickname" value="' + FT.escapeAttr(user.nickname || '') + '" placeholder="请输入昵称"></div>' +
             '<div class="form-group"><label>出生日期</label><input type="date" id="profile-birth" value="' + FT.escapeAttr(user.birthDate || '') + '"></div>' +
             '<div class="form-group"><label>辈分（第几世）</label><select id="profile-generation"><option value=""' + genUnset + '>未设置</option>' + genOpts + '</select></div>' +
+            '<div class="form-group"><label>邮箱（留空不修改，可用于登录）</label><input type="email" maxlength="100" id="profile-email" value="' + FT.escapeAttr(user.email || '') + '" placeholder="请输入邮箱"></div>' +
+            '<div class="form-group"><label>手机号（留空不修改，可用于登录）</label><input type="tel" maxlength="20" id="profile-phone" value="' + FT.escapeAttr(user.phone || '') + '" placeholder="11位大陆手机号"></div>' +
             '<div class="modal-actions">' +
             '<button class="btn-cancel" data-close-modal>取消</button>' +
             '<button class="btn-confirm" id="profile-save">保存</button></div>'
@@ -254,6 +256,8 @@
             var nickname = document.getElementById('profile-nickname').value.trim();
             var birthDate = document.getElementById('profile-birth').value || null;
             var genRaw = document.getElementById('profile-generation').value;
+            var email = document.getElementById('profile-email').value.trim();
+            var phone = document.getElementById('profile-phone').value.trim();
 
             if (!nickname) { FT.toast('昵称不能为空', 'warning'); return; }
 
@@ -262,6 +266,9 @@
                 birthDate: birthDate,
                 generation: genRaw ? parseInt(genRaw) : null
             };
+            // 联系方式留空表示不修改，不提交该字段
+            if (email) { body.email = email; }
+            if (phone) { body.phone = phone; }
 
             var res = await FT.api('/api/auth/profile', {method: 'PUT', body: JSON.stringify(body)});
             if (res.code === 200) {
@@ -269,6 +276,8 @@
                 FT.state.currentUser.nickname = nickname;
                 FT.state.currentUser.birthDate = birthDate;
                 FT.state.currentUser.generation = body.generation;
+                if (email) { FT.state.currentUser.email = email; }
+                if (phone) { FT.state.currentUser.phone = phone; }
                 document.getElementById('user-nickname').textContent = nickname;
                 FT.closeModal();
             } else {

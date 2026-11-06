@@ -48,15 +48,18 @@ public class FamilyOfferingApplicationService {
     private final FamilyNodeRepository familyNodeRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final FamilyUserNodeApplicationService familyUserNodeApplicationService;
 
     public FamilyOfferingApplicationService(FamilyOfferingRepository familyOfferingRepository,
                                             FamilyNodeRepository familyNodeRepository,
                                             UserRepository userRepository,
-                                            ApplicationEventPublisher eventPublisher) {
+                                            ApplicationEventPublisher eventPublisher,
+                                            FamilyUserNodeApplicationService familyUserNodeApplicationService) {
         this.familyOfferingRepository = familyOfferingRepository;
         this.familyNodeRepository = familyNodeRepository;
         this.userRepository = userRepository;
         this.eventPublisher = eventPublisher;
+        this.familyUserNodeApplicationService = familyUserNodeApplicationService;
     }
 
     /**
@@ -79,9 +82,9 @@ public class FamilyOfferingApplicationService {
         }
 
         // 后端校验：目标必须是登录人的长辈（世代数更小，更靠近始祖）
-        User currentUser = userRepository.findById(userId);
-        if (currentUser != null && currentUser.getNodeId() != null) {
-            FamilyNode userNode = familyNodeRepository.findById(currentUser.getNodeId());
+        Long myNodeId = familyUserNodeApplicationService.getBoundNodeId(familyId, userId);
+        if (myNodeId != null) {
+            FamilyNode userNode = familyNodeRepository.findById(myNodeId);
             if (userNode != null && node.getGeneration() != null
                     && userNode.getGeneration() != null
                     && node.getGeneration() >= userNode.getGeneration()) {

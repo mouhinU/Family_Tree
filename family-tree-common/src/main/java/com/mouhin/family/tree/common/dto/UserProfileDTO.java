@@ -4,7 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * 用户个人信息 DTO（聚合昵称、辈分、出生日期、节点ID，减少多次查库）
+ * 用户个人信息 DTO（聚合昵称、辈分、出生日期，减少多次查库）
  *
  * @author Family-Tree
  * @date 2026-08-28
@@ -29,7 +29,12 @@ public class UserProfileDTO {
     private String birthDate;
 
     /**
-     * 关联的族谱节点ID
+     * 邮箱（仅本人资料可见，不在成员列表等他人视图暴露）
      */
-    private Long nodeId;
+    private String email;
+
+    /**
+     * 手机号（仅本人资料可见，不在成员列表等他人视图暴露）
+     */
+    private String phone;
 }

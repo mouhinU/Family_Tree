@@ -26,9 +26,10 @@ public class User {
     private String username;
     private String passwordHash;
     private String nickname;
+    private String email;
+    private String phone;
     private Integer generation;
     private String birthDate;
-    private Long nodeId;
     private Long currentFamilyId;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
@@ -89,12 +90,12 @@ public class User {
 
     @Override
     public String toString() {
+        // 故意不输出 email/phone：用户对象会进入日志与异常信息，联系方式属敏感数据
         return "User{"
                 + "id=" + id
                 + ", username='" + username + '\''
                 + ", nickname='" + nickname + '\''
                 + ", generation=" + generation
-                + ", nodeId=" + nodeId
                 + ", currentFamilyId=" + currentFamilyId
                 + '}';
     }

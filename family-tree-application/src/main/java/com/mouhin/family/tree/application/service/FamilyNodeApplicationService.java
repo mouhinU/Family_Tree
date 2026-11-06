@@ -49,6 +49,7 @@ public class FamilyNodeApplicationService {
     private final ApplicationEventPublisher eventPublisher;
     private final VersionControlDomainService versionControlDomainService;
     private final TimelineApplicationService timelineApplicationService;
+    private final FamilyUserNodeApplicationService familyUserNodeApplicationService;
 
     public FamilyNodeApplicationService(FamilyNodeRepository familyNodeRepository,
                                         FamilyRelationRepository familyRelationRepository,
@@ -57,7 +58,8 @@ public class FamilyNodeApplicationService {
                                         FamilyTreeApplicationService familyTreeApplicationService,
                                         ApplicationEventPublisher eventPublisher,
                                         VersionControlDomainService versionControlDomainService,
-                                        TimelineApplicationService timelineApplicationService) {
+                                        TimelineApplicationService timelineApplicationService,
+                                        FamilyUserNodeApplicationService familyUserNodeApplicationService) {
         this.familyNodeRepository = familyNodeRepository;
         this.familyRelationRepository = familyRelationRepository;
         this.relationValidationDomainService = relationValidationDomainService;
@@ -66,6 +68,7 @@ public class FamilyNodeApplicationService {
         this.eventPublisher = eventPublisher;
         this.versionControlDomainService = versionControlDomainService;
         this.timelineApplicationService = timelineApplicationService;
+        this.familyUserNodeApplicationService = familyUserNodeApplicationService;
     }
 
     /**
@@ -333,6 +336,12 @@ public class FamilyNodeApplicationService {
         // 记录版本历史
         versionControlDomainService.recordNodeUpdate(beforeNode, existing, userId, username, ipAddress);
 
+        // 姓名变更时同步绑定该节点的用户昵称，保持账号与族谱一致
+        if (!Objects.equals(beforeNode.getName(), existing.getName())) {
+            familyUserNodeApplicationService.syncNicknameFromNode(
+                    familyId, existing.getId(), existing.getName());
+        }
+
         // 记录时间线事件（修改）
         timelineApplicationService.recordBirthEvent(familyId, existing.getId(), existing.getName(),
                 existing.getBirthDate(), false);
@@ -352,6 +361,9 @@ public class FamilyNodeApplicationService {
     @Transactional(rollbackFor = Exception.class)
     public void deleteNode(Long familyId, Long nodeId, Long userId, String username, String ipAddress) {
         FamilyNode node = checkNodeBelongsToFamily(familyId, nodeId);
+
+        // 被族人标记为本人的节点禁止删除，避免用户账号失去族谱归属
+        familyUserNodeApplicationService.assertNotBound(familyId, nodeId);
 
         // 记录版本历史（在删除前记录）
         versionControlDomainService.recordNodeDelete(node, userId, username, ipAddress);

@@ -1,7 +1,9 @@
 package com.mouhin.family.tree.application.service;
 
+import com.mouhin.family.tree.common.constant.AccountConsts;
 import com.mouhin.family.tree.common.constant.LoginSecurityConsts;
 import com.mouhin.family.tree.common.dto.LoginDTO;
+import com.mouhin.family.tree.common.dto.ProfileUpdateDTO;
 import com.mouhin.family.tree.common.dto.RegisterDTO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.User;
@@ -81,6 +83,13 @@ class UserAuthApplicationServiceTest {
     private LoginDTO loginDto(String password) {
         LoginDTO dto = new LoginDTO();
         dto.setUsername("botest");
+        dto.setPassword(password);
+        return dto;
+    }
+
+    private LoginDTO loginDto(String identifier, String password) {
+        LoginDTO dto = new LoginDTO();
+        dto.setUsername(identifier);
         dto.setPassword(password);
         return dto;
     }
@@ -209,5 +218,196 @@ class UserAuthApplicationServiceTest {
                     () -> service.login(loginDto("wrongPwd")));
         }
         assertEquals(1L, service.login(loginDto(RAW_PASSWORD)));
+    }
+
+    @Test
+    void provisionAccountUsesNodeIdNicknameAndBcryptInitialPassword() {
+        when(userRepository.findByUsername("fp_40")).thenReturn(null);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User saved = invocation.getArgument(0);
+            saved.setId(9L);
+            return saved;
+        });
+
+        UserAuthApplicationService service = createService(createLoginAttemptService());
+        Long userId = service.provisionAccount(
+                "fp_40", "张大爷", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD);
+
+        assertEquals(9L, userId);
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        User saved = captor.getValue();
+        assertEquals("fp_40", saved.getUsername());
+        assertEquals("张大爷", saved.getNickname());
+        assertTrue(BCrypt.checkpw(AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD, saved.getPasswordHash()),
+                "初始密码应以 BCrypt 哈希存储");
+    }
+
+    @Test
+    void provisionAccountBlankNicknameFallsBackToUsername() {
+        when(userRepository.findByUsername("fp_41")).thenReturn(null);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserAuthApplicationService service = createService(createLoginAttemptService());
+        service.provisionAccount("fp_41", "   ", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        assertEquals("fp_41", captor.getValue().getNickname());
+    }
+
+    @Test
+    void provisionAccountDuplicateUsernameThrowsAndDoesNotSave() {
+        when(userRepository.findByUsername("fp_40")).thenReturn(userWithHash("x"));
+
+        UserAuthApplicationService service = createService(createLoginAttemptService());
+        assertThrows(BusinessException.class, () -> service.provisionAccount(
+                "fp_40", "张大爷", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD));
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void provisionAccountShortInitialPasswordThrows() {
+        UserAuthApplicationService service = createService(createLoginAttemptService());
+        assertThrows(BusinessException.class,
+                () -> service.provisionAccount("fp_42", "张大爷", "123"));
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void loginWithEmailIdentifierResolvesUserByEmailIgnoringCase() {
+        User user = userWithHash(BCrypt.hashpw(RAW_PASSWORD, BCrypt.gensalt()));
+        // 库中邮箱已归一化为小写，登录串大小写混合也应命中
+        when(userRepository.findByEmail("zhang@example.com")).thenReturn(user);
+
+        UserAuthApplicationService service = createService(createLoginAttemptService());
+        Long userId = service.login(loginDto("Zhang@Example.COM", RAW_PASSWORD));
+
+        assertEquals(1L, userId);
+        verify(userRepository, never()).findByUsername("Zhang@Example.COM");
+    }
+
+    @Test
+    void loginByPhoneIdentifierResolvesUserByPhone() {
+        User user = userWithHash(BCrypt.hashpw(RAW_PASSWORD, BCrypt.gensalt()));
+        when(userRepository.findByPhone("13800138000")).thenReturn(user);
+
+        UserAuthApplicationService service = createService(createLoginAttemptService());
+        assertEquals(1L, service.login(loginDto("13800138000", RAW_PASSWORD)));
+    }
+
+    @Test
+    void loginFallsBackToUsernameWhenContactNotFound() {
+        User user = userWithHash(BCrypt.hashpw(RAW_PASSWORD, BCrypt.gensalt()));
+        // 极端场景：用户名本身就是邮箱形态，邮箱未命中时应回落用户名查询
+        when(userRepository.findByEmail("zhang@example.com")).thenReturn(null);
+        when(userRepository.findByUsername("zhang@example.com")).thenReturn(user);
+
+        UserAuthApplicationService service = createService(createLoginAttemptService());
+        assertEquals(1L, service.login(loginDto("zhang@example.com", RAW_PASSWORD)));
+    }
+
+    @Test
+    void registerNormalizesEmailAndPhoneBeforePersisting() {
+        RegisterDTO dto = registerDto("zhangsan");
+        dto.setEmail(" Zhang@Example.COM ");
+        dto.setPhone("13800138000");
+        when(userRepository.findByUsername("zhangsan")).thenReturn(null);
+        when(userRepository.findByEmail("zhang@example.com")).thenReturn(null);
+        when(userRepository.findByPhone("13800138000")).thenReturn(null);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User saved = invocation.getArgument(0);
+            saved.setId(5L);
+            return saved;
+        });
+
+        UserAuthApplicationService service = createService(createLoginAttemptService());
+        assertEquals(5L, service.register(dto));
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        assertEquals("zhang@example.com", captor.getValue().getEmail());
+        assertEquals("13800138000", captor.getValue().getPhone());
+    }
+
+    @Test
+    void registerWithEmailTakenByAnotherAccountThrows() {
+        RegisterDTO dto = registerDto("zhangsan");
+        dto.setEmail("zhang@example.com");
+        User other = userWithHash("x");
+        other.setId(7L);
+        when(userRepository.findByUsername("zhangsan")).thenReturn(null);
+        when(userRepository.findByEmail("zhang@example.com")).thenReturn(other);
+
+        UserAuthApplicationService service = createService(createLoginAttemptService());
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.register(dto));
+        assertTrue(ex.getMessage().contains("该邮箱已被其他账号使用"),
+                "应明确告知邮箱已被占用");
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void updateProfileSetsEmailAndPhoneKeepingSelfUsernameMatch() {
+        User user = userWithHash("x");
+        when(userRepository.findById(1L)).thenReturn(user);
+        // 用户名查回的是自己，不应判定为重复
+        when(userRepository.findByUsername("botest")).thenReturn(user);
+        when(userRepository.findByEmail("new@example.com")).thenReturn(null);
+        when(userRepository.findByPhone("13900139000")).thenReturn(null);
+
+        ProfileUpdateDTO dto = new ProfileUpdateDTO();
+        dto.setEmail("NEW@example.com");
+        dto.setPhone("13900139000");
+
+        UserAuthApplicationService service = createService(createLoginAttemptService());
+        service.updateProfile(1L, dto);
+
+        assertEquals("new@example.com", user.getEmail());
+        assertEquals("13900139000", user.getPhone());
+        verify(userRepository).update(user);
+    }
+
+    @Test
+    void updateProfileWithPhoneTakenByAnotherAccountThrowsAndKeepsUserUnchanged() {
+        User user = userWithHash("x");
+        User other = userWithHash("y");
+        other.setId(8L);
+        when(userRepository.findById(1L)).thenReturn(user);
+        when(userRepository.findByUsername("botest")).thenReturn(user);
+        when(userRepository.findByPhone("13900139000")).thenReturn(other);
+
+        ProfileUpdateDTO dto = new ProfileUpdateDTO();
+        dto.setPhone("13900139000");
+
+        UserAuthApplicationService service = createService(createLoginAttemptService());
+        assertThrows(BusinessException.class, () -> service.updateProfile(1L, dto));
+        assertNull(user.getPhone());
+        verify(userRepository, never()).update(any(User.class));
+    }
+
+    @Test
+    void updateProfileWithoutContactFieldsLeavesThemUntouched() {
+        User user = userWithHash("x");
+        user.setEmail("old@example.com");
+        user.setPhone("13800138000");
+        when(userRepository.findById(1L)).thenReturn(user);
+
+        ProfileUpdateDTO dto = new ProfileUpdateDTO();
+        dto.setNickname("新昵称");
+
+        UserAuthApplicationService service = createService(createLoginAttemptService());
+        service.updateProfile(1L, dto);
+
+        // 联系方式留空表示不修改
+        assertEquals("old@example.com", user.getEmail());
+        assertEquals("13800138000", user.getPhone());
+        assertEquals("新昵称", user.getNickname());
+    }
+
+    private RegisterDTO registerDto(String username) {
+        RegisterDTO dto = new RegisterDTO();
+        dto.setUsername(username);
+        dto.setPassword(RAW_PASSWORD);
+        return dto;
     }
 }

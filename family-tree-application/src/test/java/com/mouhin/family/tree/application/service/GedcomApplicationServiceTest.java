@@ -9,6 +9,7 @@ import com.mouhin.family.tree.domain.entity.FamilyRelation;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRepository;
+import com.mouhin.family.tree.domain.repository.FamilyUserNodeRepository;
 import com.mouhin.family.tree.domain.service.GedcomGeneratorDomainService;
 import com.mouhin.family.tree.domain.service.GedcomParserDomainService;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,9 @@ class GedcomApplicationServiceTest {
 
     @Mock
     private FamilyRepository familyRepository;
+
+    @Mock
+    private FamilyUserNodeRepository familyUserNodeRepository;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;

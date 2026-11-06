@@ -37,6 +37,22 @@ public interface UserRepository {
     User findByUsername(String username);
 
     /**
+     * 根据邮箱查询用户（邮箱全局唯一，可用于登录）
+     *
+     * @param email 邮箱
+     * @return 用户领域对象，不存在返回null
+     */
+    User findByEmail(String email);
+
+    /**
+     * 根据手机号查询用户（手机号全局唯一，可用于登录）
+     *
+     * @param phone 手机号
+     * @return 用户领域对象，不存在返回null
+     */
+    User findByPhone(String phone);
+
+    /**
      * 根据ID列表批量查询用户
      *
      * @param ids 用户ID列表
@@ -58,12 +74,4 @@ public interface UserRepository {
      * @param user 用户领域对象
      */
     void update(User user);
-
-    /**
-     * 更新用户的节点关联
-     *
-     * @param userId 用户ID
-     * @param nodeId 节点ID（可为null表示解除关联）
-     */
-    void updateNodeId(Long userId, Long nodeId);
 }

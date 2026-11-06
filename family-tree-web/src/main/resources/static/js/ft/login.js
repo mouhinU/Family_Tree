@@ -71,10 +71,18 @@
         var username = document.getElementById('reg-username').value;
         var password = document.getElementById('reg-password').value;
         var inviteCode = document.getElementById('reg-invite-code').value.trim();
+        var email = document.getElementById('reg-email').value.trim();
+        var phone = document.getElementById('reg-phone').value.trim();
         try {
             var body = {username: username, password: password};
             if (inviteCode) {
                 body.inviteCode = inviteCode;
+            }
+            if (email) {
+                body.email = email;
+            }
+            if (phone) {
+                body.phone = phone;
             }
             var res = await fetch('/api/auth/register', {
                 method: 'POST',

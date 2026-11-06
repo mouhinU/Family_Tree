@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -43,6 +44,9 @@ class PrivateMessageApplicationServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private FamilyUserNodeApplicationService familyUserNodeApplicationService;
 
     @InjectMocks
     private PrivateMessageApplicationService privateMessageApplicationService;
@@ -204,12 +208,16 @@ class PrivateMessageApplicationServiceTest {
     void listContacts_excludesSelf() {
         when(userRepository.findByCurrentFamilyId(FAMILY_ID))
                 .thenReturn(List.of(buildUser(USER_ID, "自己"), buildUser(PEER_ID, "族人")));
+        when(familyUserNodeApplicationService.listBindingsByFamily(FAMILY_ID))
+                .thenReturn(Map.of(PEER_ID, 9L));
 
         List<UserContactVO> contacts = privateMessageApplicationService.listContacts(FAMILY_ID, USER_ID);
 
         assertEquals(1, contacts.size());
         assertEquals(PEER_ID, contacts.get(0).getId());
         assertEquals("族人", contacts.get(0).getUsername());
+        // 节点绑定取自当前家族的绑定表，而非用户全局字段
+        assertEquals(Long.valueOf(9L), contacts.get(0).getNodeId());
     }
 
     // ========== 辅助方法 ==========

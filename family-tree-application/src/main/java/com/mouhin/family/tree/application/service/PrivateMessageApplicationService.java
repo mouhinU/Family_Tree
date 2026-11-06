@@ -40,11 +40,14 @@ public class PrivateMessageApplicationService {
 
     private final PrivateMessageRepository privateMessageRepository;
     private final UserRepository userRepository;
+    private final FamilyUserNodeApplicationService familyUserNodeApplicationService;
 
     public PrivateMessageApplicationService(PrivateMessageRepository privateMessageRepository,
-                                            UserRepository userRepository) {
+                                            UserRepository userRepository,
+                                            FamilyUserNodeApplicationService familyUserNodeApplicationService) {
         this.privateMessageRepository = privateMessageRepository;
         this.userRepository = userRepository;
+        this.familyUserNodeApplicationService = familyUserNodeApplicationService;
     }
 
     /**
@@ -149,9 +152,10 @@ public class PrivateMessageApplicationService {
      */
     public List<UserContactVO> listContacts(Long familyId, Long currentUserId) {
         List<User> users = userRepository.findByCurrentFamilyId(familyId);
+        Map<Long, Long> bindingMap = familyUserNodeApplicationService.listBindingsByFamily(familyId);
         return users.stream()
                 .filter(user -> !Objects.equals(user.getId(), currentUserId))
-                .map(this::toContactVO)
+                .map(user -> toContactVO(user, bindingMap.get(user.getId())))
                 .collect(Collectors.toList());
     }
 
@@ -175,11 +179,11 @@ public class PrivateMessageApplicationService {
         return peer != null ? peer.getUsername() : "未知用户";
     }
 
-    private UserContactVO toContactVO(User user) {
+    private UserContactVO toContactVO(User user, Long nodeId) {
         UserContactVO vo = new UserContactVO();
         vo.setId(user.getId());
         vo.setUsername(user.getUsername());
-        vo.setNodeId(user.getNodeId());
+        vo.setNodeId(nodeId);
         return vo;
     }
 }

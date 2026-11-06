@@ -29,6 +29,16 @@ public class SysUserDO {
     private String nickname;
 
     /**
+     * 邮箱（选填，非空时全局唯一，可用于登录）
+     */
+    private String email;
+
+    /**
+     * 手机号（选填，非空时全局唯一，可用于登录）
+     */
+    private String phone;
+
+    /**
      * 所属辈分（第几世），用于水印高亮等展示
      */
     private Integer generation;
@@ -37,11 +47,6 @@ public class SysUserDO {
      * 出生日期
      */
     private String birthDate;
-
-    /**
-     * 关联族谱节点ID（标记当前用户在族谱中的位置）
-     */
-    private Long nodeId;
 
     /**
      * 当前激活的家族ID（多家族管理）

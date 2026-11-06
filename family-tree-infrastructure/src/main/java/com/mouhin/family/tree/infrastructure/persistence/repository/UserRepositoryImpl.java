@@ -1,7 +1,6 @@
 package com.mouhin.family.tree.infrastructure.persistence.repository;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.mouhin.family.tree.domain.entity.User;
 import com.mouhin.family.tree.domain.repository.UserRepository;
 import com.mouhin.family.tree.infrastructure.converter.UserConverter;
@@ -50,6 +49,24 @@ public class UserRepositoryImpl implements UserRepository {
     }
 
     @Override
+    public User findByEmail(String email) {
+        LambdaQueryWrapper<SysUserDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysUserDO::getEmail, email)
+                .last("LIMIT 1");
+        SysUserDO doObj = mapper.selectOne(wrapper);
+        return UserConverter.toDomain(doObj);
+    }
+
+    @Override
+    public User findByPhone(String phone) {
+        LambdaQueryWrapper<SysUserDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysUserDO::getPhone, phone)
+                .last("LIMIT 1");
+        SysUserDO doObj = mapper.selectOne(wrapper);
+        return UserConverter.toDomain(doObj);
+    }
+
+    @Override
     public List<User> findByIds(List<Long> ids) {
         List<SysUserDO> doList = mapper.selectBatchIds(ids);
         return UserConverter.toDomainList(doList);
@@ -68,13 +85,5 @@ public class UserRepositoryImpl implements UserRepository {
     public void update(User entity) {
         SysUserDO doObj = UserConverter.toDO(entity);
         mapper.updateById(doObj);
-    }
-
-    @Override
-    public void updateNodeId(Long userId, Long nodeId) {
-        LambdaUpdateWrapper<SysUserDO> wrapper = new LambdaUpdateWrapper<>();
-        wrapper.eq(SysUserDO::getId, userId)
-                .set(SysUserDO::getNodeId, nodeId);
-        mapper.update(null, wrapper);
     }
 }

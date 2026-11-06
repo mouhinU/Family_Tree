@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.FamilyApplicationService;
+import com.mouhin.family.tree.application.service.FamilyUserNodeApplicationService;
 import com.mouhin.family.tree.application.service.UserAuthApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.*;
@@ -34,12 +35,15 @@ public class AuthController extends BaseController {
 
     private final UserAuthApplicationService userService;
     private final FamilyApplicationService familyService;
+    private final FamilyUserNodeApplicationService familyUserNodeService;
     private final ApplicationEventPublisher eventPublisher;
 
     public AuthController(UserAuthApplicationService userService, FamilyApplicationService familyService,
+                          FamilyUserNodeApplicationService familyUserNodeService,
                           ApplicationEventPublisher eventPublisher) {
         this.userService = userService;
         this.familyService = familyService;
+        this.familyUserNodeService = familyUserNodeService;
         this.eventPublisher = eventPublisher;
     }
 
@@ -142,6 +146,10 @@ public class AuthController extends BaseController {
         // 每次请求刷新 CSRF Token，保持 token 新鲜（防止服务端重启后 token 失效）
         String csrfToken = CsrfFilter.generateToken(session);
 
+        // 返回家族信息
+        FamilyDTO family = familyService.getCurrentFamily(userId);
+        Long familyId = family != null ? family.getId() : null;
+
         // 一次查询获取用户所有信息
         UserProfileDTO profile = userService.getUserProfile(userId);
 
@@ -150,11 +158,13 @@ public class AuthController extends BaseController {
         data.put("nickname", profile != null ? profile.getNickname() : null);
         data.put("generation", profile != null ? profile.getGeneration() : null);
         data.put("birthDate", profile != null ? profile.getBirthDate() : null);
-        data.put("nodeId", profile != null ? profile.getNodeId() : null);
+        // 联系方式仅返回给本人会话，用于资料页展示与编辑
+        data.put("email", profile != null ? profile.getEmail() : null);
+        data.put("phone", profile != null ? profile.getPhone() : null);
+        // 节点绑定按家族隔离，取当前家族内的绑定
+        data.put("nodeId", familyUserNodeService.getBoundNodeId(familyId, userId));
         data.put("csrfToken", csrfToken);
 
-        // 返回家族信息
-        FamilyDTO family = familyService.getCurrentFamily(userId);
         data.put("hasFamily", family != null);
         if (family != null) {
             data.put("familyId", family.getId());
@@ -166,10 +176,10 @@ public class AuthController extends BaseController {
     }
 
     /**
-     * 更新当前登录用户的个人信息（昵称、出生日期、辈分）
+     * 更新当前登录用户的个人信息（昵称、出生日期、辈分、邮箱、手机号）
      */
     @PutMapping("/profile")
-    public Result<Void> updateProfile(@RequestBody ProfileUpdateDTO dto, HttpSession session,
+    public Result<Void> updateProfile(@Valid @RequestBody ProfileUpdateDTO dto, HttpSession session,
                                       HttpServletRequest request) {
         Long userId = (Long) session.getAttribute(FamilyTreeConsts.SESSION_USER_ID);
         if (userId == null) {
@@ -202,8 +212,11 @@ public class AuthController extends BaseController {
         }
         String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
         Long familyId = (Long) session.getAttribute(FamilyTreeConsts.SESSION_FAMILY_ID);
+        if (familyId == null) {
+            return Result.fail(400, "请先加入家族");
+        }
         Long nodeId = body.get("nodeId");
-        userService.updateNodeId(userId, nodeId);
+        familyUserNodeService.bindMyNode(familyId, userId, nodeId);
 
         eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "MARK_SELF",
                 nodeId != null ? "标记自己为节点" + nodeId : "取消节点标记",

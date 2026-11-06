@@ -16,6 +16,7 @@ import com.mouhin.family.tree.domain.gedcom.GedcomIndividual;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRepository;
+import com.mouhin.family.tree.domain.repository.FamilyUserNodeRepository;
 import com.mouhin.family.tree.domain.service.GedcomGeneratorDomainService;
 import com.mouhin.family.tree.domain.service.GedcomParserDomainService;
 import org.slf4j.Logger;
@@ -61,6 +62,7 @@ public class GedcomApplicationService {
     private final GedcomGeneratorDomainService gedcomGeneratorDomainService;
     private final FamilyNodeRepository familyNodeRepository;
     private final FamilyRelationRepository familyRelationRepository;
+    private final FamilyUserNodeRepository familyUserNodeRepository;
     private final FamilyRepository familyRepository;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -68,12 +70,14 @@ public class GedcomApplicationService {
                                     GedcomGeneratorDomainService gedcomGeneratorDomainService,
                                     FamilyNodeRepository familyNodeRepository,
                                     FamilyRelationRepository familyRelationRepository,
+                                    FamilyUserNodeRepository familyUserNodeRepository,
                                     FamilyRepository familyRepository,
                                     ApplicationEventPublisher eventPublisher) {
         this.gedcomParserDomainService = gedcomParserDomainService;
         this.gedcomGeneratorDomainService = gedcomGeneratorDomainService;
         this.familyNodeRepository = familyNodeRepository;
         this.familyRelationRepository = familyRelationRepository;
+        this.familyUserNodeRepository = familyUserNodeRepository;
         this.familyRepository = familyRepository;
         this.eventPublisher = eventPublisher;
     }
@@ -168,6 +172,8 @@ public class GedcomApplicationService {
             familyRelationRepository.findByFamilyId(familyId)
                     .forEach(r -> familyRelationRepository.removeById(r.getId()));
             familyNodeRepository.removeByFamilyId(familyId);
+            // 节点已整体重建，旧的用户绑定一律失效
+            familyUserNodeRepository.removeByFamilyId(familyId);
             logger.info("Cleared existing data for family={} before import", familyId);
         }
 
