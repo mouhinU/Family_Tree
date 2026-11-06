@@ -20,6 +20,8 @@ import org.springframework.security.crypto.bcrypt.BCrypt;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,10 +49,25 @@ class UserAuthApplicationServiceTest {
     private ValueOperations<String, String> valueOperations;
 
     /**
+     * 假 Redis 存储：让 mock 具备 INCR/GET/DEL 语义，否则失败计数永远为 0、锁定链路测不到
+     */
+    private final Map<String, String> attemptStore = new HashMap<>();
+
+    /**
      * 创建使用模拟 Redis 的 LoginAttemptService
      */
     private LoginAttemptService createLoginAttemptService() {
         lenient().when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
+        lenient().when(valueOperations.increment(anyString())).thenAnswer(invocation -> {
+            String key = invocation.getArgument(0);
+            long attempts = Long.parseLong(attemptStore.getOrDefault(key, "0")) + 1;
+            attemptStore.put(key, String.valueOf(attempts));
+            return attempts;
+        });
+        lenient().when(valueOperations.get(anyString()))
+                .thenAnswer(invocation -> attemptStore.get(invocation.<String>getArgument(0)));
+        lenient().when(stringRedisTemplate.delete(anyString()))
+                .thenAnswer(invocation -> attemptStore.remove(invocation.<String>getArgument(0)) != null);
         return new LoginAttemptService(stringRedisTemplate);
     }
 

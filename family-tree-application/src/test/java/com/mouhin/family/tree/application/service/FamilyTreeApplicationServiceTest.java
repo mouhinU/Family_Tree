@@ -17,9 +17,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.eq;
@@ -54,11 +57,24 @@ class FamilyTreeApplicationServiceTest {
     @Mock
     private ValueOperations<String, Object> valueOperations;
 
+    /**
+     * 假 Redis 存储：让 mock 具备 Redis 的读写与删除语义，否则缓存命中永远不成立
+     */
+    private final Map<String, Object> cacheStore = new HashMap<>();
+
     private FamilyTreeApplicationService familyTreeApplicationService;
 
     @BeforeEach
     void setUp() {
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        lenient().doAnswer(invocation -> {
+            cacheStore.put(invocation.getArgument(0), invocation.getArgument(1));
+            return Boolean.TRUE;
+        }).when(valueOperations).set(anyString(), any(), any(Duration.class));
+        lenient().when(valueOperations.get(anyString()))
+                .thenAnswer(invocation -> cacheStore.get(invocation.getArgument(0)));
+        lenient().when(redisTemplate.delete(anyString()))
+                .thenAnswer(invocation -> cacheStore.remove(invocation.<String>getArgument(0)) != null);
         familyTreeApplicationService = new FamilyTreeApplicationService(
                 familyNodeRepository, familyRelationRepository,
                 familyTreeDomainService, new SimpleMeterRegistry(), redisTemplate);
