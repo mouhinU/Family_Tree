@@ -12,7 +12,7 @@
 | ORM      | MyBatis-Plus（spring-boot4-starter）         | 3.5.17               |
 | JSON     | Jackson 3                                  | 3.x                  |
 | 数据库      | H2（开发，文件模式）/ MySQL（生产）                     | H2 2.3.x / MySQL 8.x |
-| 数据库迁移    | Flyway（H2 + MySQL 双轨）                      | 10.x（V1–V23）         |
+| 数据库迁移    | Flyway（H2 + MySQL 双轨）                      | 10.x（V1–V28）         |
 | 密码加密     | Spring Security Crypto（BCrypt，存量 MD5 透明迁移） | —                    |
 | 缓存       | Caffeine（族谱树缓存、登录限流）                       | 3.1.8                |
 | 监控       | Micrometer + Actuator                      | —                    |
@@ -66,7 +66,9 @@ web → application → domain ← infrastructure
 - **家族管理**：创建家族、邀请码加入、邀请链接分享；三级角色权限（OWNER 族长 > ADMIN 管理员 > MEMBER 成员）。
 - **成员角色**：OWNER 可设/取消管理员、移除任何人、修改家族信息（堂号/籍贯）；ADMIN 可移除普通成员；邀请码刷新与链接生成。
 - **多家族切换**：用户可加入多个家族，随时切换当前活跃家族。
-- **标记为我**：登录用户可标记自己在族谱中对应的节点，节点卡片显示金色边框与"我"徽章。
+- **标记为我**：登录用户可标记自己在族谱中对应的节点，节点卡片显示金色边框与"我"徽章；绑定关系按家族隔离（`family_user_node`），同一用户在不同家族可各自标记，互不影响。
+- **账号与族谱联动**：族谱节点改名时自动同步已绑定用户的昵称；被族人标记为本人的节点禁止删除，需先解除标记；覆盖式 GEDCOM 导入会一并清空旧绑定。
+- **节点自动开通账号**：族谱新增在世节点时，`NodeAccountProvisioningEventListener` 监听 `NodeCreatedEvent`（事务提交后）自动创建登录账号，用户名为 `fp_{节点ID}`、昵称为节点姓名、初始密码 `123456`；已故节点不开通，账号不自动关联家族，需本人登录后凭邀请码加入。V27 迁移按同一规则为存量在世节点补建账号（`NOT EXISTS` 幂等，可重复执行）；若节点已被「标记为我」绑定，V28 会收回其重复的 `fp_` 账号，只保留绑定账号。这批账号初始密码相同，本人首次登录后应立即改密。
 - **操作日志**：记录登录/注册/节点增删改/颜色修改等操作（各应用服务发布 `OperationPerformedEvent`，监听器在事务提交后解耦落库），OWNER/ADMIN 可分页查询并按类型筛选。
 - **族言留言板**：家族成员可发布留言，支持分类、点赞、回复（二级结构 + 回复计数），底部轮播条实时滚动展示最新留言，支持悬停暂停和关闭。
 - **通知中心**：系统内通知的列表查询、未读计数与标记已读。
@@ -98,8 +100,10 @@ web → application → domain ← infrastructure
 ### 安全
 
 - BCrypt 加盐哈希（存量 MD5 登录时透明迁移）
+- 多标识登录：用户名 / 手机号 / 邮箱任一均可登录（含 `@` 按邮箱匹配、11 位纯数字按手机号匹配，未命中回落用户名）；手机号与邮箱选填，非空时全局唯一（`uk_user_phone` / `uk_user_email`），邮箱入库统一小写
+- 联系方式仅在本人资料接口返回，成员列表、操作日志等他人视图不暴露
 - Session 固定防护（登录重建 Session）
-- 登录暴力破解锁定（Caffeine，同一用户名连续 5 次失败锁定 10 分钟）
+- 登录暴力破解锁定（Redis，同一登录标识连续 5 次失败锁定 10 分钟）
 - CSRF Token 防护（Synchronizer Token Pattern）
 - 安全响应头（X-Frame-Options、CSP、Referrer-Policy、Cache-Control）
 - 写操作频率限制（Caffeine 滑动窗口，每用户每 60 秒最多 30 次写操作）
@@ -144,7 +148,7 @@ cd family-tree-web
 | `dev`（默认） | H2 文件库 `./data/family-tree`（AUTO_SERVER 模式）     | `db/migration/h2`    |
 | `mysql`   | MySQL `jdbc:mysql://localhost:3306/family_tree` | `db/migration/mysql` |
 
-Flyway 在启动时自动执行迁移（V1~V23），`baseline-on-migrate: true`。
+Flyway 在启动时自动执行迁移（V1~V28），`baseline-on-migrate: true`。
 
 ### AI 功能配置
 
@@ -164,11 +168,11 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 
 ## 数据库模型
 
-共 23 张表，通过 23 个 Flyway 迁移版本管理：
+共 25 张表，通过 28 个 Flyway 迁移版本管理：
 
 | 表名                      | 说明        | 核心字段                                                                       |
 |-------------------------|-----------|----------------------------------------------------------------------------|
-| `sys_user`              | 用户账号      | username, password_hash, nickname, current_family_id, node_id              |
+| `sys_user`              | 用户账号      | username, password_hash, nickname, email, phone, current_family_id          |
 | `family`                | 家族/宗族     | name, invite_code, creator_id, hall_name, ancestral_home                   |
 | `family_member`         | 用户-家族成员关系 | family_id, user_id, role (OWNER/ADMIN/MEMBER)                              |
 | `family_node`           | 族谱节点（人物）  | name, gender, birth_date, death_date, generation, color_label, birth_order, biography |
@@ -191,6 +195,8 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 | `family_event_signup`   | 活动报名      | event_id, user_id, attendee_count, remark                                  |
 | `family_anniversary`    | 家族纪念日     | family_id, node_id, title, category, anniversary_date                      |
 | `family_memorial_message` | 祭堂缅怀留言  | family_id, node_id, user_id, content                                       |
+| `family_timeline`       | 家族事件时间线  | family_id, source_type, source_id, event_type, event_date, node_id         |
+| `family_user_node`      | 用户-节点绑定（按家族） | family_id, user_id, node_id（唯一索引 family_id + user_id）                   |
 
 ### 迁移历史
 
@@ -205,7 +211,7 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 | V7  | 关系表增加丧偶标记（is_widowed）                                 |
 | V8  | 多用户家族支持（family、family_member 表，各业务表增加 family_id）      |
 | V9  | 用户表增加出生日期（sys_user.birth_date）                        |
-| V10 | 用户表增加族谱节点关联（sys_user.node_id）                         |
+| V10 | 用户表增加族谱节点关联（sys_user.node_id，V25 已迁移至 family_user_node 后删除）    |
 | V11 | 操作日志表（operation_log）                                  |
 | V12 | 传统族谱增强（农历日期、字/号/讳、堂号/籍贯/坟茔、外嫁女婚配、隐私模式）                |
 | V13 | 辈分管理行列布局持久化（family.generation_cols / generation_rows） |
@@ -219,6 +225,11 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 | V21 | 站内通知（notification）                                     |
 | V22 | 版本控制（节点/关系变更历史表、族谱快照表）                                |
 | V23 | 社交与纪念功能（相册/照片标记、论坛主题与回复、私信、活动与报名、纪念日、祭堂留言，节点传记字段） |
+| V24 | 家族事件时间线（family_timeline，按 source_type + source_id + event_type 去重） |
+| V25 | 用户与节点绑定改为一族一绑（family_user_node），迁移并删除 sys_user.node_id          |
+| V26 | 用户表增加联系方式（sys_user.email / phone，非空时全局唯一，支持手机号与邮箱登录）      |
+| V27 | 为存量在世节点补建登录账号（`fp_{节点ID}`，初始密码 `123456`，NOT EXISTS 幂等）      |
+| V28 | 收回与「标记为我」绑定重复的 `fp_{节点ID}` 账号（保留绑定账号；自动账号自己完成绑定时不误删） |
 
 ## API 概览
 
