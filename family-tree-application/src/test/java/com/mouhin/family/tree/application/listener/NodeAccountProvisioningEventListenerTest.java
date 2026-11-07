@@ -1,7 +1,6 @@
 package com.mouhin.family.tree.application.listener;
 
-import com.mouhin.family.tree.application.service.UserAuthApplicationService;
-import com.mouhin.family.tree.common.constant.AccountConsts;
+import com.mouhin.family.tree.application.service.FamilyUserNodeApplicationService;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.event.NodeCreatedEvent;
@@ -14,8 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -38,10 +36,10 @@ class NodeAccountProvisioningEventListenerTest {
     private FamilyNodeRepository familyNodeRepository;
 
     @Mock
-    private UserAuthApplicationService userAuthApplicationService;
+    private FamilyUserNodeApplicationService familyUserNodeApplicationService;
 
     private NodeAccountProvisioningEventListener createListener() {
-        return new NodeAccountProvisioningEventListener(familyNodeRepository, userAuthApplicationService);
+        return new NodeAccountProvisioningEventListener(familyNodeRepository, familyUserNodeApplicationService);
     }
 
     private static NodeCreatedEvent nodeCreatedEvent() {
@@ -57,13 +55,13 @@ class NodeAccountProvisioningEventListenerTest {
     }
 
     @Test
-    void handleNodeCreated_livingNode_provisionsAccountWithNodeName() {
-        when(familyNodeRepository.findById(NODE_ID)).thenReturn(livingNode("张大爷"));
+    void handleNodeCreated_livingNode_provisionsAndBindsAccount() {
+        FamilyNode node = livingNode("张大爷");
+        when(familyNodeRepository.findById(NODE_ID)).thenReturn(node);
 
         createListener().handleNodeCreated(nodeCreatedEvent());
 
-        verify(userAuthApplicationService).provisionAccount(
-                eq("fp_" + NODE_ID), eq("张大爷"), eq(AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD));
+        verify(familyUserNodeApplicationService).provisionAndBindNodeAccount(node);
     }
 
     @Test
@@ -74,7 +72,7 @@ class NodeAccountProvisioningEventListenerTest {
 
         createListener().handleNodeCreated(nodeCreatedEvent());
 
-        verifyNoInteractions(userAuthApplicationService);
+        verifyNoInteractions(familyUserNodeApplicationService);
     }
 
     @Test
@@ -83,20 +81,19 @@ class NodeAccountProvisioningEventListenerTest {
 
         createListener().handleNodeCreated(nodeCreatedEvent());
 
-        verifyNoInteractions(userAuthApplicationService);
+        verifyNoInteractions(familyUserNodeApplicationService);
     }
 
     @Test
     void handleNodeCreated_provisionFails_exceptionIsSwallowed() {
-        // 用户名已存在等异常不得冒泡：账号开通失败不应影响已提交的族谱新增
+        // 开通失败等异常不得冒泡：账号开通失败不应影响已提交的族谱新增
         when(familyNodeRepository.findById(NODE_ID)).thenReturn(livingNode("张大爷"));
-        when(userAuthApplicationService.provisionAccount(anyString(), anyString(), anyString()))
+        when(familyUserNodeApplicationService.provisionAndBindNodeAccount(any(FamilyNode.class)))
                 .thenThrow(new BusinessException("用户名已存在"));
 
         assertDoesNotThrow(() -> createListener().handleNodeCreated(nodeCreatedEvent()));
 
-        verify(userAuthApplicationService).provisionAccount(
-                anyString(), anyString(), anyString());
+        verify(familyUserNodeApplicationService).provisionAndBindNodeAccount(any(FamilyNode.class));
     }
 
     @Test
@@ -108,8 +105,7 @@ class NodeAccountProvisioningEventListenerTest {
         createListener().handleNodeCreated(NodeCreatedEvent.of(
                 FAMILY_ID, NODE_ID, "  张大爷  ", OPERATOR_ID, "testUser", "127.0.0.1"));
 
-        verify(userAuthApplicationService).provisionAccount(
-                anyString(), eq(node.getName()), anyString());
+        verify(familyUserNodeApplicationService).provisionAndBindNodeAccount(node);
         verify(familyNodeRepository, never()).update(node);
     }
 }

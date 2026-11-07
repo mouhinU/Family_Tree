@@ -362,8 +362,8 @@ public class FamilyNodeApplicationService {
     public void deleteNode(Long familyId, Long nodeId, Long userId, String username, String ipAddress) {
         FamilyNode node = checkNodeBelongsToFamily(familyId, nodeId);
 
-        // 被族人标记为本人的节点禁止删除，避免用户账号失去族谱归属
-        familyUserNodeApplicationService.assertNotBound(familyId, nodeId);
+        // 真人标记为本人的节点禁止删除；仅自动账号绑定的节点回收账号后放行
+        familyUserNodeApplicationService.prepareForNodeDeletion(familyId, nodeId);
 
         // 记录版本历史（在删除前记录）
         versionControlDomainService.recordNodeDelete(node, userId, username, ipAddress);

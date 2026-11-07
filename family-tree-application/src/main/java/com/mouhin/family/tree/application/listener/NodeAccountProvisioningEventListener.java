@@ -1,7 +1,6 @@
 package com.mouhin.family.tree.application.listener;
 
-import com.mouhin.family.tree.application.service.UserAuthApplicationService;
-import com.mouhin.family.tree.common.constant.AccountConsts;
+import com.mouhin.family.tree.application.service.FamilyUserNodeApplicationService;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.event.NodeCreatedEvent;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
@@ -14,9 +13,9 @@ import org.springframework.transaction.event.TransactionalEventListener;
 /**
  * 族谱节点账号开通监听器。
  * <p>
- * 监听节点新增事件，为在世节点自动开通登录账号（用户名为 fp_{节点ID}，初始密码见
- * {@link AccountConsts#NODE_ACCOUNT_INITIAL_PASSWORD}），确保在事务提交后执行，
- * 避免节点回滚后残留孤儿账号。已故节点不开通；账号不自动关联家族，也不占用节点绑定。
+ * 监听节点新增事件，为在世节点自动开通登录账号（用户名为 fp_{节点ID}）并一并建立
+ * 用户-家族-节点绑定关系，确保在事务提交后执行，避免节点回滚后残留孤儿账号。
+ * 已故节点不开通；账号开通与绑定在同一事务内原子完成。
  *
  * @author Family-Tree
  * @date 2026-11-05
@@ -27,16 +26,16 @@ public class NodeAccountProvisioningEventListener {
     private static final Logger logger = LoggerFactory.getLogger(NodeAccountProvisioningEventListener.class);
 
     private final FamilyNodeRepository familyNodeRepository;
-    private final UserAuthApplicationService userAuthApplicationService;
+    private final FamilyUserNodeApplicationService familyUserNodeApplicationService;
 
     public NodeAccountProvisioningEventListener(FamilyNodeRepository familyNodeRepository,
-                                                UserAuthApplicationService userAuthApplicationService) {
+                                                FamilyUserNodeApplicationService familyUserNodeApplicationService) {
         this.familyNodeRepository = familyNodeRepository;
-        this.userAuthApplicationService = userAuthApplicationService;
+        this.familyUserNodeApplicationService = familyUserNodeApplicationService;
     }
 
     /**
-     * 节点新增后为在世节点开通登录账号。
+     * 节点新增后为在世节点开通登录账号并建立绑定。
      *
      * @param event 节点创建事件
      */
@@ -55,11 +54,9 @@ public class NodeAccountProvisioningEventListener {
                 return;
             }
 
-            String username = AccountConsts.NODE_ACCOUNT_USERNAME_PREFIX + node.getId();
-            Long userId = userAuthApplicationService.provisionAccount(
-                    username, node.getName(), AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD);
-            logger.info("Account provisioned for family node: userId={}, username={}, "
-                            + "familyId={}, nodeId={}", userId, username, event.familyId(), node.getId());
+            Long userId = familyUserNodeApplicationService.provisionAndBindNodeAccount(node);
+            logger.info("Account provisioned and bound for family node: userId={}, familyId={}, nodeId={}",
+                    userId, event.familyId(), node.getId());
         } catch (Exception e) {
             logger.error("Failed to provision account for NodeCreatedEvent, familyId={}, nodeId={}",
                     event.familyId(), event.nodeId(), e);

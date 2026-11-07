@@ -1,5 +1,6 @@
 package com.mouhin.family.tree.application.service;
 
+import com.mouhin.family.tree.common.constant.AccountConsts;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyUserNode;
@@ -48,6 +49,9 @@ class FamilyUserNodeApplicationServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private UserAuthApplicationService userAuthApplicationService;
 
     @InjectMocks
     private FamilyUserNodeApplicationService familyUserNodeApplicationService;
@@ -224,23 +228,123 @@ class FamilyUserNodeApplicationServiceTest {
         verify(familyUserNodeRepository, never()).findByFamilyIdAndNodeId(any(), any());
     }
 
-    // ========== 删除拦截 ==========
+    // ========== 删除处置（区分自动绑定与真人标记） ==========
 
     @Test
-    void assertNotBound_throwsWhenNodeIsBound() {
-        when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID))
-                .thenReturn(binding(5L, NODE_ID));
+    void prepareForNodeDeletion_freeNode_passes() {
+        when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID)).thenReturn(null);
 
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> familyUserNodeApplicationService.assertNotBound(FAMILY_ID, NODE_ID));
-        assertTrue(ex.getMessage().contains("解除标记"));
+        familyUserNodeApplicationService.prepareForNodeDeletion(FAMILY_ID, NODE_ID);
+
+        verify(userRepository, never()).deleteById(any());
     }
 
     @Test
-    void assertNotBound_passesWhenNodeIsFree() {
+    void prepareForNodeDeletion_realUserBinding_throwsAndKeepsAccount() {
+        when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID))
+                .thenReturn(userBinding(USER_ID, NODE_ID));
+        when(userRepository.findById(USER_ID)).thenReturn(user(USER_ID, "zhangsan"));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> familyUserNodeApplicationService.prepareForNodeDeletion(FAMILY_ID, NODE_ID));
+        assertTrue(ex.getMessage().contains("解除标记"));
+        verify(userRepository, never()).deleteById(any());
+        verify(familyUserNodeRepository, never()).removeByFamilyIdAndUserId(any(), any());
+    }
+
+    @Test
+    void prepareForNodeDeletion_autoAccountBinding_reclaimsAndPasses() {
+        Long autoUserId = 90L;
+        when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID))
+                .thenReturn(userBinding(autoUserId, NODE_ID));
+        when(userRepository.findById(autoUserId))
+                .thenReturn(user(autoUserId, AccountConsts.NODE_ACCOUNT_USERNAME_PREFIX + NODE_ID));
+
+        familyUserNodeApplicationService.prepareForNodeDeletion(FAMILY_ID, NODE_ID);
+
+        verify(familyUserNodeRepository).removeByFamilyIdAndUserId(FAMILY_ID, autoUserId);
+        verify(userRepository).deleteById(autoUserId);
+    }
+
+    // ========== 开通账号即绑定 ==========
+
+    @Test
+    void provisionAndBindNodeAccount_newAccount_createsAccountAndBinding() {
+        Long autoUserId = 90L;
+        String username = AccountConsts.NODE_ACCOUNT_USERNAME_PREFIX + NODE_ID;
+        FamilyNode node = node(NODE_ID, FAMILY_ID);
+        node.setName("张大爷");
+        when(userRepository.findByUsername(username)).thenReturn(null);
+        when(userAuthApplicationService.provisionAccount(
+                username, "张大爷", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD)).thenReturn(autoUserId);
+        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId)).thenReturn(null);
         when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID)).thenReturn(null);
 
-        familyUserNodeApplicationService.assertNotBound(FAMILY_ID, NODE_ID);
+        Long result = familyUserNodeApplicationService.provisionAndBindNodeAccount(node);
+
+        assertEquals(autoUserId, result);
+        ArgumentCaptor<FamilyUserNode> captor = ArgumentCaptor.forClass(FamilyUserNode.class);
+        verify(familyUserNodeRepository).save(captor.capture());
+        assertEquals(FAMILY_ID, captor.getValue().getFamilyId());
+        assertEquals(autoUserId, captor.getValue().getUserId());
+        assertEquals(NODE_ID, captor.getValue().getNodeId());
+    }
+
+    @Test
+    void provisionAndBindNodeAccount_existingAccount_reusesWithoutProvisioning() {
+        Long autoUserId = 90L;
+        String username = AccountConsts.NODE_ACCOUNT_USERNAME_PREFIX + NODE_ID;
+        FamilyNode node = node(NODE_ID, FAMILY_ID);
+        node.setName("张大爷");
+        when(userRepository.findByUsername(username)).thenReturn(user(autoUserId, username));
+        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId)).thenReturn(null);
+        when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID)).thenReturn(null);
+
+        Long result = familyUserNodeApplicationService.provisionAndBindNodeAccount(node);
+
+        assertEquals(autoUserId, result);
+        verify(userAuthApplicationService, never()).provisionAccount(any(), any(), any());
+        verify(familyUserNodeRepository).save(any());
+    }
+
+    @Test
+    void provisionAndBindNodeAccount_nodeClaimedByRealUser_skipsBinding() {
+        Long autoUserId = 90L;
+        String username = AccountConsts.NODE_ACCOUNT_USERNAME_PREFIX + NODE_ID;
+        FamilyNode node = node(NODE_ID, FAMILY_ID);
+        node.setName("张大爷");
+        when(userRepository.findByUsername(username)).thenReturn(null);
+        when(userAuthApplicationService.provisionAccount(
+                username, "张大爷", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD)).thenReturn(autoUserId);
+        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId)).thenReturn(null);
+        when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID))
+                .thenReturn(userBinding(USER_ID, NODE_ID));
+
+        familyUserNodeApplicationService.provisionAndBindNodeAccount(node);
+
+        verify(familyUserNodeRepository, never()).save(any());
+    }
+
+    // ========== 真人标记回收自动账号 ==========
+
+    @Test
+    void bindMyNode_realUserMarksNode_reclaimsAutoAccount() {
+        Long autoUserId = 90L;
+        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID)).thenReturn(null);
+        when(familyNodeRepository.findById(NODE_ID)).thenReturn(node(NODE_ID, FAMILY_ID));
+        when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID))
+                .thenReturn(userBinding(autoUserId, NODE_ID));
+        when(userRepository.findById(autoUserId))
+                .thenReturn(user(autoUserId, AccountConsts.NODE_ACCOUNT_USERNAME_PREFIX + NODE_ID));
+
+        familyUserNodeApplicationService.bindMyNode(FAMILY_ID, USER_ID, NODE_ID);
+
+        verify(familyUserNodeRepository).removeByFamilyIdAndUserId(FAMILY_ID, autoUserId);
+        verify(userRepository).deleteById(autoUserId);
+        ArgumentCaptor<FamilyUserNode> captor = ArgumentCaptor.forClass(FamilyUserNode.class);
+        verify(familyUserNodeRepository).save(captor.capture());
+        assertEquals(USER_ID, captor.getValue().getUserId());
+        assertEquals(NODE_ID, captor.getValue().getNodeId());
     }
 
     // ========== 辅助方法 ==========
@@ -250,6 +354,13 @@ class FamilyUserNodeApplicationServiceTest {
         node.setId(id);
         node.setFamilyId(familyId);
         return node;
+    }
+
+    private User user(Long id, String username) {
+        User user = new User();
+        user.setId(id);
+        user.setUsername(username);
+        return user;
     }
 
     private FamilyUserNode binding(Long id, Long nodeId) {

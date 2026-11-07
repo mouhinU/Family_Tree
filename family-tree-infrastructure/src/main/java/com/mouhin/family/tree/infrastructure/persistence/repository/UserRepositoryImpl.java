@@ -86,4 +86,9 @@ public class UserRepositoryImpl implements UserRepository {
         SysUserDO doObj = UserConverter.toDO(entity);
         mapper.updateById(doObj);
     }
+
+    @Override
+    public void deleteById(Long id) {
+        mapper.deleteById(id);
+    }
 }

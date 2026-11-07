@@ -74,4 +74,13 @@ public interface UserRepository {
      * @param user 用户领域对象
      */
     void update(User user);
+
+    /**
+     * 根据ID删除用户账号
+     *
+     * <p>仅用于回收族谱节点自动开通的 fp_ 账号，调用方须先解除其绑定关系。</p>
+     *
+     * @param id 用户ID
+     */
+    void deleteById(Long id);
 }

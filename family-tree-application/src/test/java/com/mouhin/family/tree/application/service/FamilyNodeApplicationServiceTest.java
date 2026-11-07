@@ -236,8 +236,8 @@ class FamilyNodeApplicationServiceTest {
         // 验证：删除了节点本身
         verify(familyNodeRepository).removeById(5L);
 
-        // 验证：删除前做了用户绑定校验
-        verify(familyUserNodeApplicationService).assertNotBound(FAMILY_ID, 5L);
+        // 验证：删除前做了用户绑定处置（真人拦截/自动回收）
+        verify(familyUserNodeApplicationService).prepareForNodeDeletion(FAMILY_ID, 5L);
 
         // 验证：缓存已失效
         verify(eventPublisher).publishEvent(any(FamilyTreeUpdatedEvent.class));
@@ -248,7 +248,7 @@ class FamilyNodeApplicationServiceTest {
         FamilyNode existingNode = node(5L, "蒙人", 2);
         when(familyNodeRepository.findById(5L)).thenReturn(existingNode);
         doThrow(new BusinessException("该节点已被族人标记为本人，请先解除标记后再删除"))
-                .when(familyUserNodeApplicationService).assertNotBound(FAMILY_ID, 5L);
+                .when(familyUserNodeApplicationService).prepareForNodeDeletion(FAMILY_ID, 5L);
 
         assertThrows(BusinessException.class, () -> familyNodeApplicationService
                 .deleteNode(FAMILY_ID, 5L, USER_ID, "testUser", "127.0.0.1"));
