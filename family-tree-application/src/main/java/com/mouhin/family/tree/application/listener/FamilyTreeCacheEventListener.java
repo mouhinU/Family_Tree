@@ -37,6 +37,6 @@ public class FamilyTreeCacheEventListener {
     @TransactionalEventListener
     public void handleFamilyTreeUpdated(FamilyTreeUpdatedEvent event) {
         logger.debug("Received FamilyTreeUpdatedEvent for family={}, evicting cache", event.familyId());
-        familyTreeApplicationService.evictFamilyTree(event.familyId());
+        familyTreeApplicationService.evictFamilyTreeNow(event.familyId());
     }
 }

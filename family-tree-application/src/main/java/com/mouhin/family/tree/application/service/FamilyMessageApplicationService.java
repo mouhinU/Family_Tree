@@ -161,10 +161,13 @@ public class FamilyMessageApplicationService {
      * @param userId    当前用户ID
      * @return 回复列表
      */
-    public List<MessageVO> listReplies(Long messageId, Long userId) {
+    public List<MessageVO> listReplies(Long messageId, Long userId, Long familyId) {
         FamilyMessage parent = familyMessageRepository.findById(messageId);
         if (parent == null) {
             throw new BusinessException("留言不存在");
+        }
+        if (!Objects.equals(parent.getFamilyId(), familyId)) {
+            throw new BusinessException("无权访问该留言");
         }
         List<FamilyMessage> replies = familyMessageRepository.findByParentId(messageId);
         if (replies.isEmpty()) {
@@ -221,10 +224,13 @@ public class FamilyMessageApplicationService {
      * @param userId    操作者用户ID
      */
     @Transactional(rollbackFor = Exception.class)
-    public void deleteMessage(Long messageId, Long userId) {
+    public void deleteMessage(Long messageId, Long userId, Long familyId) {
         FamilyMessage message = familyMessageRepository.findById(messageId);
         if (message == null) {
             throw new BusinessException("留言不存在");
+        }
+        if (!Objects.equals(message.getFamilyId(), familyId)) {
+            throw new BusinessException("无权操作该留言");
         }
         if (!Objects.equals(message.getUserId(), userId)) {
             throw new BusinessException("只能删除自己的留言");
@@ -256,6 +262,9 @@ public class FamilyMessageApplicationService {
         if (message == null) {
             throw new BusinessException("留言不存在");
         }
+        if (!Objects.equals(message.getFamilyId(), familyId)) {
+            throw new BusinessException("无权操作该留言");
+        }
         if (familyMessageRepository.existsByMessageIdAndUserId(messageId, userId)) {
             throw new BusinessException("已点赞，不能重复点赞");
         }
@@ -272,10 +281,13 @@ public class FamilyMessageApplicationService {
      * @param userId    用户ID
      */
     @Transactional(rollbackFor = Exception.class)
-    public void unlikeMessage(Long messageId, Long userId) {
+    public void unlikeMessage(Long messageId, Long userId, Long familyId) {
         FamilyMessage message = familyMessageRepository.findById(messageId);
         if (message == null) {
             throw new BusinessException("留言不存在");
+        }
+        if (!Objects.equals(message.getFamilyId(), familyId)) {
+            throw new BusinessException("无权操作该留言");
         }
         if (!familyMessageRepository.existsByMessageIdAndUserId(messageId, userId)) {
             throw new BusinessException("未点赞，不能取消点赞");

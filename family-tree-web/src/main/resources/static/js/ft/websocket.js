@@ -29,7 +29,8 @@
      * 初始化 WebSocket 连接
      */
     function init() {
-        var familyId = FT.state && FT.state.familyId;
+        var user = FT.state && FT.state.currentUser;
+        var familyId = user && user.familyId;
         if (!familyId) {
             return;
         }

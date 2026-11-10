@@ -95,8 +95,10 @@ public class VersionControlController extends BaseController {
     @GetMapping("/node/{nodeId}/compare")
     public Result<Map<String, Object[]>> compareNodeVersions(@PathVariable Long nodeId,
                                                               @RequestParam Integer v1,
-                                                              @RequestParam Integer v2) {
-        Map<String, Object[]> differences = versionControlService.compareNodeVersions(nodeId, v1, v2);
+                                                              @RequestParam Integer v2,
+                                                              HttpSession session) {
+        Long familyId = getCurrentFamilyId(session);
+        Map<String, Object[]> differences = versionControlService.compareNodeVersions(nodeId, v1, v2, familyId);
         return Result.success(differences);
     }
 
@@ -111,8 +113,10 @@ public class VersionControlController extends BaseController {
     @GetMapping("/relation/{relationId}/compare")
     public Result<Map<String, Object[]>> compareRelationVersions(@PathVariable Long relationId,
                                                                   @RequestParam Integer v1,
-                                                                  @RequestParam Integer v2) {
-        Map<String, Object[]> differences = versionControlService.compareRelationVersions(relationId, v1, v2);
+                                                                  @RequestParam Integer v2,
+                                                                  HttpSession session) {
+        Long familyId = getCurrentFamilyId(session);
+        Map<String, Object[]> differences = versionControlService.compareRelationVersions(relationId, v1, v2, familyId);
         return Result.success(differences);
     }
 
@@ -196,8 +200,9 @@ public class VersionControlController extends BaseController {
      * @return 快照详情
      */
     @GetMapping("/snapshot/{snapshotId}")
-    public Result<FamilySnapshot> getSnapshot(@PathVariable Long snapshotId) {
-        FamilySnapshot snapshot = versionControlService.getSnapshot(snapshotId);
+    public Result<FamilySnapshot> getSnapshot(@PathVariable Long snapshotId, HttpSession session) {
+        Long familyId = getCurrentFamilyId(session);
+        FamilySnapshot snapshot = versionControlService.getSnapshot(snapshotId, familyId);
         return Result.success(snapshot);
     }
 
@@ -226,8 +231,9 @@ public class VersionControlController extends BaseController {
      * @return 快照中的节点和关系数据
      */
     @PostMapping("/snapshot/{snapshotId}/preview")
-    public Result<Map<String, Object>> previewSnapshotRestore(@PathVariable Long snapshotId) {
-        Map<String, Object> snapshotData = versionControlService.restoreFromSnapshot(snapshotId);
+    public Result<Map<String, Object>> previewSnapshotRestore(@PathVariable Long snapshotId, HttpSession session) {
+        Long familyId = getCurrentFamilyId(session);
+        Map<String, Object> snapshotData = versionControlService.restoreFromSnapshot(snapshotId, familyId);
         return Result.success(snapshotData);
     }
 }

@@ -126,11 +126,26 @@ public class FamilyTreeApplicationService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    redisTemplate.delete(TREE_CACHE_KEY_PREFIX + familyId);
+                    evictFamilyTreeNow(familyId);
                 }
             });
         } else {
-            redisTemplate.delete(TREE_CACHE_KEY_PREFIX + familyId);
+            evictFamilyTreeNow(familyId);
         }
+    }
+
+    /**
+     * 立即失效族谱树缓存（不做事务延迟）。
+     * <p>
+     * 供事务提交后的监听器调用：此时事务同步仍处活跃状态，若再走
+     * {@link #evictFamilyTree} 会注册一个永不触发的 afterCommit 回调，导致缓存漏清。
+     *
+     * @param familyId 家族ID
+     */
+    public void evictFamilyTreeNow(Long familyId) {
+        if (familyId == null) {
+            return;
+        }
+        redisTemplate.delete(TREE_CACHE_KEY_PREFIX + familyId);
     }
 }

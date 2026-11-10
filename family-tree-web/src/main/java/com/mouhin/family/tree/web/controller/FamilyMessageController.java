@@ -74,7 +74,8 @@ public class FamilyMessageController extends BaseController {
     @GetMapping("/{id}/replies")
     public Result<List<MessageVO>> listReplies(@PathVariable Long id, HttpSession session) {
         Long userId = getCurrentUserId(session);
-        List<MessageVO> replies = messageService.listReplies(id, userId);
+        Long familyId = getCurrentFamilyId(session);
+        List<MessageVO> replies = messageService.listReplies(id, userId, familyId);
         return Result.success(replies);
     }
 
@@ -88,7 +89,8 @@ public class FamilyMessageController extends BaseController {
     @DeleteMapping("/{id}")
     public Result<Void> deleteMessage(@PathVariable Long id, HttpSession session) {
         Long userId = getCurrentUserId(session);
-        messageService.deleteMessage(id, userId);
+        Long familyId = getCurrentFamilyId(session);
+        messageService.deleteMessage(id, userId, familyId);
         return Result.success();
     }
 
@@ -117,7 +119,8 @@ public class FamilyMessageController extends BaseController {
     @DeleteMapping("/{id}/like")
     public Result<Void> unlikeMessage(@PathVariable Long id, HttpSession session) {
         Long userId = getCurrentUserId(session);
-        messageService.unlikeMessage(id, userId);
+        Long familyId = getCurrentFamilyId(session);
+        messageService.unlikeMessage(id, userId, familyId);
         return Result.success();
     }
 }

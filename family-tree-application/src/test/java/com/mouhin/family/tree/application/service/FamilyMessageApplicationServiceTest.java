@@ -232,7 +232,7 @@ class FamilyMessageApplicationServiceTest {
         reply2.setParentId(1L);
         when(familyMessageRepository.findByParentId(1L)).thenReturn(List.of(reply1, reply2));
 
-        List<MessageVO> replies = messageApplicationService.listReplies(1L, USER_ID);
+        List<MessageVO> replies = messageApplicationService.listReplies(1L, USER_ID, FAMILY_ID);
 
         assertEquals(2, replies.size());
         assertEquals("回复1", replies.get(0).getContent());
@@ -244,7 +244,7 @@ class FamilyMessageApplicationServiceTest {
         when(familyMessageRepository.findById(999L)).thenReturn(null);
 
         assertThrows(BusinessException.class, () ->
-                messageApplicationService.listReplies(999L, USER_ID));
+                messageApplicationService.listReplies(999L, USER_ID, FAMILY_ID));
     }
 
     // ========== 删除留言 ==========
@@ -254,7 +254,7 @@ class FamilyMessageApplicationServiceTest {
         FamilyMessage msg = buildMessage(10L, USER_ID, "测试用户", "内容");
         when(familyMessageRepository.findById(10L)).thenReturn(msg);
 
-        messageApplicationService.deleteMessage(10L, USER_ID);
+        messageApplicationService.deleteMessage(10L, USER_ID, FAMILY_ID);
 
         verify(familyMessageRepository).removeById(10L);
     }
@@ -264,7 +264,7 @@ class FamilyMessageApplicationServiceTest {
         FamilyMessage msg = buildMessage(10L, USER_ID, "测试用户", "顶级留言");
         when(familyMessageRepository.findById(10L)).thenReturn(msg);
 
-        messageApplicationService.deleteMessage(10L, USER_ID);
+        messageApplicationService.deleteMessage(10L, USER_ID, FAMILY_ID);
 
         verify(familyMessageRepository).removeByParentId(10L);
         verify(familyMessageRepository).removeById(10L);
@@ -276,7 +276,7 @@ class FamilyMessageApplicationServiceTest {
         reply.setParentId(10L);
         when(familyMessageRepository.findById(20L)).thenReturn(reply);
 
-        messageApplicationService.deleteMessage(20L, USER_ID);
+        messageApplicationService.deleteMessage(20L, USER_ID, FAMILY_ID);
 
         verify(familyMessageRepository).decrementReplyCount(10L);
         verify(familyMessageRepository).removeById(20L);
@@ -288,7 +288,7 @@ class FamilyMessageApplicationServiceTest {
         when(familyMessageRepository.findById(10L)).thenReturn(msg);
 
         assertThrows(BusinessException.class,
-                () -> messageApplicationService.deleteMessage(10L, USER_ID));
+                () -> messageApplicationService.deleteMessage(10L, USER_ID, FAMILY_ID));
         verify(familyMessageRepository, never()).removeById(any());
     }
 
@@ -297,7 +297,7 @@ class FamilyMessageApplicationServiceTest {
         when(familyMessageRepository.findById(999L)).thenReturn(null);
 
         assertThrows(BusinessException.class,
-                () -> messageApplicationService.deleteMessage(999L, USER_ID));
+                () -> messageApplicationService.deleteMessage(999L, USER_ID, FAMILY_ID));
         verify(familyMessageRepository, never()).removeById(any());
     }
 

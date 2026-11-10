@@ -68,8 +68,10 @@
             headers['X-CSRF-TOKEN'] = csrfToken;
         }
         var res;
+        var opts = options || {};
+        var mergedHeaders = Object.assign({}, headers, opts.headers || {});
         try {
-            res = await fetch(url, Object.assign({headers: headers}, options));
+            res = await fetch(url, Object.assign({}, opts, {headers: mergedHeaders}));
         } catch (networkErr) {
             FT.toast('网络连接失败，请检查网络后重试', 'error');
             throw new Error('network.error');

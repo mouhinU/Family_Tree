@@ -54,7 +54,7 @@
         try {
             var res = await FT.api('/api/notification/list?page=1&size=50');
             if (res.code === 200) {
-                var list = res.data.list || [];
+                var list = res.data.records || [];
                 if (list.length === 0) {
                     listEl.innerHTML = '<p style="padding:20px 0;color:#8a7f6a;">暂无通知</p>';
                     return;

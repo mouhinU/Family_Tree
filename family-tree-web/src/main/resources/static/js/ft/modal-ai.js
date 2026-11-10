@@ -320,7 +320,7 @@
                     body: JSON.stringify(body)
                 });
                 if (res.code === 200) {
-                    nameToId[n.name] = res.data.id;
+                    nameToId[n.name] = res.data.nodeId;
                     imported++;
                 }
             }

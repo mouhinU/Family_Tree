@@ -124,7 +124,8 @@ public class VersionControlApplicationService {
      * @param versionNumber2 版本号2
      * @return 差异Map（字段名 -> [旧值, 新值]）
      */
-    public Map<String, Object[]> compareNodeVersions(Long nodeId, Integer versionNumber1, Integer versionNumber2) {
+    public Map<String, Object[]> compareNodeVersions(Long nodeId, Integer versionNumber1, Integer versionNumber2,
+                                                     Long familyId) {
         NodeHistory history1 = historyRepository.findNodeHistoryByVersion(nodeId, versionNumber1);
         NodeHistory history2 = historyRepository.findNodeHistoryByVersion(nodeId, versionNumber2);
 
@@ -133,6 +134,9 @@ public class VersionControlApplicationService {
         }
         if (history2 == null) {
             throw new BusinessException("版本" + versionNumber2 + "不存在");
+        }
+        if (!Objects.equals(history1.getFamilyId(), familyId) || !Objects.equals(history2.getFamilyId(), familyId)) {
+            throw new BusinessException("无权访问该版本数据");
         }
 
         String beforeData = history1.getAfterData() != null ? history1.getAfterData() : history1.getBeforeData();
@@ -153,7 +157,8 @@ public class VersionControlApplicationService {
      * @param versionNumber2 版本号2
      * @return 差异Map（字段名 -> [旧值, 新值]）
      */
-    public Map<String, Object[]> compareRelationVersions(Long relationId, Integer versionNumber1, Integer versionNumber2) {
+    public Map<String, Object[]> compareRelationVersions(Long relationId, Integer versionNumber1, Integer versionNumber2,
+                                                          Long familyId) {
         RelationHistory history1 = historyRepository.findRelationHistoryByVersion(relationId, versionNumber1);
         RelationHistory history2 = historyRepository.findRelationHistoryByVersion(relationId, versionNumber2);
 
@@ -162,6 +167,9 @@ public class VersionControlApplicationService {
         }
         if (history2 == null) {
             throw new BusinessException("版本" + versionNumber2 + "不存在");
+        }
+        if (!Objects.equals(history1.getFamilyId(), familyId) || !Objects.equals(history2.getFamilyId(), familyId)) {
+            throw new BusinessException("无权访问该版本数据");
         }
 
         String beforeData = history1.getAfterData() != null ? history1.getAfterData() : history1.getBeforeData();
@@ -192,6 +200,9 @@ public class VersionControlApplicationService {
         NodeHistory history = historyRepository.findNodeHistoryByVersion(nodeId, versionNumber);
         if (history == null) {
             throw new BusinessException("版本" + versionNumber + "不存在");
+        }
+        if (!Objects.equals(history.getFamilyId(), familyId)) {
+            throw new BusinessException("无权回滚该节点版本");
         }
 
         String nodeData;
@@ -254,13 +265,21 @@ public class VersionControlApplicationService {
     }
 
     /**
-     * 根据ID查询快照详情
+     * 根据ID查询快照详情（校验归属）
      *
      * @param snapshotId 快照ID
+     * @param familyId   当前家族ID
      * @return 快照对象
      */
-    public FamilySnapshot getSnapshot(Long snapshotId) {
-        return snapshotRepository.findById(snapshotId);
+    public FamilySnapshot getSnapshot(Long snapshotId, Long familyId) {
+        FamilySnapshot snapshot = snapshotRepository.findById(snapshotId);
+        if (snapshot == null) {
+            throw new BusinessException("快照不存在");
+        }
+        if (!Objects.equals(snapshot.getFamilyId(), familyId)) {
+            throw new BusinessException("无权访问该快照");
+        }
+        return snapshot;
     }
 
     /**
@@ -295,7 +314,14 @@ public class VersionControlApplicationService {
      * @param snapshotId 快照ID
      * @return 快照中的节点和关系数据
      */
-    public Map<String, Object> restoreFromSnapshot(Long snapshotId) {
+    public Map<String, Object> restoreFromSnapshot(Long snapshotId, Long familyId) {
+        FamilySnapshot snapshot = snapshotRepository.findById(snapshotId);
+        if (snapshot == null) {
+            throw new BusinessException("快照不存在");
+        }
+        if (!Objects.equals(snapshot.getFamilyId(), familyId)) {
+            throw new BusinessException("无权恢复该快照");
+        }
         return versionControlDomainService.restoreFromSnapshot(snapshotId);
     }
 
