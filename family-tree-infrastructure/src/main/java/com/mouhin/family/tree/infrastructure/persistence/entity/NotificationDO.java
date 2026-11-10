@@ -57,10 +57,10 @@ public class NotificationDO {
     private Long relatedId;
 
     /**
-     * 是否已读
+     * 是否已读（属性名避开 MySQL 保留字 read，否则 select 别名 AS read 语法错误）
      */
     @TableField("is_read")
-    private Boolean read;
+    private Boolean readFlag;
 
     /**
      * 创建时间

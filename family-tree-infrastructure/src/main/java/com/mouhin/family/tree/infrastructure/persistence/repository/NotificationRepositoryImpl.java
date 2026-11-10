@@ -56,7 +56,7 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     public long countUnreadByUserId(Long userId) {
         LambdaQueryWrapper<NotificationDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(NotificationDO::getUserId, userId)
-                .eq(NotificationDO::getRead, false);
+                .eq(NotificationDO::getReadFlag, false);
         return mapper.selectCount(wrapper);
     }
 
@@ -64,7 +64,7 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     public void markAsRead(Long id) {
         LambdaUpdateWrapper<NotificationDO> wrapper = new LambdaUpdateWrapper<>();
         wrapper.eq(NotificationDO::getId, id)
-                .set(NotificationDO::getRead, true)
+                .set(NotificationDO::getReadFlag, true)
                 .set(NotificationDO::getUpdateTime, LocalDateTime.now());
         mapper.update(null, wrapper);
     }
@@ -73,8 +73,8 @@ public class NotificationRepositoryImpl implements NotificationRepository {
     public void markAllAsRead(Long userId) {
         LambdaUpdateWrapper<NotificationDO> wrapper = new LambdaUpdateWrapper<>();
         wrapper.eq(NotificationDO::getUserId, userId)
-                .eq(NotificationDO::getRead, false)
-                .set(NotificationDO::getRead, true)
+                .eq(NotificationDO::getReadFlag, false)
+                .set(NotificationDO::getReadFlag, true)
                 .set(NotificationDO::getUpdateTime, LocalDateTime.now());
         mapper.update(null, wrapper);
     }

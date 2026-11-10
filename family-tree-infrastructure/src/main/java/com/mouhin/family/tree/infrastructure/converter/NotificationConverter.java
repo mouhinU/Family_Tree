@@ -36,7 +36,7 @@ public final class NotificationConverter {
         entity.setContent(doObj.getContent());
         entity.setNotificationType(doObj.getNotificationType());
         entity.setRelatedId(doObj.getRelatedId());
-        entity.setRead(doObj.getRead());
+        entity.setRead(doObj.getReadFlag());
         entity.setCreateTime(doObj.getCreateTime());
         entity.setUpdateTime(doObj.getUpdateTime());
         return entity;
@@ -60,7 +60,7 @@ public final class NotificationConverter {
         doObj.setContent(entity.getContent());
         doObj.setNotificationType(entity.getNotificationType());
         doObj.setRelatedId(entity.getRelatedId());
-        doObj.setRead(entity.getRead());
+        doObj.setReadFlag(entity.getRead());
         doObj.setCreateTime(entity.getCreateTime());
         doObj.setUpdateTime(entity.getUpdateTime());
         return doObj;
