@@ -2,10 +2,14 @@ package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.FamilyNodeApplicationService;
 import com.mouhin.family.tree.application.service.FamilyRelationApplicationService;
+import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.result.Result;
+import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -29,11 +33,14 @@ public class RelationPathController extends BaseController {
 
     private final FamilyRelationApplicationService familyRelationService;
     private final FamilyNodeApplicationService familyNodeService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public RelationPathController(FamilyRelationApplicationService familyRelationService,
-                                  FamilyNodeApplicationService familyNodeService) {
+                                  FamilyNodeApplicationService familyNodeService,
+                                  ApplicationEventPublisher eventPublisher) {
         this.familyRelationService = familyRelationService;
         this.familyNodeService = familyNodeService;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -46,7 +53,8 @@ public class RelationPathController extends BaseController {
     public Result<Map<String, Object>> findPath(
             @RequestParam Long fromNodeId,
             @RequestParam Long toNodeId,
-            HttpSession session) {
+            HttpSession session,
+            HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
 
         // 获取所有关系
@@ -135,6 +143,14 @@ public class RelationPathController extends BaseController {
         result.put("found", true);
         result.put("pathLength", path.size());
         result.put("path", pathDetails);
+
+        Long userId = getCurrentUserId(session);
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        String fromName = nameMap.getOrDefault(fromNodeId, "未知");
+        String toName = nameMap.getOrDefault(toNodeId, "未知");
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "RELATION_PATH",
+                "关系路径分析: " + fromName + " → " + toName, "node", fromNodeId, familyId, getClientIp(request)));
+
         return Result.success(result);
     }
 }

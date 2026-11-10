@@ -31,6 +31,7 @@
         'RELATION_CREATE': '创建关系',
         'RELATION_UPDATE': '更新关系',
         'RELATION_DELETE': '删除关系',
+        'RELATION_PATH': '关系路径分析',
         'GEDCOM_IMPORT': '导入GEDCOM',
         'GENERATION_UPDATE': '更新辈分',
         'MESSAGE_POST': '发布留言',
@@ -241,15 +242,87 @@
                 return '未知';
             };
 
-            var pathHtml = '<div style="padding:10px;background:#faf8f2;border-radius:6px;">';
-            pathHtml += '<p style="font-weight:600;margin-bottom:8px;">找到路径（共 ' + data.pathLength + ' 个节点）</p>';
+            // 世代索引：弹窗已加载全族节点，直接复用其 generation 标注层级
+            var genMap = {};
+            allNodes.forEach(function(n) { genMap[n.id] = n.generation; });
+
             var path = data.path || [];
+            var lastIdx = path.length - 1;
+
+            var nodeHtml = function(idx) {
+                var step = path[idx];
+                var isStart = idx === 0;
+                var isEnd = idx === lastIdx;
+                var nodeClass = 'rpath-node' + (isStart ? ' rpath-node-start' : '') + (isEnd ? ' rpath-node-end' : '');
+                var html = '<div class="' + nodeClass + '">';
+                if (isStart) {
+                    html += '<span class="rpath-tag rpath-tag-start">起点</span>';
+                }
+                if (isEnd) {
+                    html += '<span class="rpath-tag rpath-tag-end">终点</span>';
+                }
+                html += '<span class="rpath-name">' + FT.escapeHtml(step.name) + '</span>';
+                var gen = genMap[step.nodeId];
+                if (gen != null) {
+                    html += '<span class="rpath-gen">第' + gen + '世</span>';
+                }
+                html += '</div>';
+                return html;
+            };
+            var connectorHtml = function(relType) {
+                return '<div class="rpath-connector">' +
+                    '<span class="rpath-line"></span>' +
+                    '<span class="rpath-rel">' + relTypeText(relType) + '</span>' +
+                    '<span class="rpath-line"></span>' +
+                    '</div>';
+            };
+
+            // 共同祖先（路径中世代最小点）作为树根置顶，避免起点是晚辈时倒挂
+            var peakIdx = 0;
+            var minGen = Infinity;
             path.forEach(function(step, idx) {
-                pathHtml += '<span style="font-weight:600;color:#5b6b7c;">' + FT.escapeHtml(step.name) + '</span>';
-                if (idx < path.length - 1) {
-                    pathHtml += ' <span style="color:#999;font-size:12px;">—[' + relTypeText(step.relationType) + ']→</span> ';
+                var gen = genMap[step.nodeId];
+                if (gen != null && gen < minGen) {
+                    minGen = gen;
+                    peakIdx = idx;
                 }
             });
+            var leftBranch = [];
+            for (var i = peakIdx - 1; i >= 0; i--) {
+                leftBranch.push(i);
+            }
+            var rightBranch = [];
+            for (var j = peakIdx + 1; j <= lastIdx; j++) {
+                rightBranch.push(j);
+            }
+
+            var pathHtml = '<p class="rpath-summary">找到路径（共 ' + data.pathLength + ' 个节点）</p>';
+            pathHtml += '<div class="rpath-tree">';
+            pathHtml += nodeHtml(peakIdx);
+            if (leftBranch.length > 0 && rightBranch.length > 0) {
+                pathHtml += '<div class="rpath-fork"><span class="rpath-fork-v"></span><span class="rpath-fork-h"></span></div>';
+                pathHtml += '<div class="rpath-branches">';
+                pathHtml += '<div class="rpath-branch">';
+                leftBranch.forEach(function(idx) {
+                    pathHtml += connectorHtml(path[idx].relationType);
+                    pathHtml += nodeHtml(idx);
+                });
+                pathHtml += '</div>';
+                pathHtml += '<div class="rpath-branch">';
+                rightBranch.forEach(function(idx) {
+                    pathHtml += connectorHtml(path[idx - 1].relationType);
+                    pathHtml += nodeHtml(idx);
+                });
+                pathHtml += '</div>';
+                pathHtml += '</div>';
+            } else {
+                var single = leftBranch.length > 0 ? leftBranch : rightBranch;
+                single.forEach(function(idx) {
+                    var relIdx = leftBranch.length > 0 ? idx : idx - 1;
+                    pathHtml += connectorHtml(path[relIdx].relationType);
+                    pathHtml += nodeHtml(idx);
+                });
+            }
             pathHtml += '</div>';
             resultEl.innerHTML = pathHtml;
         });
