@@ -12,7 +12,7 @@
 | ORM      | MyBatis-Plus（spring-boot4-starter）         | 3.5.17               |
 | JSON     | Jackson 3                                  | 3.x                  |
 | 数据库      | H2（开发，文件模式）/ MySQL（生产）                     | H2 2.3.x / MySQL 8.x |
-| 数据库迁移    | Flyway（H2 + MySQL 双轨）                      | 10.x（V1–V29）         |
+| 数据库迁移    | Flyway（H2 + MySQL 双轨）                      | 10.x（V1–V30）         |
 | 密码加密     | Spring Security Crypto（BCrypt，存量 MD5 透明迁移） | —                    |
 | 缓存       | Caffeine（族谱树缓存、登录限流）                       | 3.1.8                |
 | 监控       | Micrometer + Actuator                      | —                    |
@@ -68,7 +68,7 @@ web → application → domain ← infrastructure
 - **多家族切换**：用户可加入多个家族，随时切换当前活跃家族。
 - **标记为我**：登录用户可标记自己在族谱中对应的节点，节点卡片显示金色边框与"我"徽章；绑定关系按家族隔离（`family_user_node`），同一用户在不同家族可各自标记，互不影响。
 - **账号与族谱联动**：族谱节点改名时自动同步已绑定用户的昵称；真人标记为本人的节点禁止删除（需先解除标记），仅自动账号绑定的节点删除时回收账号后放行；覆盖式 GEDCOM 导入会一并清空旧绑定。
-- **节点自动开通账号**：族谱新增在世节点时，`NodeAccountProvisioningEventListener` 监听 `NodeCreatedEvent`（事务提交后）自动创建登录账号并一并建立 `family_user_node` 绑定，用户名为 `fp_{节点ID}`、昵称为节点姓名、初始密码 `123456`；已故节点不开通。V27 迁移按同一规则为存量在世节点补建账号，V29 再为这些账号补建绑定关系（均 `NOT EXISTS` 幂等）。真人「标记为我」某节点时回收该节点重复的 `fp_` 账号（V28 思路，避免一人两号）；删除节点时区分自动绑定（回收放行）与真人标记（拦截）。这批账号初始密码相同，本人首次登录后应立即改密。
+- **节点自动开通账号**：族谱新增在世节点时，`NodeAccountProvisioningEventListener` 监听 `NodeCreatedEvent`（事务提交后）自动创建登录账号并一并建立 `family_user_node` 绑定，用户名优先取节点姓名（重名/脱敏/空名兜底 `fp_{节点ID}`）、昵称为节点姓名、初始密码 `123456`；已故节点不开通。自动账号以 `sys_user.is_auto_account` 标记识别（不再依赖用户名形态），开通逻辑先查绑定再建号，事件重投也不会重复建号。V27 迁移按同一规则为存量在世节点补建账号，V29 再补建绑定关系，V30 新增 `is_auto_account` 标记列并把姓名干净且无重名者的 `username` 对换为真实姓名（脱敏/空名/重名者保留 `fp_{节点ID}` 兜底，`nickname` 与密码不变，`NOT EXISTS` 保护唯一键，均幂等）。真人「标记为我」某节点时回收该节点重复的自动账号（V28 思路，避免一人两号）；删除节点时区分自动绑定（回收放行）与真人标记（拦截）。这批账号初始密码相同，本人首次登录后应立即改密。
 - **操作日志**：记录登录/注册/节点增删改/颜色修改等操作（各应用服务发布 `OperationPerformedEvent`，监听器在事务提交后解耦落库），OWNER/ADMIN 可分页查询并按类型筛选。
 - **族言留言板**：家族成员可发布留言，支持分类、点赞、回复（二级结构 + 回复计数），底部轮播条实时滚动展示最新留言，支持悬停暂停和关闭。
 - **通知中心**：系统内通知的列表查询、未读计数与标记已读。
@@ -148,7 +148,7 @@ cd family-tree-web
 | `dev`（默认） | H2 文件库 `./data/family-tree`（AUTO_SERVER 模式）     | `db/migration/h2`    |
 | `mysql`   | MySQL `jdbc:mysql://localhost:3306/family_tree` | `db/migration/mysql` |
 
-Flyway 在启动时自动执行迁移（V1~V29），`baseline-on-migrate: true`。
+Flyway 在启动时自动执行迁移（V1~V30），`baseline-on-migrate: true`。
 
 ### AI 功能配置
 
@@ -168,11 +168,11 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 
 ## 数据库模型
 
-共 25 张表，通过 29 个 Flyway 迁移版本管理：
+共 25 张表，通过 30 个 Flyway 迁移版本管理：
 
 | 表名                      | 说明        | 核心字段                                                                       |
 |-------------------------|-----------|----------------------------------------------------------------------------|
-| `sys_user`              | 用户账号      | username, password_hash, nickname, email, phone, current_family_id          |
+| `sys_user`              | 用户账号      | username, password_hash, nickname, email, phone, current_family_id, is_auto_account |
 | `family`                | 家族/宗族     | name, invite_code, creator_id, hall_name, ancestral_home                   |
 | `family_member`         | 用户-家族成员关系 | family_id, user_id, role (OWNER/ADMIN/MEMBER)                              |
 | `family_node`           | 族谱节点（人物）  | name, gender, birth_date, death_date, generation, color_label, birth_order, biography |
@@ -231,6 +231,7 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 | V27 | 为存量在世节点补建登录账号（`fp_{节点ID}`，初始密码 `123456`，NOT EXISTS 幂等）      |
 | V28 | 收回与「标记为我」绑定重复的 `fp_{节点ID}` 账号（保留绑定账号；自动账号自己完成绑定时不误删） |
 | V29 | 为存量在世节点的 `fp_{节点ID}` 账号补建 `family_user_node` 绑定（双重 NOT EXISTS 幂等，不覆盖真人标记） |
+| V30 | 自动账号改用真实姓名登录：新增 `is_auto_account` 标记列替代用户名形态识别；姓名干净且无重名者把 `username` 对换为姓名，脱敏/空名/重名者保留 `fp_{节点ID}` 兜底（nickname 与密码不变，NOT EXISTS 保护唯一键） |
 
 ## API 概览
 

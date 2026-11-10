@@ -31,6 +31,10 @@ public class User {
     private Integer generation;
     private String birthDate;
     private Long currentFamilyId;
+    /**
+     * 是否族谱节点自动开通的账号（区别于真人注册账号）
+     */
+    private Boolean autoAccount;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 

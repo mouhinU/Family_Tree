@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.infrastructure.persistence.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Getter;
@@ -52,6 +53,12 @@ public class SysUserDO {
      * 当前激活的家族ID（多家族管理）
      */
     private Long currentFamilyId;
+
+    /**
+     * 是否族谱节点自动开通的账号（区别于真人注册账号，删除节点时据此回收）
+     */
+    @TableField("is_auto_account")
+    private Boolean autoAccount;
 
     private LocalDateTime createTime;
 

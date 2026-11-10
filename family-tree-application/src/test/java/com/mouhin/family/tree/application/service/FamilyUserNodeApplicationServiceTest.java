@@ -257,8 +257,7 @@ class FamilyUserNodeApplicationServiceTest {
         Long autoUserId = 90L;
         when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID))
                 .thenReturn(userBinding(autoUserId, NODE_ID));
-        when(userRepository.findById(autoUserId))
-                .thenReturn(user(autoUserId, AccountConsts.NODE_ACCOUNT_USERNAME_PREFIX + NODE_ID));
+        when(userRepository.findById(autoUserId)).thenReturn(autoUser(autoUserId, "张大爷"));
 
         familyUserNodeApplicationService.prepareForNodeDeletion(FAMILY_ID, NODE_ID);
 
@@ -269,20 +268,21 @@ class FamilyUserNodeApplicationServiceTest {
     // ========== 开通账号即绑定 ==========
 
     @Test
-    void provisionAndBindNodeAccount_newAccount_createsAccountAndBinding() {
+    void provisionAndBindNodeAccount_cleanFreeName_usesNameAsUsername() {
         Long autoUserId = 90L;
-        String username = AccountConsts.NODE_ACCOUNT_USERNAME_PREFIX + NODE_ID;
         FamilyNode node = node(NODE_ID, FAMILY_ID);
         node.setName("张大爷");
-        when(userRepository.findByUsername(username)).thenReturn(null);
-        when(userAuthApplicationService.provisionAccount(
-                username, "张大爷", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD)).thenReturn(autoUserId);
-        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId)).thenReturn(null);
         when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID)).thenReturn(null);
+        when(userRepository.findByUsername("张大爷")).thenReturn(null);
+        when(userAuthApplicationService.provisionAccount(
+                "张大爷", "张大爷", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD)).thenReturn(autoUserId);
+        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId)).thenReturn(null);
 
         Long result = familyUserNodeApplicationService.provisionAndBindNodeAccount(node);
 
         assertEquals(autoUserId, result);
+        verify(userAuthApplicationService).provisionAccount(
+                "张大爷", "张大爷", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD);
         ArgumentCaptor<FamilyUserNode> captor = ArgumentCaptor.forClass(FamilyUserNode.class);
         verify(familyUserNodeRepository).save(captor.capture());
         assertEquals(FAMILY_ID, captor.getValue().getFamilyId());
@@ -291,37 +291,75 @@ class FamilyUserNodeApplicationServiceTest {
     }
 
     @Test
-    void provisionAndBindNodeAccount_existingAccount_reusesWithoutProvisioning() {
+    void provisionAndBindNodeAccount_nameTaken_fallsBackToFpUsername() {
         Long autoUserId = 90L;
-        String username = AccountConsts.NODE_ACCOUNT_USERNAME_PREFIX + NODE_ID;
+        String fallbackUsername = AccountConsts.NODE_ACCOUNT_USERNAME_PREFIX + NODE_ID;
+        FamilyNode node = node(NODE_ID, FAMILY_ID);
+        node.setName("蒙永成");
+        when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID)).thenReturn(null);
+        when(userRepository.findByUsername("蒙永成")).thenReturn(user(10L, "蒙永成"));
+        when(userRepository.findByUsername(fallbackUsername)).thenReturn(null);
+        when(userAuthApplicationService.provisionAccount(
+                fallbackUsername, "蒙永成", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD)).thenReturn(autoUserId);
+        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId)).thenReturn(null);
+
+        Long result = familyUserNodeApplicationService.provisionAndBindNodeAccount(node);
+
+        assertEquals(autoUserId, result);
+        verify(userAuthApplicationService).provisionAccount(
+                fallbackUsername, "蒙永成", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD);
+        verify(familyUserNodeRepository).save(any());
+    }
+
+    @Test
+    void provisionAndBindNodeAccount_maskedName_fallsBackToFpUsername() {
+        Long autoUserId = 90L;
+        String fallbackUsername = AccountConsts.NODE_ACCOUNT_USERNAME_PREFIX + NODE_ID;
+        FamilyNode node = node(NODE_ID, FAMILY_ID);
+        node.setName("蒙**");
+        when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID)).thenReturn(null);
+        when(userRepository.findByUsername(fallbackUsername)).thenReturn(null);
+        when(userAuthApplicationService.provisionAccount(
+                fallbackUsername, "蒙**", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD)).thenReturn(autoUserId);
+        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId)).thenReturn(null);
+
+        Long result = familyUserNodeApplicationService.provisionAndBindNodeAccount(node);
+
+        assertEquals(autoUserId, result);
+        // 脱敏姓名不应被拿去查占用，直接兜底 fp_编号
+        verify(userRepository, never()).findByUsername("蒙**");
+        verify(userAuthApplicationService).provisionAccount(
+                fallbackUsername, "蒙**", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD);
+    }
+
+    @Test
+    void provisionAndBindNodeAccount_alreadyBoundAutoAccount_reusesWithoutProvisioning() {
+        Long autoUserId = 90L;
         FamilyNode node = node(NODE_ID, FAMILY_ID);
         node.setName("张大爷");
-        when(userRepository.findByUsername(username)).thenReturn(user(autoUserId, username));
-        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId)).thenReturn(null);
-        when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID)).thenReturn(null);
+        when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID))
+                .thenReturn(userBinding(autoUserId, NODE_ID));
+        when(userRepository.findById(autoUserId)).thenReturn(autoUser(autoUserId, "张大爷"));
 
         Long result = familyUserNodeApplicationService.provisionAndBindNodeAccount(node);
 
         assertEquals(autoUserId, result);
         verify(userAuthApplicationService, never()).provisionAccount(any(), any(), any());
-        verify(familyUserNodeRepository).save(any());
+        verify(familyUserNodeRepository, never()).save(any());
     }
 
     @Test
-    void provisionAndBindNodeAccount_nodeClaimedByRealUser_skipsBinding() {
-        Long autoUserId = 90L;
-        String username = AccountConsts.NODE_ACCOUNT_USERNAME_PREFIX + NODE_ID;
+    void provisionAndBindNodeAccount_nodeClaimedByRealUser_skipsProvisioning() {
         FamilyNode node = node(NODE_ID, FAMILY_ID);
         node.setName("张大爷");
-        when(userRepository.findByUsername(username)).thenReturn(null);
-        when(userAuthApplicationService.provisionAccount(
-                username, "张大爷", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD)).thenReturn(autoUserId);
-        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId)).thenReturn(null);
         when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID))
                 .thenReturn(userBinding(USER_ID, NODE_ID));
+        when(userRepository.findById(USER_ID)).thenReturn(user(USER_ID, "zhangsan"));
 
-        familyUserNodeApplicationService.provisionAndBindNodeAccount(node);
+        Long result = familyUserNodeApplicationService.provisionAndBindNodeAccount(node);
 
+        assertEquals(USER_ID, result);
+        verify(userAuthApplicationService, never()).provisionAccount(any(), any(), any());
         verify(familyUserNodeRepository, never()).save(any());
     }
 
@@ -334,8 +372,7 @@ class FamilyUserNodeApplicationServiceTest {
         when(familyNodeRepository.findById(NODE_ID)).thenReturn(node(NODE_ID, FAMILY_ID));
         when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID))
                 .thenReturn(userBinding(autoUserId, NODE_ID));
-        when(userRepository.findById(autoUserId))
-                .thenReturn(user(autoUserId, AccountConsts.NODE_ACCOUNT_USERNAME_PREFIX + NODE_ID));
+        when(userRepository.findById(autoUserId)).thenReturn(autoUser(autoUserId, "张大爷"));
 
         familyUserNodeApplicationService.bindMyNode(FAMILY_ID, USER_ID, NODE_ID);
 
@@ -360,6 +397,15 @@ class FamilyUserNodeApplicationServiceTest {
         User user = new User();
         user.setId(id);
         user.setUsername(username);
+        user.setAutoAccount(false);
+        return user;
+    }
+
+    private User autoUser(Long id, String username) {
+        User user = new User();
+        user.setId(id);
+        user.setUsername(username);
+        user.setAutoAccount(true);
         return user;
     }
 

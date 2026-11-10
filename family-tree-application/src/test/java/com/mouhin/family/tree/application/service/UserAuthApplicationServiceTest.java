@@ -193,6 +193,7 @@ class UserAuthApplicationServiceTest {
         assertNotEquals(RAW_PASSWORD, stored);
         assertNotEquals(md5(RAW_PASSWORD), stored);
         assertTrue(BCrypt.checkpw(RAW_PASSWORD, stored), "注册应存储 BCrypt 哈希");
+        assertFalse(captor.getValue().getAutoAccount(), "真人注册账号不应标记为自动账号");
     }
 
     @Test
@@ -256,6 +257,7 @@ class UserAuthApplicationServiceTest {
         User saved = captor.getValue();
         assertEquals("fp_40", saved.getUsername());
         assertEquals("张大爷", saved.getNickname());
+        assertTrue(saved.getAutoAccount(), "自动开通的账号应标记为自动账号");
         assertTrue(BCrypt.checkpw(AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD, saved.getPasswordHash()),
                 "初始密码应以 BCrypt 哈希存储");
     }

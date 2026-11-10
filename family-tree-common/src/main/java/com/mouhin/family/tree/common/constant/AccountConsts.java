@@ -29,7 +29,7 @@ public final class AccountConsts {
      */
     public static final int PHONE_DIGIT_LENGTH = 11;
     /**
-     * 族谱节点自动开通账号的用户名前缀，完整用户名为 fp_{节点ID}
+     * 族谱节点自动开通账号的兜底用户名前缀：姓名不可用（脱敏/空）或重名时，用户名为 fp_{节点ID}
      */
     public static final String NODE_ACCOUNT_USERNAME_PREFIX = "fp_";
     /**

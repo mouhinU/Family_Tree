@@ -19,13 +19,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 /**
  * 用户-家族-族谱节点绑定应用服务
  *
  * <p>承载"标记为我"的绑定读写，并负责族谱节点与用户账号之间的一致性：
- * 在世节点开通 fp_ 账号时一并建立绑定、节点改名同步绑定用户昵称、
- * 真人标记节点时回收重复的 fp_ 账号、删除节点时区分自动绑定（回收放行）与真人标记（拦截）。</p>
+ * 在世节点开通账号（用户名优先取姓名、重名/脱敏兜底 fp_编号）时一并建立绑定、节点改名同步绑定用户昵称、
+ * 真人标记节点时回收重复的自动账号、删除节点时区分自动绑定（回收放行）与真人标记（拦截）。
+ * 自动账号靠 is_auto_account 标记识别，不再依赖用户名形态。</p>
  *
  * @author Family-Tree
  * @date 2026-11-05
@@ -34,6 +36,11 @@ import java.util.Objects;
 public class FamilyUserNodeApplicationService {
 
     private static final Logger logger = LoggerFactory.getLogger(FamilyUserNodeApplicationService.class);
+
+    /**
+     * 脱敏姓名特征字符（隐私保护把姓名部分替换为 * 或 ?），此类姓名不宜作登录用户名
+     */
+    private static final Pattern MASKED_NAME_PATTERN = Pattern.compile("[*?]");
 
     private final FamilyUserNodeRepository familyUserNodeRepository;
     private final FamilyNodeRepository familyNodeRepository;
@@ -53,21 +60,34 @@ public class FamilyUserNodeApplicationService {
     /**
      * 为在世族谱节点开通登录账号并建立节点绑定（同一事务，原子提交）
      *
-     * <p>用户名 fp_{节点ID}、昵称取节点姓名、初始密码见
-     * {@link AccountConsts#NODE_ACCOUNT_INITIAL_PASSWORD}。账号已存在时复用，
-     * 绑定按 (家族,用户) 幂等；节点若已被真人标记则不再自动绑定，避免覆盖本人归属。</p>
+     * <p>用户名优先取节点姓名（重名/脱敏/超长时兜底 fp_{节点ID}），昵称取节点姓名，初始密码见
+     * {@link AccountConsts#NODE_ACCOUNT_INITIAL_PASSWORD}，账号标记为自动账号。
+     * 节点已绑定自动账号时直接复用（幂等，避免重复开通）；已被真人标记时不再自动开通，避免覆盖本人归属。</p>
      *
      * @param node 在世族谱节点
      * @return 账号用户ID
      */
     @Transactional(rollbackFor = Exception.class)
     public Long provisionAndBindNodeAccount(FamilyNode node) {
-        String username = AccountConsts.NODE_ACCOUNT_USERNAME_PREFIX + node.getId();
+        Long familyId = node.getFamilyId();
+        Long nodeId = node.getId();
+
+        // 节点已绑定账号：自动账号直接复用（幂等），真人标记则不再自动开通
+        FamilyUserNode existingBinding = familyUserNodeRepository.findByFamilyIdAndNodeId(familyId, nodeId);
+        if (existingBinding != null) {
+            User boundUser = userRepository.findById(existingBinding.getUserId());
+            if (boundUser != null && Boolean.TRUE.equals(boundUser.getAutoAccount())) {
+                return boundUser.getId();
+            }
+            return existingBinding.getUserId();
+        }
+
+        String username = resolveNodeAccountUsername(node.getName(), nodeId);
         User existing = userRepository.findByUsername(username);
         Long userId = existing != null ? existing.getId()
                 : userAuthApplicationService.provisionAccount(
                         username, node.getName(), AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD);
-        bindProvisionedAccount(node.getFamilyId(), userId, node.getId());
+        bindProvisionedAccount(familyId, userId, nodeId);
         return userId;
     }
 
@@ -131,7 +151,7 @@ public class FamilyUserNodeApplicationService {
             throw new BusinessException("节点不存在或不属于当前家族");
         }
 
-        // 真人标记节点时，回收该节点重复开通的 fp_ 自动账号（延续 V28 思路），避免一人两号
+        // 真人标记节点时，回收该节点重复开通的自动账号（延续 V28 思路），避免一人两号
         reclaimAutoAccountIfPresent(familyId, nodeId, userId);
 
         LocalDateTime now = LocalDateTime.now();
@@ -185,7 +205,7 @@ public class FamilyUserNodeApplicationService {
     /**
      * 删除节点前的绑定处置：真人标记则拦截，仅自动账号绑定则回收后放行
      *
-     * <p>自动开通的 fp_ 账号绑定不算"族人标记为本人"，删除节点时连同账号一并回收；
+     * <p>自动开通的账号绑定不算"族人标记为本人"，删除节点时连同账号一并回收；
      * 只有真人账号的绑定才阻止删除，避免用户账号失去族谱归属。</p>
      *
      * @param familyId 家族ID
@@ -247,7 +267,7 @@ public class FamilyUserNodeApplicationService {
     }
 
     /**
-     * 回收节点上重复开通的 fp_ 自动账号（解除绑定并删除账号）
+     * 回收节点上重复开通的自动账号（解除绑定并删除账号）
      *
      * @param excludeUserId 标记发起人ID，其自身即自动账号时不回收（保护"自动账号本人绑定"情形）
      */
@@ -266,13 +286,37 @@ public class FamilyUserNodeApplicationService {
     }
 
     /**
-     * 判断绑定用户是否恰为该节点的自动开通账号（用户名严格等于 fp_{节点ID}）
+     * 判断绑定用户是否为该节点的自动开通账号（依据 is_auto_account 标记，不再依赖用户名形态）
      *
-     * <p>仅匹配精确用户名而非前缀，避免误删自行注册 fp_ 开头用户名的真人账号。</p>
+     * <p>自动账号用户名可能是姓名或 fp_{节点ID} 兜底，故以标记区分；真人注册账号标记为 false，
+     * 避免误删真人账号。</p>
      */
     private boolean isAutoAccountForNode(FamilyUserNode binding, Long nodeId) {
         User boundUser = userRepository.findById(binding.getUserId());
-        String autoUsername = AccountConsts.NODE_ACCOUNT_USERNAME_PREFIX + nodeId;
-        return boundUser != null && autoUsername.equals(boundUser.getUsername());
+        return boundUser != null && Boolean.TRUE.equals(boundUser.getAutoAccount())
+                && Objects.equals(binding.getNodeId(), nodeId);
+    }
+
+    /**
+     * 计算自动账号用户名：姓名干净（非空、未脱敏、不超长）且未被占用时取姓名，否则兜底 fp_{节点ID}
+     *
+     * @param nodeName 节点姓名
+     * @param nodeId   节点ID
+     * @return 登录用户名
+     */
+    private String resolveNodeAccountUsername(String nodeName, Long nodeId) {
+        String fallbackUsername = AccountConsts.NODE_ACCOUNT_USERNAME_PREFIX + nodeId;
+        if (nodeName == null) {
+            return fallbackUsername;
+        }
+        String name = nodeName.trim();
+        if (name.isEmpty() || name.length() > FamilyTreeConsts.MAX_NAME_LENGTH
+                || MASKED_NAME_PATTERN.matcher(name).find()) {
+            return fallbackUsername;
+        }
+        if (userRepository.findByUsername(name) != null) {
+            return fallbackUsername;
+        }
+        return name;
     }
 }

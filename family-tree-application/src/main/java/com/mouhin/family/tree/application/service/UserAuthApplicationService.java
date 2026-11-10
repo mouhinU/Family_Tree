@@ -75,12 +75,12 @@ public class UserAuthApplicationService {
     }
 
     /**
-     * 为族谱节点自动开通登录账号
+     * 为族谱节点自动开通登录账号，并标记为自动账号（区别于真人注册）
      *
-     * <p>由节点新增的领域事件监听器调用：昵称取节点姓名，密码为监听器给定的初始密码。
-     * 账号不自动关联任何家族，用户登录后需自行加入。</p>
+     * <p>由节点账号开通编排调用：用户名优先取节点姓名（重名/脱敏时兜底 fp_{节点ID}），
+     * 昵称取节点姓名，密码为给定的初始密码。家族-节点绑定由调用方在同一事务内建立。</p>
      *
-     * @param username        用户名
+     * @param username        用户名（节点姓名或 fp_{节点ID} 兜底）
      * @param nickname        昵称（展示名），为空时取用户名
      * @param initialPassword 初始密码明文
      * @return 新用户ID
@@ -97,7 +97,9 @@ public class UserAuthApplicationService {
         String trimmedUsername = username.trim();
         String displayNickname = nickname == null || nickname.isBlank()
                 ? trimmedUsername : nickname.trim();
-        return persistNewUser(buildUser(trimmedUsername, initialPassword, displayNickname)).getId();
+        User user = buildUser(trimmedUsername, initialPassword, displayNickname);
+        user.setAutoAccount(true);
+        return persistNewUser(user).getId();
     }
 
     /**
@@ -250,6 +252,7 @@ public class UserAuthApplicationService {
         user.setUsername(username);
         user.setPasswordHash(hashPassword(rawPassword));
         user.setNickname(nickname);
+        user.setAutoAccount(false);
         user.setCreateTime(LocalDateTime.now());
         user.setUpdateTime(LocalDateTime.now());
         return user;
