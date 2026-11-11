@@ -121,9 +121,20 @@
         const res = await api('/api/tree/full');
         if (res.code === 200) {
             FT.state.treeData = res.data || [];
-            await loadGenerationNames();
+            await Promise.all([loadDetailScope(), loadGenerationNames()]);
             FT.buildGenerationWatermark();
             FT.renderTree();
+        }
+    }
+
+    // 拉取当前用户可详情的节点白名单：null=不受限（管理员/拉取失败时放行，后端仍独立校验）
+    async function loadDetailScope() {
+        FT.state.detailVisibleIds = null;
+        const res = await api('/api/tree/detail-scope');
+        if (res.code === 200 && res.data) {
+            FT.state.detailVisibleIds = res.data.unrestricted
+                ? null
+                : new Set(res.data.nodeIds || []);
         }
     }
 

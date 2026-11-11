@@ -12,6 +12,13 @@
 
     const contextMenu = document.getElementById('context-menu');
 
+    // 非管理员右键收口：可见集合为 null 表示不受限（管理员），否则仅集合内节点可弹出操作菜单。
+    // 与详情门 showDetailModal 使用同一份 FT.state.detailVisibleIds，后端操作接口仍独立校验。
+    function canOperateNode(nodeId) {
+        var scope = FT.state.detailVisibleIds;
+        return !scope || scope.has(nodeId);
+    }
+
     function showContextMenu(x, y) {
         var MARGIN = 8;
         contextMenu.style.display = 'block';
@@ -85,7 +92,7 @@
             longPressTimer = null;
 
             var nodeId = nodeGroup.__data__ && nodeGroup.__data__.id;
-            if (nodeId) {
+            if (nodeId && canOperateNode(nodeId)) {
                 FT.state.contextNodeId = nodeId;
                 FT.showContextMenu(touch.clientX, touch.clientY);
             }
@@ -144,6 +151,7 @@
 
     FT.showContextMenu = showContextMenu;
     FT.hideContextMenu = hideContextMenu;
+    FT.canOperateNode = canOperateNode;
 
     /* ===== "更多"展开/收起（移动端） ===== */
     var moreToggleBtn = document.getElementById('menu-more-toggle');

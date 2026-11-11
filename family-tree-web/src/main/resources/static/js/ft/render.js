@@ -688,6 +688,8 @@
                 group.on('contextmenu', function (event) {
                     event.preventDefault();
                     event.stopPropagation();
+                    // 非管理员：仅对可见集合内的节点弹出操作菜单，范围外右键无操作列表
+                    if (!FT.canOperateNode(n.data.id)) return;
                     FT.state.contextNodeId = n.data.id;
                     FT.showContextMenu(event.clientX, event.clientY);
                 });

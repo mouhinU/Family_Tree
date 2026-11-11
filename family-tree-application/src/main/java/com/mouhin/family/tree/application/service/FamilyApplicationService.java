@@ -5,6 +5,7 @@ import com.mouhin.family.tree.common.dto.FamilyCreateDTO;
 import com.mouhin.family.tree.common.dto.FamilyDTO;
 import com.mouhin.family.tree.common.dto.FamilyJoinDTO;
 import com.mouhin.family.tree.common.dto.FamilyMemberDTO;
+import com.mouhin.family.tree.common.dto.PageResult;
 import com.mouhin.family.tree.common.enums.FamilyMemberRoleEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.Family;
@@ -210,15 +211,26 @@ public class FamilyApplicationService {
     }
 
     /**
-     * 列出家族所有成员
+     * 分页列出家族成员
+     *
+     * <p>先统计总数，为 0 直接返回空页；否则按页查询成员记录并批量补查用户昵称。
+     * 分页按成员记录ID升序，保证翻页结果稳定不重复。</p>
      *
      * @param familyId 家族ID
-     * @return 成员列表
+     * @param page     页码（从1开始，调用方须已校验 >= 1）
+     * @param size     每页大小（调用方须已校验 1..100）
+     * @return 分页成员列表
      */
-    public List<FamilyMemberDTO> listMembers(Long familyId) {
-        List<FamilyMember> members = familyMemberRepository.findByFamilyId(familyId);
+    public PageResult<FamilyMemberDTO> listMembersPaged(Long familyId, int page, int size) {
+        long total = familyMemberRepository.countByFamilyId(familyId);
+        if (total == 0) {
+            return new PageResult<>(List.of(), 0L, page, size);
+        }
 
-        // 批量查询用户昵称
+        int offset = (page - 1) * size;
+        List<FamilyMember> members = familyMemberRepository.findByFamilyIdPaged(familyId, offset, size);
+
+        // 批量查询本页用户昵称，避免逐条查库
         List<Long> userIds = members.stream()
                 .map(FamilyMember::getUserId)
                 .collect(Collectors.toList());
@@ -227,7 +239,7 @@ public class FamilyApplicationService {
                 : userRepository.findByIds(userIds).stream()
                 .collect(Collectors.toMap(User::getId, Function.identity()));
 
-        return members.stream().map(m -> {
+        List<FamilyMemberDTO> dtoList = members.stream().map(m -> {
             FamilyMemberDTO memberDTO = new FamilyMemberDTO();
             memberDTO.setUserId(m.getUserId());
             memberDTO.setRole(m.getRole());
@@ -238,6 +250,8 @@ public class FamilyApplicationService {
             }
             return memberDTO;
         }).collect(Collectors.toList());
+
+        return new PageResult<>(dtoList, total, page, size);
     }
 
     /**

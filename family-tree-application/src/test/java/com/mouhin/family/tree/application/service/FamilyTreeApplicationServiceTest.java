@@ -189,7 +189,6 @@ class FamilyTreeApplicationServiceTest {
         wifeVO.setName("李妻");
         wifeVO.setGeneration(1);
         wifeVO.setRelationId(marriage.getId());
-        wifeVO.setMarriageDate("2000-01-01");
         // 反向引用
         TreeNodeVO reverseRef = new TreeNodeVO();
         reverseRef.setId(1L);
@@ -210,8 +209,7 @@ class FamilyTreeApplicationServiceTest {
         TreeNodeVO wife = husband.getSpouses().get(0);
         assertEquals(2L, wife.getId());
         assertEquals(marriage.getId(), wife.getRelationId(),
-                "配偶 VO 应携带关系ID供前端管理关系");
-        assertEquals("2000-01-01", wife.getMarriageDate());
+                "配偶 VO 应携带关系ID供前端绘制跨分支连线去重");
 
         // 配偶（妻子）的详情需能回显丈夫
         assertEquals(1, wife.getSpouses().size());

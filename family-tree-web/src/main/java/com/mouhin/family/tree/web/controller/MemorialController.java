@@ -1,5 +1,6 @@
 package com.mouhin.family.tree.web.controller;
 
+import com.mouhin.family.tree.application.service.FamilyNodeVisibilityApplicationService;
 import com.mouhin.family.tree.application.service.MemorialApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.MemorialMessageDTO;
@@ -22,9 +23,12 @@ import java.util.List;
 public class MemorialController extends BaseController {
 
     private final MemorialApplicationService memorialApplicationService;
+    private final FamilyNodeVisibilityApplicationService visibilityService;
 
-    public MemorialController(MemorialApplicationService memorialApplicationService) {
+    public MemorialController(MemorialApplicationService memorialApplicationService,
+                              FamilyNodeVisibilityApplicationService visibilityService) {
         this.memorialApplicationService = memorialApplicationService;
+        this.visibilityService = visibilityService;
     }
 
     /**
@@ -34,6 +38,7 @@ public class MemorialController extends BaseController {
     public Result<List<MemorialMessageVO>> listMessages(@PathVariable Long nodeId, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
+        visibilityService.assertDetailVisible(familyId, userId, nodeId);
         return Result.success(memorialApplicationService.listMessages(familyId, nodeId, userId));
     }
 

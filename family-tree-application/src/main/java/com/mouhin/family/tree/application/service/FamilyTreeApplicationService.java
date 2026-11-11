@@ -1,5 +1,6 @@
 package com.mouhin.family.tree.application.service;
 
+import com.mouhin.family.tree.common.dto.NodeDetailVO;
 import com.mouhin.family.tree.common.dto.TreeNodeVO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
@@ -110,6 +111,25 @@ public class FamilyTreeApplicationService {
         List<FamilyNode> allNodes = familyNodeRepository.findByFamilyId(familyId);
         List<FamilyRelation> allRelations = familyRelationRepository.findByFamilyId(familyId);
         return familyTreeDomainService.buildSubTreeForNode(node, allNodes, allRelations);
+    }
+
+    /**
+     * 获取单个节点的详情视图（含备注等实体扩展字段及全部配偶关系明细）。
+     * <p>
+     * 详情数据不再随整棵树返回，仅供详情弹窗按需查询；越权拦截在控制器层完成。
+     *
+     * @param familyId 家族ID
+     * @param nodeId   节点ID
+     * @return 节点详情视图对象
+     */
+    public NodeDetailVO getNodeDetail(Long familyId, Long nodeId) {
+        FamilyNode node = familyNodeRepository.findById(nodeId);
+        if (node == null || !Objects.equals(node.getFamilyId(), familyId)) {
+            throw new BusinessException("节点不存在或无权操作");
+        }
+        List<FamilyNode> allNodes = familyNodeRepository.findByFamilyId(familyId);
+        List<FamilyRelation> allRelations = familyRelationRepository.findByFamilyId(familyId);
+        return familyTreeDomainService.buildNodeDetail(node, allNodes, allRelations);
     }
 
     /**

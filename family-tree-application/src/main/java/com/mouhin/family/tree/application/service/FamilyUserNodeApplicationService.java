@@ -2,10 +2,13 @@ package com.mouhin.family.tree.application.service;
 
 import com.mouhin.family.tree.common.constant.AccountConsts;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
+import com.mouhin.family.tree.common.enums.FamilyMemberRoleEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
+import com.mouhin.family.tree.domain.entity.FamilyMember;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyUserNode;
 import com.mouhin.family.tree.domain.entity.User;
+import com.mouhin.family.tree.domain.repository.FamilyMemberRepository;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyUserNodeRepository;
 import com.mouhin.family.tree.domain.repository.UserRepository;
@@ -25,7 +28,7 @@ import java.util.regex.Pattern;
  * 用户-家族-族谱节点绑定应用服务
  *
  * <p>承载"标记为我"的绑定读写，并负责族谱节点与用户账号之间的一致性：
- * 在世节点开通账号（用户名优先取姓名、重名/脱敏兜底 fp_编号）时一并建立绑定、节点改名同步绑定用户昵称、
+ * 在世节点开通账号（用户名优先取姓名、重名/脱敏兜底 fp_编号）时一并建立绑定并补建家族成员身份、节点改名同步绑定用户昵称、
  * 真人标记节点时回收重复的自动账号、删除节点时区分自动绑定（回收放行）与真人标记（拦截）。
  * 自动账号靠 is_auto_account 标记识别，不再依赖用户名形态。</p>
  *
@@ -45,15 +48,18 @@ public class FamilyUserNodeApplicationService {
     private final FamilyUserNodeRepository familyUserNodeRepository;
     private final FamilyNodeRepository familyNodeRepository;
     private final UserRepository userRepository;
+    private final FamilyMemberRepository familyMemberRepository;
     private final UserAuthApplicationService userAuthApplicationService;
 
     public FamilyUserNodeApplicationService(FamilyUserNodeRepository familyUserNodeRepository,
                                             FamilyNodeRepository familyNodeRepository,
                                             UserRepository userRepository,
+                                            FamilyMemberRepository familyMemberRepository,
                                             UserAuthApplicationService userAuthApplicationService) {
         this.familyUserNodeRepository = familyUserNodeRepository;
         this.familyNodeRepository = familyNodeRepository;
         this.userRepository = userRepository;
+        this.familyMemberRepository = familyMemberRepository;
         this.userAuthApplicationService = userAuthApplicationService;
     }
 
@@ -243,6 +249,7 @@ public class FamilyUserNodeApplicationService {
      * <p>节点已被其他用户（真人）绑定时不再自动绑定，避免覆盖本人归属。</p>
      */
     private void bindProvisionedAccount(Long familyId, Long userId, Long nodeId) {
+        ensureFamilyMember(familyId, userId);
         LocalDateTime now = LocalDateTime.now();
         FamilyUserNode byUser = familyUserNodeRepository.findByFamilyIdAndUserId(familyId, userId);
         if (byUser != null) {
@@ -264,6 +271,32 @@ public class FamilyUserNodeApplicationService {
         binding.setUpdateTime(now);
         binding.validate();
         familyUserNodeRepository.save(binding);
+    }
+
+    /**
+     * 确保节点绑定用户在所属家族内具备成员身份。
+     *
+     * <p>家族成员列表、登录后的当前家族解析、以及按角色的详情可见性均以 {@code family_member} 为准；
+     * 自动开通的节点账号若只写 {@code family_user_node} 而不建成员行，就会出现"绑定了节点却不属于家族"。
+     * 该方法在绑定时幂等补建 MEMBER：已存在成员记录时原样返回，绝不覆盖 OWNER/ADMIN 角色。</p>
+     *
+     * @param familyId 家族ID
+     * @param userId   用户ID
+     */
+    private void ensureFamilyMember(Long familyId, Long userId) {
+        if (familyMemberRepository.findByFamilyIdAndUserId(familyId, userId) != null) {
+            return;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        FamilyMember member = new FamilyMember();
+        member.setFamilyId(familyId);
+        member.setUserId(userId);
+        member.setRole(FamilyMemberRoleEnum.MEMBER.getCode());
+        member.setJoinedTime(now);
+        member.setCreateTime(now);
+        member.setUpdateTime(now);
+        familyMemberRepository.save(member);
+        logger.info("Ensured family membership for provisioned node account: familyId={} userId={}", familyId, userId);
     }
 
     /**

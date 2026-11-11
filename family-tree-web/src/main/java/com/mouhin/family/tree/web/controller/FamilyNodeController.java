@@ -1,10 +1,13 @@
 package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.FamilyNodeApplicationService;
+import com.mouhin.family.tree.application.service.FamilyNodeVisibilityApplicationService;
+import com.mouhin.family.tree.application.service.FamilyTreeApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.ColorUpdateDTO;
 import com.mouhin.family.tree.common.dto.FamilyNodeDTO;
 import com.mouhin.family.tree.common.dto.NodeCreateDTO;
+import com.mouhin.family.tree.common.dto.NodeDetailVO;
 import com.mouhin.family.tree.common.result.Result;
 import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,11 +31,17 @@ import java.util.Map;
 public class FamilyNodeController extends BaseController {
 
     private final FamilyNodeApplicationService familyNodeService;
+    private final FamilyTreeApplicationService familyTreeService;
+    private final FamilyNodeVisibilityApplicationService visibilityService;
     private final ApplicationEventPublisher eventPublisher;
 
     public FamilyNodeController(FamilyNodeApplicationService familyNodeService,
+                                FamilyTreeApplicationService familyTreeService,
+                                FamilyNodeVisibilityApplicationService visibilityService,
                                 ApplicationEventPublisher eventPublisher) {
         this.familyNodeService = familyNodeService;
+        this.familyTreeService = familyTreeService;
+        this.visibilityService = visibilityService;
         this.eventPublisher = eventPublisher;
     }
 
@@ -74,15 +83,30 @@ public class FamilyNodeController extends BaseController {
     }
 
     @GetMapping("/{nodeId}")
-    public Result<FamilyNodeDTO> get(@PathVariable Long nodeId, HttpSession session,
-                                     HttpServletRequest request) {
+    public Result<FamilyNodeDTO> get(@PathVariable Long nodeId, HttpSession session) {
+        Long familyId = getCurrentFamilyId(session);
+        Long userId = getCurrentUserId(session);
+        visibilityService.assertDetailVisible(familyId, userId, nodeId);
+        FamilyNodeDTO node = familyNodeService.getNode(familyId, nodeId);
+        return Result.success(node);
+    }
+
+    /**
+     * 族人详情（详情弹窗专用）：返回基本信息 + 备注/农历/字字号讳/墓地等扩展字段 + 全部配偶关系明细。
+     * 管理员不受限；非管理员仅可查看其直系血缘链及链上节点直接配偶的详情，范围外一律拒绝。
+     */
+    @GetMapping("/{nodeId}/detail")
+    public Result<NodeDetailVO> detail(@PathVariable Long nodeId, HttpSession session,
+                                       HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
         String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
-        FamilyNodeDTO node = familyNodeService.getNode(familyId, nodeId);
+        String ipAddress = getClientIp(request);
+        visibilityService.assertDetailVisible(familyId, userId, nodeId);
+        NodeDetailVO detail = familyTreeService.getNodeDetail(familyId, nodeId);
         eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "NODE_VIEW",
-                "查看族人详情: " + node.getName(), "node", nodeId, familyId, getClientIp(request)));
-        return Result.success(node);
+                "查看族人详情: " + detail.getName(), "node", nodeId, familyId, ipAddress));
+        return Result.success(detail);
     }
 
     @GetMapping("/list")

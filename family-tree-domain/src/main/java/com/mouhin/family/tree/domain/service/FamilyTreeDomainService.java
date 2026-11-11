@@ -1,7 +1,7 @@
 package com.mouhin.family.tree.domain.service;
 
+import com.mouhin.family.tree.common.dto.NodeDetailVO;
 import com.mouhin.family.tree.common.dto.TreeNodeVO;
-import com.mouhin.family.tree.common.enums.ColorLabelEnum;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
 import org.springframework.stereotype.Service;
@@ -123,6 +123,88 @@ public class FamilyTreeDomainService {
     }
 
     /**
+     * 构建单个节点的详情视图：包含基本信息、实体扩展字段（备注/农历/字字号讳/墓地/外嫁记录）
+     * 及其全部配偶关系明细（按血亲 / 在婚 / 离异丧偶分组）。
+     * <p>
+     * 详情独立于树形结构返回，供详情弹窗按需查询；可见性收口由上层保证，
+     * 仅对登录人有权查看的节点调用。
+     *
+     * @param node         目标节点
+     * @param allNodes     家族所有节点
+     * @param allRelations 家族所有关系
+     * @return 节点详情视图对象
+     */
+    public NodeDetailVO buildNodeDetail(FamilyNode node,
+                                        List<FamilyNode> allNodes,
+                                        List<FamilyRelation> allRelations) {
+        Map<Long, FamilyNode> nodeMap = allNodes.stream()
+                .collect(Collectors.toMap(FamilyNode::getId, n -> n, (a, b) -> a));
+
+        Map<Long, List<FamilyRelation>> spouseRelByNode = new HashMap<>();
+        Map<Long, List<Long>> childIdsByParent = new HashMap<>();
+        Map<Long, List<Long>> parentIdsByChild = new HashMap<>();
+        buildRelationIndexes(allRelations, spouseRelByNode, childIdsByParent, parentIdsByChild);
+
+        Set<Long> childIds = allRelations.stream()
+                .filter(r -> r.isParentChild() || r.isAdoption())
+                .map(FamilyRelation::getToNodeId)
+                .collect(Collectors.toSet());
+
+        NodeDetailVO detail = new NodeDetailVO();
+        detail.setId(node.getId());
+        detail.setName(node.getName());
+        detail.setGender(node.getGender());
+        detail.setBirthDate(node.getBirthDate() != null ? node.getBirthDate().toString() : null);
+        detail.setDeathDate(node.getDeathDate() != null ? node.getDeathDate().toString() : null);
+        detail.setGeneration(node.getGeneration());
+        detail.setBirthOrder(node.getBirthOrder());
+        detail.setColorLabel(node.getColorLabel());
+        detail.setRemark(node.getRemark());
+        detail.setLunarBirthDate(node.getLunarBirthDate());
+        detail.setLunarDeathDate(node.getLunarDeathDate());
+        detail.setZi(node.getZi());
+        detail.setHao(node.getHao());
+        detail.setHui(node.getHui());
+        detail.setGraveLocation(node.getGraveLocation());
+        detail.setSpouseName(node.getSpouseName());
+        detail.setSpouseOriginFamily(node.getSpouseOriginFamily());
+
+        for (FamilyRelation rel : spouseRelByNode.getOrDefault(node.getId(), List.of())) {
+            Long spouseId = rel.getSpouseId(node.getId());
+            FamilyNode spouseNode = nodeMap.get(spouseId);
+            if (spouseNode == null) {
+                continue;
+            }
+            boolean divorced = Boolean.TRUE.equals(rel.getDivorced())
+                    || rel.getDivorceDate() != null;
+            boolean widowed = Boolean.TRUE.equals(rel.getWidowed());
+
+            NodeDetailVO.SpouseRelation row = new NodeDetailVO.SpouseRelation();
+            row.setNodeId(spouseId);
+            row.setName(spouseNode.getName());
+            row.setRelationId(rel.getId());
+            row.setDivorced(divorced);
+            row.setWidowed(widowed);
+            row.setMarriageDate(rel.getMarriageDate() != null
+                    ? rel.getMarriageDate().toString() : null);
+            row.setDivorceDate(rel.getDivorceDate() != null
+                    ? rel.getDivorceDate().toString() : null);
+
+            if (childIds.contains(spouseId)) {
+                row.setBloodRelationLabel(
+                        bloodRelationLabel(node.getId(), spouseId, parentIdsByChild));
+                detail.getBloodSpouses().add(row);
+            } else if (divorced) {
+                // 离异（改嫁/再婚至他处）→ 前配偶；丧偶但未离异仍计入在婚组，由前端展示"丧偶"
+                detail.getFormerSpouses().add(row);
+            } else {
+                detail.getSpouses().add(row);
+            }
+        }
+        return detail;
+    }
+
+    /**
      * 构建子树（递归）
      */
     private TreeNodeVO buildSubTree(FamilyNode node,
@@ -159,17 +241,9 @@ public class FamilyTreeDomainService {
             }
             boolean divorced = Boolean.TRUE.equals(rel.getDivorced())
                     || rel.getDivorceDate() != null;
-            boolean widowed = Boolean.TRUE.equals(rel.getWidowed());
             TreeNodeVO refVO = toVO(spouseNode);
             refVO.setRelationId(rel.getId());
             refVO.setDivorced(divorced);
-            refVO.setWidowed(widowed);
-            refVO.setMarriageDate(rel.getMarriageDate() != null
-                    ? rel.getMarriageDate().toString() : null);
-            refVO.setDivorceDate(rel.getDivorceDate() != null
-                    ? rel.getDivorceDate().toString() : null);
-            refVO.setBloodRelationLabel(
-                    bloodRelationLabel(node.getId(), spouseId, parentIdsByChild));
             vo.getBloodSpouses().add(refVO);
         }
 
@@ -197,25 +271,14 @@ public class FamilyTreeDomainService {
                     contestedPreferredHusband.get(spouseId), node.getId())) {
                 continue;
             }
-            boolean widowed = Boolean.TRUE.equals(rel.getWidowed());
             visited.add(spouseId);
             satelliteSpouseIds.add(spouseId);
             globalSatelliteSpouseIds.add(spouseId);
             TreeNodeVO spouseVO = toVO(spouseNode);
             spouseVO.setRelationId(rel.getId());
-            spouseVO.setWidowed(widowed);
-            spouseVO.setMarriageDate(rel.getMarriageDate() != null
-                    ? rel.getMarriageDate().toString() : null);
-            spouseVO.setDivorceDate(rel.getDivorceDate() != null
-                    ? rel.getDivorceDate().toString() : null);
             // 反向引用
             TreeNodeVO reverseRef = toVO(node);
             reverseRef.setRelationId(rel.getId());
-            reverseRef.setWidowed(widowed);
-            reverseRef.setMarriageDate(rel.getMarriageDate() != null
-                    ? rel.getMarriageDate().toString() : null);
-            reverseRef.setDivorceDate(rel.getDivorceDate() != null
-                    ? rel.getDivorceDate().toString() : null);
             spouseVO.getSpouses().add(reverseRef);
             vo.getSpouses().add(spouseVO);
         }
@@ -245,19 +308,9 @@ public class FamilyTreeDomainService {
             TreeNodeVO formerVO = toVO(spouseNode);
             formerVO.setRelationId(rel.getId());
             formerVO.setDivorced(divorced);
-            formerVO.setWidowed(widowed);
-            formerVO.setMarriageDate(rel.getMarriageDate() != null
-                    ? rel.getMarriageDate().toString() : null);
-            formerVO.setDivorceDate(rel.getDivorceDate() != null
-                    ? rel.getDivorceDate().toString() : null);
             TreeNodeVO reverseRef = toVO(node);
             reverseRef.setRelationId(rel.getId());
             reverseRef.setDivorced(divorced);
-            reverseRef.setWidowed(widowed);
-            reverseRef.setMarriageDate(rel.getMarriageDate() != null
-                    ? rel.getMarriageDate().toString() : null);
-            reverseRef.setDivorceDate(rel.getDivorceDate() != null
-                    ? rel.getDivorceDate().toString() : null);
             formerVO.getSpouses().add(reverseRef);
             vo.getFormerSpouses().add(formerVO);
         }
@@ -419,9 +472,6 @@ public class FamilyTreeDomainService {
         vo.setGeneration(node.getGeneration());
         vo.setBirthOrder(node.getBirthOrder());
         vo.setColorLabel(node.getColorLabel());
-        vo.setColorHex(ColorLabelEnum.fromCode(node.getColorLabel()).getHexColor());
-        vo.setAvatar(node.getAvatar());
-        vo.setRemark(node.getRemark());
         return vo;
     }
 }

@@ -20,7 +20,8 @@
 
         var isOwner = user.familyRole === 'OWNER';
         var isAdmin = isOwner || user.familyRole === 'ADMIN';
-        var membersHtml = '<p>加载中...</p>';
+        var memberPageSize = 20;
+        var memberCurrentPage = 1;
 
         // 加载家族详情（含堂号、籍贯）
         var familyInfo = {};
@@ -31,37 +32,105 @@
             }
         } catch (e) { /* ignore */ }
 
-        // 加载成员列表
-        try {
-            var membersRes = await FT.api('/api/family/members');
-            if (membersRes.code === 200 && membersRes.data) {
-                if (membersRes.data.length === 0) {
-                    membersHtml = '<p>暂无成员</p>';
-                } else {
-                    membersHtml = '<ul class="family-member-list">';
-                    membersRes.data.forEach(function(m) {
-                        var roleLabel = '';
-                        if (m.role === 'OWNER') { roleLabel = '（族长）'; }
-                        else if (m.role === 'ADMIN') { roleLabel = '（管理员）'; }
-
-                        var actionBtns = '';
-                        if (isOwner && m.role !== 'OWNER') {
-                            if (m.role === 'ADMIN') {
-                                actionBtns += ' <button class="btn-role-toggle" data-uid="' + m.userId + '" data-role="MEMBER">取消管理员</button>';
-                            } else {
-                                actionBtns += ' <button class="btn-role-toggle" data-uid="' + m.userId + '" data-role="ADMIN">设为管理员</button>';
-                            }
-                            actionBtns += ' <button class="btn-remove-member" data-uid="' + m.userId + '">移除</button>';
-                        } else if (isAdmin && !isOwner && m.role === 'MEMBER') {
-                            actionBtns += ' <button class="btn-remove-member" data-uid="' + m.userId + '">移除</button>';
-                        }
-                        membersHtml += '<li>' + (m.nickname || '用户' + m.userId) + roleLabel + actionBtns + '</li>';
-                    });
-                    membersHtml += '</ul>';
-                }
+        // 渲染"已注册成员列表"：分页拉取 + 翻页 + 行内角色/移除操作
+        async function renderMemberList(page) {
+            var region = document.getElementById('family-members-region');
+            if (!region) { return; }
+            memberCurrentPage = page;
+            region.innerHTML = '<p>加载中...</p>';
+            var res;
+            try {
+                res = await FT.api('/api/family/members?page=' + page + '&size=' + memberPageSize);
+            } catch (e) {
+                region.innerHTML = '<p>加载失败</p>';
+                return;
             }
-        } catch (e) {
-            membersHtml = '<p>加载失败</p>';
+            if (res.code !== 200 || !res.data) {
+                region.innerHTML = '<p>' + FT.escapeHtml(res.message || '加载失败') + '</p>';
+                return;
+            }
+            var pr = res.data;
+            var recs = pr.records || [];
+            if (recs.length === 0) {
+                region.innerHTML = '<p>暂无成员</p>';
+                return;
+            }
+            var totalPages = pr.totalPages || 1;
+            var html = '<ul class="family-member-list">';
+            recs.forEach(function (m) {
+                var roleLabel = '';
+                if (m.role === 'OWNER') { roleLabel = '（族长）'; }
+                else if (m.role === 'ADMIN') { roleLabel = '（管理员）'; }
+
+                var actionBtns = '';
+                if (isOwner && m.role !== 'OWNER') {
+                    if (m.role === 'ADMIN') {
+                        actionBtns += ' <button class="btn-role-toggle" data-uid="' + m.userId + '" data-role="MEMBER">取消管理员</button>';
+                    } else {
+                        actionBtns += ' <button class="btn-role-toggle" data-uid="' + m.userId + '" data-role="ADMIN">设为管理员</button>';
+                    }
+                    actionBtns += ' <button class="btn-remove-member" data-uid="' + m.userId + '">移除</button>';
+                } else if (isAdmin && !isOwner && m.role === 'MEMBER') {
+                    actionBtns += ' <button class="btn-remove-member" data-uid="' + m.userId + '">移除</button>';
+                }
+                html += '<li>' + FT.escapeHtml(m.nickname || ('用户' + m.userId)) + roleLabel + actionBtns + '</li>';
+            });
+            html += '</ul>';
+
+            html += '<div class="member-pager" style="display:flex;align-items:center;gap:10px;margin-top:8px;">';
+            html += '<button class="btn-page-prev btn-sm"' + (page <= 1 ? ' disabled' : '') + '>上一页</button>';
+            html += '<span>第 ' + pr.page + ' / ' + totalPages + ' 页，共 ' + pr.total + ' 人</span>';
+            html += '<button class="btn-page-next btn-sm"' + (page >= totalPages ? ' disabled' : '') + '>下一页</button>';
+            html += '</div>';
+            region.innerHTML = html;
+
+            // 行内操作：切换角色 / 移除（成功后刷新当前页）
+            region.querySelectorAll('.btn-role-toggle').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var uid = this.getAttribute('data-uid');
+                    var role = this.getAttribute('data-role');
+                    var actionText = role === 'ADMIN' ? '设为管理员' : '取消管理员';
+                    FT.confirm('确定' + actionText + '？', async function () {
+                        var r = await FT.api('/api/family/member/role', {
+                            method: 'PUT',
+                            body: JSON.stringify({ userId: parseInt(uid, 10), role: role })
+                        });
+                        if (r.code === 200) {
+                            FT.toast('操作成功', 'success');
+                            renderMemberList(memberCurrentPage);
+                        } else {
+                            FT.toast(r.message || '操作失败');
+                        }
+                    });
+                });
+            });
+            region.querySelectorAll('.btn-remove-member').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var uid = this.getAttribute('data-uid');
+                    FT.confirm('确定移除该成员？', async function () {
+                        var r = await FT.api('/api/family/member/' + uid, { method: 'DELETE' });
+                        if (r.code === 200) {
+                            FT.toast('已移除', 'success');
+                            renderMemberList(memberCurrentPage);
+                        } else {
+                            FT.toast(r.message || '操作失败');
+                        }
+                    });
+                });
+            });
+            // 翻页按钮
+            var prevBtn = region.querySelector('.btn-page-prev');
+            var nextBtn = region.querySelector('.btn-page-next');
+            if (prevBtn) {
+                prevBtn.addEventListener('click', function () {
+                    if (memberCurrentPage > 1) { renderMemberList(memberCurrentPage - 1); }
+                });
+            }
+            if (nextBtn) {
+                nextBtn.addEventListener('click', function () {
+                    if (memberCurrentPage < totalPages) { renderMemberList(memberCurrentPage + 1); }
+                });
+            }
         }
 
         var inviteSection = '';
@@ -108,49 +177,15 @@
             hallSection +
             inviteSection +
             '<h4>已注册成员列表</h4>' +
-            membersHtml +
+            '<div id="family-members-region"><p>加载中...</p></div>' +
             '</div>' +
             '<div class="modal-actions">' +
             '<button class="btn-cancel" data-close-modal>关闭</button></div>';
 
         FT.showModal(bodyHtml, true);
 
-        // 绑定角色切换事件
-        document.querySelectorAll('.btn-role-toggle').forEach(function(btn) {
-            btn.addEventListener('click', async function() {
-                var uid = this.getAttribute('data-uid');
-                var role = this.getAttribute('data-role');
-                var actionText = role === 'ADMIN' ? '设为管理员' : '取消管理员';
-                FT.confirm('确定' + actionText + '？', async function() {
-                    var res = await FT.api('/api/family/member/role', {
-                        method: 'PUT',
-                        body: JSON.stringify({userId: parseInt(uid, 10), role: role})
-                    });
-                    if (res.code === 200) {
-                        FT.closeModal();
-                        showFamilyModal();
-                    } else {
-                        FT.toast(res.message || '操作失败');
-                    }
-                });
-            });
-        });
-
-        // 绑定移除成员事件
-        document.querySelectorAll('.btn-remove-member').forEach(function(btn) {
-            btn.addEventListener('click', async function() {
-                var uid = this.getAttribute('data-uid');
-                FT.confirm('确定移除该成员？', async function() {
-                    var res = await FT.api('/api/family/member/' + uid, {method: 'DELETE'});
-                    if (res.code === 200) {
-                        FT.closeModal();
-                        showFamilyModal();
-                    } else {
-                        FT.toast(res.message || '操作失败');
-                    }
-                });
-            });
-        });
+        // 首次加载成员列表（分页；行内角色/移除/翻页事件均在 renderMemberList 内绑定）
+        renderMemberList(1);
 
         // 绑定刷新邀请码事件
         var refreshBtn = document.getElementById('btn-refresh-invite');

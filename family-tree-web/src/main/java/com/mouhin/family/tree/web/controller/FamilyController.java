@@ -8,6 +8,7 @@ import com.mouhin.family.tree.common.dto.FamilyInfoUpdateDTO;
 import com.mouhin.family.tree.common.dto.FamilyJoinDTO;
 import com.mouhin.family.tree.common.dto.FamilyMemberDTO;
 import com.mouhin.family.tree.common.dto.MemberRoleUpdateDTO;
+import com.mouhin.family.tree.common.dto.PageResult;
 import com.mouhin.family.tree.common.result.Result;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -76,12 +77,24 @@ public class FamilyController extends BaseController {
     }
 
     /**
-     * 获取家族成员列表
+     * 分页获取家族成员列表
+     *
+     * @param page 页码（从1开始，非法值回退为1）
+     * @param size 每页大小（1..100，非法值回退为20）
      */
     @GetMapping("/members")
-    public Result<List<FamilyMemberDTO>> members(HttpSession session) {
+    public Result<PageResult<FamilyMemberDTO>> members(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
-        return Result.success(familyService.listMembers(familyId));
+        if (page < 1) {
+            page = 1;
+        }
+        if (size < 1 || size > 100) {
+            size = 20;
+        }
+        return Result.success(familyService.listMembersPaged(familyId, page, size));
     }
 
     /**

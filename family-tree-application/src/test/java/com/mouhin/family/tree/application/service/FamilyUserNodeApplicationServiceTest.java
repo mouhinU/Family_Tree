@@ -1,10 +1,13 @@
 package com.mouhin.family.tree.application.service;
 
 import com.mouhin.family.tree.common.constant.AccountConsts;
+import com.mouhin.family.tree.common.enums.FamilyMemberRoleEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
+import com.mouhin.family.tree.domain.entity.FamilyMember;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyUserNode;
 import com.mouhin.family.tree.domain.entity.User;
+import com.mouhin.family.tree.domain.repository.FamilyMemberRepository;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyUserNodeRepository;
 import com.mouhin.family.tree.domain.repository.UserRepository;
@@ -49,6 +52,9 @@ class FamilyUserNodeApplicationServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private FamilyMemberRepository familyMemberRepository;
 
     @Mock
     private UserAuthApplicationService userAuthApplicationService;
@@ -361,6 +367,48 @@ class FamilyUserNodeApplicationServiceTest {
         assertEquals(USER_ID, result);
         verify(userAuthApplicationService, never()).provisionAccount(any(), any(), any());
         verify(familyUserNodeRepository, never()).save(any());
+    }
+
+    @Test
+    void provisionAndBindNodeAccount_absentMember_createsMemberRole() {
+        Long autoUserId = 90L;
+        FamilyNode node = node(NODE_ID, FAMILY_ID);
+        node.setName("张大爷");
+        when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID)).thenReturn(null);
+        when(userRepository.findByUsername("张大爷")).thenReturn(null);
+        when(userAuthApplicationService.provisionAccount(
+                "张大爷", "张大爷", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD)).thenReturn(autoUserId);
+        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId)).thenReturn(null);
+        when(familyMemberRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId)).thenReturn(null);
+
+        familyUserNodeApplicationService.provisionAndBindNodeAccount(node);
+
+        ArgumentCaptor<FamilyMember> captor = ArgumentCaptor.forClass(FamilyMember.class);
+        verify(familyMemberRepository).save(captor.capture());
+        assertEquals(FAMILY_ID, captor.getValue().getFamilyId());
+        assertEquals(autoUserId, captor.getValue().getUserId());
+        assertEquals(FamilyMemberRoleEnum.MEMBER.getCode(), captor.getValue().getRole());
+    }
+
+    @Test
+    void provisionAndBindNodeAccount_existingMemberRoleNotOverwritten() {
+        Long autoUserId = 90L;
+        FamilyNode node = node(NODE_ID, FAMILY_ID);
+        node.setName("张大爷");
+        FamilyMember existing = new FamilyMember();
+        existing.setFamilyId(FAMILY_ID);
+        existing.setUserId(autoUserId);
+        existing.setRole(FamilyMemberRoleEnum.ADMIN.getCode());
+        when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID)).thenReturn(null);
+        when(userRepository.findByUsername("张大爷")).thenReturn(null);
+        when(userAuthApplicationService.provisionAccount(
+                "张大爷", "张大爷", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD)).thenReturn(autoUserId);
+        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId)).thenReturn(null);
+        when(familyMemberRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId)).thenReturn(existing);
+
+        familyUserNodeApplicationService.provisionAndBindNodeAccount(node);
+
+        verify(familyMemberRepository, never()).save(any());
     }
 
     // ========== 真人标记回收自动账号 ==========

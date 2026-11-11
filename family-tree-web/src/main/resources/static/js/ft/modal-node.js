@@ -468,11 +468,23 @@
 
     // ========== 节点详情 ==========
     // 节点详情（含去世日期编辑 + 配偶离异管理）
-    function showDetailModal(node) {
-        // 详情渲染使用树加载缓存的数据，此处异步通知后端记录查看日志（不阻塞弹窗，失败静默）
-        if (node.id != null) {
-            Promise.resolve(FT.api('/api/node/' + node.id)).catch(function () {});
+    // 详情数据来自独立接口 /api/node/{id}/detail（不再从树缓存取，越权字段不随整棵树下发）。
+    async function showDetailModal(node) {
+        // 非管理员详情白名单收口：不在可见集合内则拒绝打开（后端详情接口仍独立校验）
+        var scope = FT.state.detailVisibleIds;
+        if (scope && !scope.has(node.id)) {
+            FT.toast('无权查看该族人详情', 'error');
+            return;
         }
+        if (node.id == null) {
+            return;
+        }
+        var res = await FT.api('/api/node/' + node.id + '/detail');
+        if (res.code !== 200 || !res.data) {
+            FT.toast(res.message || '加载详情失败');
+            return;
+        }
+        node = res.data;
         var generationNames = FT.state.generationNames;
         var genderText = node.gender === 1 ? '男' : node.gender === 2 ? '女' : '未知';
         var deceased = node.deathDate != null && node.deathDate !== '';

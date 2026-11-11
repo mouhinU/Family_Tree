@@ -38,6 +38,16 @@ public interface FamilyMemberRepository {
     List<FamilyMember> findByFamilyId(Long familyId);
 
     /**
+     * 按家族分页查询成员（按成员记录ID升序，保证翻页稳定）
+     *
+     * @param familyId 家族ID
+     * @param offset   偏移量
+     * @param size     每页大小
+     * @return 当前页成员列表
+     */
+    List<FamilyMember> findByFamilyIdPaged(Long familyId, int offset, int size);
+
+    /**
      * 根据用户ID查询所属的所有家族成员记录
      *
      * @param userId 用户ID

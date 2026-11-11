@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.BiographyApplicationService;
+import com.mouhin.family.tree.application.service.FamilyNodeVisibilityApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.BiographyUpdateDTO;
 import com.mouhin.family.tree.common.result.Result;
@@ -21,9 +22,12 @@ import java.util.Map;
 public class BiographyController extends BaseController {
 
     private final BiographyApplicationService biographyApplicationService;
+    private final FamilyNodeVisibilityApplicationService visibilityService;
 
-    public BiographyController(BiographyApplicationService biographyApplicationService) {
+    public BiographyController(BiographyApplicationService biographyApplicationService,
+                               FamilyNodeVisibilityApplicationService visibilityService) {
         this.biographyApplicationService = biographyApplicationService;
+        this.visibilityService = visibilityService;
     }
 
     /**
@@ -32,6 +36,7 @@ public class BiographyController extends BaseController {
     @GetMapping("/{nodeId}")
     public Result<Map<String, Object>> getBiography(@PathVariable Long nodeId, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
+        visibilityService.assertDetailVisible(familyId, getCurrentUserId(session), nodeId);
         String biography = biographyApplicationService.getBiography(familyId, nodeId);
         Map<String, Object> data = new HashMap<>(4);
         data.put("nodeId", nodeId);

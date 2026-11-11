@@ -1,5 +1,6 @@
 package com.mouhin.family.tree.web.controller;
 
+import com.mouhin.family.tree.application.service.FamilyNodeVisibilityApplicationService;
 import com.mouhin.family.tree.application.service.FamilyOfferingApplicationService;
 import com.mouhin.family.tree.common.dto.OfferingDTO;
 import com.mouhin.family.tree.common.dto.OfferingStatVO;
@@ -20,9 +21,12 @@ import java.util.List;
 public class FamilyOfferingController extends BaseController {
 
     private final FamilyOfferingApplicationService familyOfferingService;
+    private final FamilyNodeVisibilityApplicationService visibilityService;
 
-    public FamilyOfferingController(FamilyOfferingApplicationService familyOfferingService) {
+    public FamilyOfferingController(FamilyOfferingApplicationService familyOfferingService,
+                                    FamilyNodeVisibilityApplicationService visibilityService) {
         this.familyOfferingService = familyOfferingService;
+        this.visibilityService = visibilityService;
     }
 
     /**
@@ -42,6 +46,7 @@ public class FamilyOfferingController extends BaseController {
     @GetMapping("/node/{nodeId}")
     public Result<List<OfferingStatVO>> listByNode(@PathVariable Long nodeId, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
+        visibilityService.assertDetailVisible(familyId, getCurrentUserId(session), nodeId);
         return Result.success(familyOfferingService.listStatsByNode(familyId, nodeId));
     }
 }

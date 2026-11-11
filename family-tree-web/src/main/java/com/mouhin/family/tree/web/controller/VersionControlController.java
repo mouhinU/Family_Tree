@@ -1,5 +1,6 @@
 package com.mouhin.family.tree.web.controller;
 
+import com.mouhin.family.tree.application.service.FamilyNodeVisibilityApplicationService;
 import com.mouhin.family.tree.application.service.VersionControlApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.result.Result;
@@ -25,9 +26,12 @@ import java.util.Map;
 public class VersionControlController extends BaseController {
 
     private final VersionControlApplicationService versionControlService;
+    private final FamilyNodeVisibilityApplicationService visibilityService;
 
-    public VersionControlController(VersionControlApplicationService versionControlService) {
+    public VersionControlController(VersionControlApplicationService versionControlService,
+                                    FamilyNodeVisibilityApplicationService visibilityService) {
         this.versionControlService = versionControlService;
+        this.visibilityService = visibilityService;
     }
 
     /**
@@ -45,6 +49,7 @@ public class VersionControlController extends BaseController {
                                                        @RequestParam(defaultValue = "20") int size,
                                                        HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
+        visibilityService.assertDetailVisible(familyId, getCurrentUserId(session), nodeId);
         List<NodeHistory> historyList = versionControlService.getNodeHistory(nodeId, familyId, page, size);
         long total = versionControlService.countNodeHistory(nodeId, familyId);
 
@@ -98,6 +103,7 @@ public class VersionControlController extends BaseController {
                                                               @RequestParam Integer v2,
                                                               HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
+        visibilityService.assertDetailVisible(familyId, getCurrentUserId(session), nodeId);
         Map<String, Object[]> differences = versionControlService.compareNodeVersions(nodeId, v1, v2, familyId);
         return Result.success(differences);
     }

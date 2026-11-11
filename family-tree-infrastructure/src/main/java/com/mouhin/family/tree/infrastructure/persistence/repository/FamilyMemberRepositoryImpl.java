@@ -52,6 +52,16 @@ public class FamilyMemberRepositoryImpl implements FamilyMemberRepository {
     }
 
     @Override
+    public List<FamilyMember> findByFamilyIdPaged(Long familyId, int offset, int size) {
+        LambdaQueryWrapper<FamilyMemberDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(FamilyMemberDO::getFamilyId, familyId)
+                .orderByAsc(FamilyMemberDO::getId)
+                .last("LIMIT " + size + " OFFSET " + offset);
+        List<FamilyMemberDO> doList = mapper.selectList(wrapper);
+        return FamilyMemberConverter.toDomainList(doList);
+    }
+
+    @Override
     public List<FamilyMember> findByUserId(Long userId) {
         LambdaQueryWrapper<FamilyMemberDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FamilyMemberDO::getUserId, userId);
