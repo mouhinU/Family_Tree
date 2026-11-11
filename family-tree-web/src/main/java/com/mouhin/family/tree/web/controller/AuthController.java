@@ -115,6 +115,7 @@ public class AuthController extends BaseController {
         data.put("nickname", nickname);
         data.put("csrfToken", csrfToken);
         data.put("hasFamily", family != null);
+        data.put("mustChangePassword", userService.isMustChangePassword(userId));
         if (family != null) {
             data.put("familyId", family.getId());
             data.put("familyName", family.getName());
@@ -164,6 +165,7 @@ public class AuthController extends BaseController {
         // 节点绑定按家族隔离，取当前家族内的绑定
         data.put("nodeId", familyUserNodeService.getBoundNodeId(familyId, userId));
         data.put("csrfToken", csrfToken);
+        data.put("mustChangePassword", userService.isMustChangePassword(userId));
 
         data.put("hasFamily", family != null);
         if (family != null) {
@@ -197,6 +199,26 @@ public class AuthController extends BaseController {
 
         eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "PROFILE_UPDATE",
                 "更新个人信息", "user", userId, familyId, getClientIp(request)));
+        return Result.success();
+    }
+
+    /**
+     * 修改当前登录用户的密码（含一次性初始口令的首登强制改密）
+     */
+    @PostMapping("/password")
+    public Result<Void> changePassword(@Valid @RequestBody ChangePasswordDTO dto, HttpSession session,
+                                       HttpServletRequest request) {
+        Long userId = (Long) session.getAttribute(FamilyTreeConsts.SESSION_USER_ID);
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        Long familyId = (Long) session.getAttribute(FamilyTreeConsts.SESSION_FAMILY_ID);
+
+        userService.changePassword(userId, dto);
+
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "CHANGE_PASSWORD",
+                "修改登录密码", "user", userId, familyId, getClientIp(request)));
         return Result.success();
     }
 

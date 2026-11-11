@@ -248,9 +248,15 @@
             '<div class="form-group"><label>邮箱（留空不修改，可用于登录）</label><input type="email" maxlength="100" id="profile-email" value="' + FT.escapeAttr(user.email || '') + '" placeholder="请输入邮箱"></div>' +
             '<div class="form-group"><label>手机号（留空不修改，可用于登录）</label><input type="tel" maxlength="20" id="profile-phone" value="' + FT.escapeAttr(user.phone || '') + '" placeholder="11位大陆手机号"></div>' +
             '<div class="modal-actions">' +
+            '<button class="btn-cancel" id="profile-changepwd">修改密码</button>' +
             '<button class="btn-cancel" data-close-modal>取消</button>' +
             '<button class="btn-confirm" id="profile-save">保存</button></div>'
         );
+
+        document.getElementById('profile-changepwd').addEventListener('click', function () {
+            FT.closeModal();
+            FT.showChangePasswordModal(false);
+        });
 
         document.getElementById('profile-save').addEventListener('click', async function () {
             var nickname = document.getElementById('profile-nickname').value.trim();
@@ -351,8 +357,72 @@
         });
     }
 
+    // ========== 修改密码 ==========
+    // 独立遮罩层，force=true 时不可关闭（一次性初始口令首登强制改密）。
+    // 提交沿用 FT.api 统一封装（自动带 CSRF、业务错误集中提示）。
+    function showChangePasswordModal(force) {
+        if (document.getElementById('pwd-change-container')) { return; }
+        var notice = force
+            ? '<p class="confirm-message">检测到初始密码，为保障账号安全，请设置新密码后继续使用。</p>'
+            : '';
+        var overlay = document.createElement('div');
+        overlay.id = 'pwd-change-container';
+        overlay.className = 'modal-overlay confirm-overlay';
+        overlay.innerHTML = '<div class="modal modal-confirm">' +
+            '<h3>修改密码</h3>' + notice +
+            '<div class="form-group"><label>当前密码</label>' +
+            '<input type="password" id="pwd-old" autocomplete="current-password"></div>' +
+            '<div class="form-group"><label>新密码（至少6位）</label>' +
+            '<input type="password" id="pwd-new" minlength="6" autocomplete="new-password"></div>' +
+            '<div class="form-group"><label>确认新密码</label>' +
+            '<input type="password" id="pwd-confirm" minlength="6" autocomplete="new-password"></div>' +
+            '<div class="modal-actions">' +
+            (force ? '' : '<button class="btn-cancel" id="pwd-cancel">取消</button>') +
+            '<button class="btn-confirm" id="pwd-ok">确定</button>' +
+            '</div></div>';
+        document.body.appendChild(overlay);
+
+        function close() { overlay.remove(); }
+
+        if (!force) {
+            overlay.addEventListener('click', function (e) {
+                if (e.target === this) { close(); }
+            });
+            var cancelBtn = document.getElementById('pwd-cancel');
+            if (cancelBtn) { cancelBtn.addEventListener('click', close); }
+        }
+
+        document.getElementById('pwd-ok').addEventListener('click', async function () {
+            var oldPwd = document.getElementById('pwd-old').value;
+            var newPwd = document.getElementById('pwd-new').value;
+            var confirmPwd = document.getElementById('pwd-confirm').value;
+            if (!oldPwd) { FT.toast('请输入当前密码', 'warning'); return; }
+            if (newPwd.length < 6) { FT.toast('新密码长度不能少于6位', 'warning'); return; }
+            if (newPwd !== confirmPwd) { FT.toast('两次输入的新密码不一致', 'warning'); return; }
+            try {
+                var res = await FT.api('/api/auth/password', {
+                    method: 'POST',
+                    body: JSON.stringify({oldPassword: oldPwd, newPassword: newPwd})
+                });
+                // res.code !== 200 时 FT.api 已集中弹出错误，此处仅在成功时收尾
+                if (res && res.code === 200) {
+                    if (FT.state.currentUser) { FT.state.currentUser.mustChangePassword = false; }
+                    if (force) {
+                        location.reload();
+                    } else {
+                        FT.toast('密码已修改', 'success');
+                        close();
+                    }
+                }
+            } catch (e) {
+                // 错误提示已由 FT.api / FT.toast 统一处理
+            }
+        });
+    }
+
     FT.showFamilyModal = showFamilyModal;
     FT.showProfileModal = showProfileModal;
     FT.markAsSelf = markAsSelf;
     FT.showFamilySwitcherModal = showFamilySwitcherModal;
+    FT.showChangePasswordModal = showChangePasswordModal;
 })();

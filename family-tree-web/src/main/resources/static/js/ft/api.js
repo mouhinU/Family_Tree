@@ -59,6 +59,10 @@
             FT.toast(errMsg, 'error');
             throw new Error(errMsg);
         }
+        // 与 api() 一致：HTTP 200 但业务 code 非 200 时统一弹出错误
+        if (body && typeof body.code === 'number' && body.code !== 200) {
+            FT.toast(body.message || '上传失败', 'error');
+        }
         return body;
     }
 
@@ -104,7 +108,13 @@
             FT.toast(errMsg, 'error');
             throw new Error(errMsg);
         }
-        return res.json();
+        var body = await res.json();
+        // 集中处理业务错误：后端 GlobalExceptionHandler 以 HTTP 200 + Result.code 返回失败，
+        // 调用方若不判断 res.code 会静默失败。此处统一弹出错误，返回值仍交给调用方按需判断。
+        if (body && typeof body.code === 'number' && body.code !== 200) {
+            FT.toast(body.message || '操作失败', 'error');
+        }
+        return body;
     }
 
     async function loadTree() {

@@ -2,6 +2,7 @@ package com.mouhin.family.tree.application.service;
 
 import com.mouhin.family.tree.common.constant.AccountConsts;
 import com.mouhin.family.tree.common.constant.LoginSecurityConsts;
+import com.mouhin.family.tree.common.dto.ChangePasswordDTO;
 import com.mouhin.family.tree.common.dto.LoginDTO;
 import com.mouhin.family.tree.common.dto.ProfileUpdateDTO;
 import com.mouhin.family.tree.common.dto.RegisterDTO;
@@ -99,6 +100,8 @@ public class UserAuthApplicationService {
                 ? trimmedUsername : nickname.trim();
         User user = buildUser(trimmedUsername, initialPassword, displayNickname);
         user.setAutoAccount(true);
+        // 一次性初始口令：首登必须修改，避免固定/共享口令长期有效
+        user.setMustChangePassword(true);
         return persistNewUser(user).getId();
     }
 
@@ -154,6 +157,42 @@ public class UserAuthApplicationService {
     public String getNickname(Long userId) {
         User user = userRepository.findById(userId);
         return user != null ? user.getNickname() : null;
+    }
+
+    /**
+     * 该用户是否被要求在下次登录时强制修改密码（一次性初始口令场景）
+     *
+     * @param userId 用户ID
+     * @return 需要强制改密返回 true，用户不存在返回 false
+     */
+    public boolean isMustChangePassword(Long userId) {
+        User user = userRepository.findById(userId);
+        return user != null && Boolean.TRUE.equals(user.getMustChangePassword());
+    }
+
+    /**
+     * 修改当前用户密码：校验当前口令后置为新 BCrypt 口令，并清除强制改密标记
+     *
+     * @param userId 用户ID
+     * @param dto    修改密码请求（当前密码 + 新密码）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void changePassword(Long userId, ChangePasswordDTO dto) {
+        if (dto.getNewPassword() == null || dto.getNewPassword().length() < AccountConsts.MIN_PASSWORD_LENGTH) {
+            throw new BusinessException("新密码长度不能少于" + AccountConsts.MIN_PASSWORD_LENGTH + "位");
+        }
+        User user = userRepository.findById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+        if (!verifyPassword(dto.getOldPassword(), user.getPasswordHash())) {
+            throw new BusinessException("当前密码不正确");
+        }
+        user.setPasswordHash(hashPassword(dto.getNewPassword()));
+        user.setMustChangePassword(false);
+        user.setUpdateTime(LocalDateTime.now());
+        userRepository.update(user);
+        logger.info("User password changed: id={}", userId);
     }
 
     /**
@@ -253,6 +292,7 @@ public class UserAuthApplicationService {
         user.setPasswordHash(hashPassword(rawPassword));
         user.setNickname(nickname);
         user.setAutoAccount(false);
+        user.setMustChangePassword(false);
         user.setCreateTime(LocalDateTime.now());
         user.setUpdateTime(LocalDateTime.now());
         return user;

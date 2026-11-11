@@ -137,6 +137,21 @@ class FamilyMessageApplicationServiceTest {
     }
 
     @Test
+    void postMessage_replyCrossFamily_throws() {
+        MessageCreateDTO dto = new MessageCreateDTO();
+        dto.setContent("跨家族刷回复");
+        dto.setParentId(10L);
+
+        FamilyMessage parent = buildMessage(10L, OTHER_USER_ID, "用户A", "别的家族的留言");
+        parent.setFamilyId(999L);
+        when(familyMessageRepository.findById(10L)).thenReturn(parent);
+
+        assertThrows(BusinessException.class, () ->
+                messageApplicationService.postMessage(FAMILY_ID, USER_ID, "测试用户", dto));
+        verify(familyMessageRepository, never()).save(any(FamilyMessage.class));
+    }
+
+    @Test
     void postMessage_replyParentNotFound_throws() {
         MessageCreateDTO dto = new MessageCreateDTO();
         dto.setContent("这是回复");

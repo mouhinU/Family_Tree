@@ -29,6 +29,11 @@
                 FT.initCsrfToken(res.data.csrfToken);
                 sessionStorage.setItem('csrfToken', res.data.csrfToken);
             }
+            // 一次性初始口令首登强制改密兜底：绕过登录页直接进入应用时仍要求先改密
+            if (res.data.mustChangePassword && FT.showChangePasswordModal) {
+                FT.showChangePasswordModal(true);
+                return;
+            }
             document.getElementById('user-nickname').textContent = FT.state.currentUser.nickname || '';
 
             // 家族信息展示
@@ -387,11 +392,11 @@
                 else if (n.gender === 2) meta.push('女');
                 // 传统名字字段（字、号、讳）
                 var traditionalNames = [];
-                if (n.hui) traditionalNames.push('讳' + n.hui);
-                if (n.zi) traditionalNames.push('字' + n.zi);
-                if (n.hao) traditionalNames.push('号' + n.hao);
+                if (n.hui) traditionalNames.push('讳' + escapeHtml(n.hui));
+                if (n.zi) traditionalNames.push('字' + escapeHtml(n.zi));
+                if (n.hao) traditionalNames.push('号' + escapeHtml(n.hao));
                 if (traditionalNames.length > 0) meta.push(traditionalNames.join(' '));
-                if (n.birthDate) meta.push(n.birthDate);
+                if (n.birthDate) meta.push(escapeHtml(n.birthDate));
                 var nameDisplay = escapeHtml(n.name);
                 var subtitle = '';
                 if (n.hui || n.zi || n.hao) {
@@ -461,7 +466,7 @@
                 if (n.generation) meta.push('第' + n.generation + '世');
                 if (n.gender === 1) meta.push('男');
                 else if (n.gender === 2) meta.push('女');
-                if (n.birthDate) meta.push(n.birthDate);
+                if (n.birthDate) meta.push(escapeHtml(n.birthDate));
                 var nameDisplay = escapeHtml(n.name);
                 var subtitle = '';
                 if (n.hui || n.zi || n.hao) {

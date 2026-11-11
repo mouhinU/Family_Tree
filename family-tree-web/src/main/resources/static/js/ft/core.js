@@ -191,6 +191,11 @@
     // 用法：FT.toast('操作成功', 'success') 或 FT.toast('操作失败')（默认 error）
     (function () {
         var container = null;
+        // 相同文案的重复提示去重：api.js 会集中弹出业务错误，历史调用点的 else 分支
+        // 可能对同一结果再次弹出，短时窗内相同 message+type 只展示一条，避免叠加。
+        var lastToastKey = '';
+        var lastToastTs = 0;
+        var DEDUP_WINDOW_MS = 2000;
         function ensureContainer() {
             if (container && document.body.contains(container)) { return container; }
             container = document.createElement('div');
@@ -201,6 +206,16 @@
 
         function toast(message, type) {
             type = type || 'error';
+            if (type === 'error') {
+                var now = Date.now();
+                var key = message + '|' + type;
+                if (key === lastToastKey && now - lastToastTs < DEDUP_WINDOW_MS) {
+                    lastToastTs = now;
+                    return;
+                }
+                lastToastKey = key;
+                lastToastTs = now;
+            }
             var c = ensureContainer();
             var el = document.createElement('div');
             el.className = 'toast toast-' + type;

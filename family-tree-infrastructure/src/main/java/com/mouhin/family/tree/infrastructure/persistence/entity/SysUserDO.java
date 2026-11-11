@@ -60,6 +60,12 @@ public class SysUserDO {
     @TableField("is_auto_account")
     private Boolean autoAccount;
 
+    /**
+     * 是否需要在下次登录时强制修改密码（一次性初始口令场景为 true）
+     */
+    @TableField("must_change_password")
+    private Boolean mustChangePassword;
+
     private LocalDateTime createTime;
 
     private LocalDateTime updateTime;

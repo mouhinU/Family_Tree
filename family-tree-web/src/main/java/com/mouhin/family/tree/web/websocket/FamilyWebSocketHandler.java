@@ -42,8 +42,16 @@ public class FamilyWebSocketHandler extends TextWebSocketHandler {
         try {
             JsonNode json = objectMapper.readTree(message.getPayload());
             String type = json.has("type") ? json.get("type").asText() : "";
-            if ("register".equals(type) && json.has("familyId")) {
-                Long familyId = json.get("familyId").asLong();
+            if ("register".equals(type)) {
+                // 家族归属以握手阶段注入的服务端会话为准，忽略客户端自报 familyId
+                Object familyIdAttr = session.getAttributes()
+                        .get(FamilyWebSocketHandshakeInterceptor.ATTR_FAMILY_ID);
+                if (!(familyIdAttr instanceof Long familyId)) {
+                    logger.warn("WebSocket session {} register rejected: no family bound to session",
+                            session.getId());
+                    session.close(CloseStatus.POLICY_VIOLATION.withReason("no family bound"));
+                    return;
+                }
                 registerSession(familyId, session);
                 // 发送确认消息
                 session.sendMessage(new TextMessage(

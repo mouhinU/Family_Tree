@@ -33,7 +33,9 @@ public final class AccountConsts {
      */
     public static final String NODE_ACCOUNT_USERNAME_PREFIX = "fp_";
     /**
-     * 自动开通账号的初始密码，用户登录后应自行修改
+     * 族谱节点自动开通账号的初始口令。仅作首登引导用：账号开通即置 must_change_password，
+     * 首次登录强制修改后此口令失效（一次性）。因自动开通无人工投递渠道，暂沿用固定引导口令，
+     * 后续如需随机化需同步引入口令下发流程。
      */
     public static final String NODE_ACCOUNT_INITIAL_PASSWORD = "123456";
 

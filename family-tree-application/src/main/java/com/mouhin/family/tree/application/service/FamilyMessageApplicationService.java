@@ -77,8 +77,10 @@ public class FamilyMessageApplicationService {
             if (!parent.isRootMessage()) {
                 throw new BusinessException("只能回复顶级留言");
             }
-            // 回复继承父留言的家族ID
-            familyId = parent.getFamilyId();
+            // 回复必须属于当前会话家族，阻断跨家族刷回复
+            if (!Objects.equals(parent.getFamilyId(), familyId)) {
+                throw new BusinessException("无权回复该留言");
+            }
         }
 
         FamilyMessage message = new FamilyMessage();

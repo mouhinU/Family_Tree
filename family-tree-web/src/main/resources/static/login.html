@@ -62,9 +62,25 @@
         </form>
 
         <div class="message" id="login-message"></div>
+
+        <!-- 首登强制改密（自动开通账号一次性初始口令） -->
+        <form class="login-form" id="password-change-form" style="display:none;">
+            <p class="login-subtitle" style="margin-bottom:16px;">为保障账号安全，首次登录须修改初始密码</p>
+            <div class="form-group">
+                <label for="change-new-password">新密码</label>
+                <input id="change-new-password" minlength="6" name="newPassword" placeholder="至少6位密码" required
+                       type="password" autocomplete="new-password">
+            </div>
+            <div class="form-group">
+                <label for="change-confirm-password">确认新密码</label>
+                <input id="change-confirm-password" minlength="6" name="confirmPassword" placeholder="再次输入新密码"
+                       required type="password" autocomplete="new-password">
+            </div>
+            <button class="btn-primary" type="submit">修 改 密 码</button>
+        </form>
     </div>
 </div>
 
-<script src="/js/ft/login.js"></script>
+<script src="/js/ft/login.js?v=20261110a"></script>
 </body>
 </html>

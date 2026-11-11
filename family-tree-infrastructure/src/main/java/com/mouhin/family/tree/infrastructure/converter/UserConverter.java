@@ -39,6 +39,7 @@ public final class UserConverter {
         entity.setBirthDate(doObj.getBirthDate());
         entity.setCurrentFamilyId(doObj.getCurrentFamilyId());
         entity.setAutoAccount(doObj.getAutoAccount());
+        entity.setMustChangePassword(doObj.getMustChangePassword());
         entity.setCreateTime(doObj.getCreateTime());
         entity.setUpdateTime(doObj.getUpdateTime());
         return entity;
@@ -65,6 +66,7 @@ public final class UserConverter {
         doObj.setBirthDate(entity.getBirthDate());
         doObj.setCurrentFamilyId(entity.getCurrentFamilyId());
         doObj.setAutoAccount(entity.getAutoAccount());
+        doObj.setMustChangePassword(entity.getMustChangePassword());
         doObj.setCreateTime(entity.getCreateTime());
         doObj.setUpdateTime(entity.getUpdateTime());
         return doObj;

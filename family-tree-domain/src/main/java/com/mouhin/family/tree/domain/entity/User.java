@@ -35,6 +35,10 @@ public class User {
      * 是否族谱节点自动开通的账号（区别于真人注册账号）
      */
     private Boolean autoAccount;
+    /**
+     * 是否需要在下次登录时强制修改密码（自动开通账号的一次性初始口令场景为 true）
+     */
+    private Boolean mustChangePassword;
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 

@@ -2,6 +2,7 @@ package com.mouhin.family.tree.application.service;
 
 import com.mouhin.family.tree.common.constant.AccountConsts;
 import com.mouhin.family.tree.common.constant.LoginSecurityConsts;
+import com.mouhin.family.tree.common.dto.ChangePasswordDTO;
 import com.mouhin.family.tree.common.dto.LoginDTO;
 import com.mouhin.family.tree.common.dto.ProfileUpdateDTO;
 import com.mouhin.family.tree.common.dto.RegisterDTO;
@@ -428,5 +429,72 @@ class UserAuthApplicationServiceTest {
         dto.setUsername(username);
         dto.setPassword(RAW_PASSWORD);
         return dto;
+    }
+
+    private UserAuthApplicationService service() {
+        return createService(createLoginAttemptService());
+    }
+
+    @Test
+    void changePassword_success_rehashesAndClearsMustChange() {
+        User user = userWithHash(BCrypt.hashpw(RAW_PASSWORD, BCrypt.gensalt()));
+        user.setMustChangePassword(true);
+        when(userRepository.findById(1L)).thenReturn(user);
+
+        ChangePasswordDTO dto = new ChangePasswordDTO();
+        dto.setOldPassword(RAW_PASSWORD);
+        dto.setNewPassword("brandnew1");
+
+        service().changePassword(1L, dto);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).update(captor.capture());
+        User saved = captor.getValue();
+        assertTrue(BCrypt.checkpw("brandnew1", saved.getPasswordHash()), "新密码应以 BCrypt 存储");
+        assertFalse(saved.getMustChangePassword(), "改密成功后应清除强制改密标记");
+    }
+
+    @Test
+    void changePassword_wrongOldPassword_throwsAndUpdateNotCalled() {
+        when(userRepository.findById(1L))
+                .thenReturn(userWithHash(BCrypt.hashpw(RAW_PASSWORD, BCrypt.gensalt())));
+
+        ChangePasswordDTO dto = new ChangePasswordDTO();
+        dto.setOldPassword("wrong-password");
+        dto.setNewPassword("brandnew1");
+
+        assertThrows(BusinessException.class, () -> service().changePassword(1L, dto));
+        verify(userRepository, never()).update(any());
+    }
+
+    @Test
+    void changePassword_newTooShort_throwsWithoutDbAccess() {
+        ChangePasswordDTO dto = new ChangePasswordDTO();
+        dto.setOldPassword(RAW_PASSWORD);
+        dto.setNewPassword("123");
+
+        assertThrows(BusinessException.class, () -> service().changePassword(1L, dto));
+        verify(userRepository, never()).update(any());
+    }
+
+    @Test
+    void isMustChangePassword_trueForAutoAccount() {
+        User user = userWithHash("x");
+        user.setMustChangePassword(true);
+        when(userRepository.findById(1L)).thenReturn(user);
+
+        assertTrue(service().isMustChangePassword(1L));
+    }
+
+    @Test
+    void provisionAccount_marksMustChangePassword() {
+        when(userRepository.findByUsername("fp_50")).thenReturn(null);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service().provisionAccount("fp_50", "张大爷", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        assertTrue(captor.getValue().getMustChangePassword(), "自动开通账号应标记首登强制改密");
     }
 }
