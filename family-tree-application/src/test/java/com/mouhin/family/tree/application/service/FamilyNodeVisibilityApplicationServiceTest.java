@@ -97,13 +97,31 @@ class FamilyNodeVisibilityApplicationServiceTest {
         Set<Long> result = service.resolveDetailVisibleNodeIds(FAMILY_ID, USER_ID);
 
         // 自身 + 祖先(曾祖/祖父母及配偶) + 后代(子/孙) + 各核心节点直系配偶
+        // + 本人直系配偶(401)自身血缘链（下溯含其前房子女800，体现配偶查看权限一致）
         assertTrue(result.containsAll(List.of(
-                100L, 101L, 200L, 201L, 300L, 301L, SELF, 401L, 500L, 501L, 600L)));
-        // 旁系（兄弟姐妹/侄）与配偶原生分支（继子）不可见
+                100L, 101L, 200L, 201L, 300L, 301L, SELF, 401L, 500L, 501L, 600L, 800L)));
+        // 旁系（伯叔/侄）不可见：不沿祖先下溯、不沿链上配偶再展开
         assertFalse(result.contains(700L));
         assertFalse(result.contains(701L));
         assertFalse(result.contains(702L));
-        assertFalse(result.contains(800L));
+    }
+
+    @Test
+    void resolve_marriedInSpouse_seesPartnerAncestorChainToRoot() {
+        // 报障场景：娶/嫁进门一方(401，自身无父节点)应看到其本支配偶(400)往上到根的整条血亲线
+        stubMember("MEMBER");
+        stubBinding(401L);
+        when(familyRelationRepository.findByFamilyId(FAMILY_ID)).thenReturn(lineageRelations());
+
+        Set<Long> result = service.resolveDetailVisibleNodeIds(FAMILY_ID, USER_ID);
+
+        // 401 自身后代(500/600/800) + 配偶400血缘链到根(300/301/200/201/100/101) + 链上配偶(501)
+        assertTrue(result.containsAll(List.of(
+                401L, SELF, 300L, 301L, 200L, 201L, 100L, 101L, 500L, 501L, 600L, 800L)));
+        // 配偶的旁系（伯叔/侄）仍不可见
+        assertFalse(result.contains(700L));
+        assertFalse(result.contains(701L));
+        assertFalse(result.contains(702L));
     }
 
     @Test

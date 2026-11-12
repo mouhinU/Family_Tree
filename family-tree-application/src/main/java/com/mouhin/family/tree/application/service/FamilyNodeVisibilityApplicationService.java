@@ -26,7 +26,8 @@ import java.util.Set;
  *
  * <p>族谱树对全族成员完整渲染，但"查看详情"按角色收敛：
  * 族长/管理员不受限；普通成员仅可查看自身绑定节点、其祖先链（到根）、其后代子树（到叶），
- * 以及上述核心节点各自的直系配偶（不展开配偶原生家族分支）。
+ * 上述核心节点各自的直系配偶；此外，娶/嫁进门的配偶与其本支配偶查看权限一致——
+ * 即本人直系配偶的血缘链（上溯到根、下溯到叶）也一并纳入，但不再沿链上其他配偶二次展开其原生分支。
  * 该规则是横向越权（IDOR）的唯一裁决入口，各按节点读详情的接口须调用
  * {@link #assertDetailVisible} 收口。</p>
  *
@@ -114,7 +115,19 @@ public class FamilyNodeVisibilityApplicationService {
         collectReachable(selfNodeId, childrenByParent, core);
         collectReachable(selfNodeId, parentsByChild, core);
 
-        // 并入核心节点的直系配偶（不沿配偶继续展开，避免泄露其原生家族）
+        // 娶/嫁进门一方自身可能无父节点（祖先链为空），但其本支配偶的血缘链应可见：
+        // 以本人直系配偶为种子同样上溯到根、下溯到叶，使配偶与本会员工查看权限一致
+        List<Long> selfSpouses = spousesByNode.get(selfNodeId);
+        if (selfSpouses != null) {
+            for (Long spouseId : selfSpouses) {
+                if (core.add(spouseId)) {
+                    collectReachable(spouseId, childrenByParent, core);
+                    collectReachable(spouseId, parentsByChild, core);
+                }
+            }
+        }
+
+        // 并入核心节点的直系配偶（链上配偶不再二次展开其原生家族分支）
         Set<Long> visible = new HashSet<>(core);
         for (Long nodeId : core) {
             List<Long> spouses = spousesByNode.get(nodeId);
