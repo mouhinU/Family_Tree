@@ -112,7 +112,7 @@ public class FamilyNodeController extends BaseController {
     @GetMapping("/list")
     public Result<List<FamilyNodeDTO>> list(HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
-        return Result.success(familyNodeService.listNodes(familyId));
+        return Result.success(familyNodeService.listNodes(familyId, getCurrentUserId(session)));
     }
 
     /**
@@ -121,7 +121,7 @@ public class FamilyNodeController extends BaseController {
     @GetMapping("/search")
     public Result<List<FamilyNodeDTO>> search(@RequestParam String keyword, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
-        return Result.success(familyNodeService.searchNodes(familyId, keyword));
+        return Result.success(familyNodeService.searchNodes(familyId, getCurrentUserId(session), keyword));
     }
 
     @PutMapping("/color")

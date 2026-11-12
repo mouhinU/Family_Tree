@@ -70,6 +70,7 @@ public class DataExportController extends BaseController {
     @GetMapping("/export")
     public Result<Map<String, Object>> exportData(HttpSession session, HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
+        requireManager(getCurrentUserId(session));
         List<FamilyNodeDTO> nodes = familyNodeService.listNodes(familyId);
         List<FamilyRelationDTO> relations = familyRelationService.listAllRelations(familyId);
 
@@ -97,6 +98,7 @@ public class DataExportController extends BaseController {
     public void exportGedcom(HttpSession session, HttpServletRequest request,
                              HttpServletResponse response) throws IOException {
         Long familyId = getCurrentFamilyId(session);
+        requireManager(getCurrentUserId(session));
         String gedcomContent = gedcomApplicationService.exportGedcom(familyId, getCurrentUserId(session),
                 (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME), getClientIp(request));
 
@@ -171,7 +173,7 @@ public class DataExportController extends BaseController {
         String role = family.getCurrentRole();
         if (!FamilyMemberRoleEnum.OWNER.getCode().equals(role)
                 && !FamilyMemberRoleEnum.ADMIN.getCode().equals(role)) {
-            throw new BusinessException("仅族长或管理员可执行GEDCOM导入");
+            throw new BusinessException("仅族长或管理员可执行此操作");
         }
     }
 

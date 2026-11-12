@@ -10,6 +10,14 @@
 
     const FT = window.FT;
 
+    // 隐藏指定元素（存在时）：仅用于按角色收起整族级入口，元素保留不影响事件绑定
+    function hideIfPresent(id) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.style.display = 'none';
+        }
+    }
+
     async function init() {
         // 恢复 CSRF Token（登录时存储在 sessionStorage）
         var savedToken = sessionStorage.getItem('csrfToken');
@@ -71,6 +79,7 @@
             // 族长/管理员标识
             var role = res.data.familyRole;
             if (role === 'OWNER' || role === 'ADMIN') {
+                FT.state.isManager = true;
                 var badge = document.getElementById('family-role-badge');
                 if (badge) {
                     badge.style.display = 'inline-block';
@@ -80,6 +89,11 @@
                 if (logBtn) {
                     logBtn.style.display = 'inline-block';
                 }
+            } else {
+                // 非管理员：隐藏"添加始祖"整族级入口（后端创建根节点无锚点，操作门会拒绝）
+                FT.state.isManager = false;
+                hideIfPresent('btn-add-root');
+                hideIfPresent('drawer-btn-add-root');
             }
         } catch (e) {
             window.location.href = '/login.html';

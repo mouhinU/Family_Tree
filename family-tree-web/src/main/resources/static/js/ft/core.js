@@ -88,6 +88,11 @@
         zoom: null
     };
 
+    // 当前用户是否族长/管理员：登录后由 /api/auth/current 的 familyRole 判定，
+    // 仅用于隐藏"整族级"入口（添加始祖/智能录入/问答/OCR/快照管理）；
+    // 后端各接口仍独立强校验，此处仅优化体验，不作为安全边界。
+    FT.state.isManager = false;
+
     // 是否横向布局（世代沿水平方向展开，同代成员竖向堆叠）
     function isHorizontal() {
         return FT.state.layoutDirection !== 'tb';

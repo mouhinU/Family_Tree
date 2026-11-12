@@ -22,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -43,6 +44,7 @@ public class FamilyRelationApplicationService {
     private final ApplicationEventPublisher eventPublisher;
     private final VersionControlDomainService versionControlDomainService;
     private final TimelineApplicationService timelineApplicationService;
+    private final FamilyNodeVisibilityApplicationService visibilityService;
 
     public FamilyRelationApplicationService(FamilyRelationRepository familyRelationRepository,
                                             FamilyNodeRepository familyNodeRepository,
@@ -51,7 +53,8 @@ public class FamilyRelationApplicationService {
                                             FamilyTreeApplicationService familyTreeApplicationService,
                                             ApplicationEventPublisher eventPublisher,
                                             VersionControlDomainService versionControlDomainService,
-                                            TimelineApplicationService timelineApplicationService) {
+                                            TimelineApplicationService timelineApplicationService,
+                                            FamilyNodeVisibilityApplicationService visibilityService) {
         this.familyRelationRepository = familyRelationRepository;
         this.familyNodeRepository = familyNodeRepository;
         this.relationValidationDomainService = relationValidationDomainService;
@@ -60,6 +63,7 @@ public class FamilyRelationApplicationService {
         this.eventPublisher = eventPublisher;
         this.versionControlDomainService = versionControlDomainService;
         this.timelineApplicationService = timelineApplicationService;
+        this.visibilityService = visibilityService;
     }
 
     /**
@@ -76,6 +80,8 @@ public class FamilyRelationApplicationService {
     public Long createRelation(Long familyId, Long userId, String username, String ipAddress,
                                FamilyRelationDTO dto) {
         checkNodesBelongToFamily(familyId, dto.getFromNodeId(), dto.getToNodeId());
+        // 非管理员关系收口：关联的两端节点必须都在其直系可见集合内
+        visibilityService.assertOperableNodes(familyId, userId, dto.getFromNodeId(), dto.getToNodeId());
 
         // 自身校验：不允许自己与自己建立关系
         if (Objects.equals(dto.getFromNodeId(), dto.getToNodeId())) {
@@ -176,6 +182,9 @@ public class FamilyRelationApplicationService {
         if (relation == null || !Objects.equals(relation.getFamilyId(), familyId)) {
             throw new BusinessException("关系不存在或无权操作");
         }
+        // 非管理员关系收口：该关系两端节点必须都在其直系可见集合内
+        visibilityService.assertOperableNodes(familyId, userId,
+                relation.getFromNodeId(), relation.getToNodeId());
 
         // 记录版本历史（在删除前记录）
         versionControlDomainService.recordRelationDelete(relation, userId, username, ipAddress);
@@ -208,6 +217,9 @@ public class FamilyRelationApplicationService {
         if (relation == null || !Objects.equals(relation.getFamilyId(), familyId)) {
             throw new BusinessException("关系不存在或无权操作");
         }
+        // 非管理员关系收口：被修改关系两端节点必须都在其直系可见集合内
+        visibilityService.assertOperableNodes(familyId, userId,
+                relation.getFromNodeId(), relation.getToNodeId());
 
         // 保存修改前的快照用于版本记录
         FamilyRelation beforeRelation = cloneRelation(relation);
@@ -265,7 +277,8 @@ public class FamilyRelationApplicationService {
      * @param nodeId   节点ID
      * @return 关系列表
      */
-    public List<FamilyRelationDTO> listRelationsByNode(Long familyId, Long nodeId) {
+    public List<FamilyRelationDTO> listRelationsByNode(Long familyId, Long nodeId, Long userId) {
+        visibilityService.assertOperableNode(familyId, userId, nodeId);
         List<FamilyRelation> relations = familyRelationRepository.findByNodeId(familyId, nodeId);
         return relations.stream()
                 .map(this::toDTO)
@@ -281,6 +294,23 @@ public class FamilyRelationApplicationService {
     public List<FamilyRelationDTO> listAllRelations(Long familyId) {
         List<FamilyRelation> relations = familyRelationRepository.findByFamilyId(familyId);
         return relations.stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 列出家族所有关系，并过滤到操作者可见集合（非管理员仅返回两端节点都在其直系可见集合内的关系；管理员返回全部）。
+     *
+     * @param familyId 家族ID
+     * @param userId   操作者用户ID
+     * @return 可见关系列表
+     */
+    public List<FamilyRelationDTO> listAllRelations(Long familyId, Long userId) {
+        Set<Long> visible = visibilityService.resolveDetailVisibleNodeIds(familyId, userId);
+        List<FamilyRelation> relations = familyRelationRepository.findByFamilyId(familyId);
+        return relations.stream()
+                .filter(r -> visible == null
+                        || (visible.contains(r.getFromNodeId()) && visible.contains(r.getToNodeId())))
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }

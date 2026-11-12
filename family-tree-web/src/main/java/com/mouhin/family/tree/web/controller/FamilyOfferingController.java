@@ -36,6 +36,7 @@ public class FamilyOfferingController extends BaseController {
     public Result<Void> offer(@RequestBody OfferingDTO dto, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
+        visibilityService.assertOperableNode(familyId, userId, dto.getNodeId());
         familyOfferingService.offer(familyId, userId, dto);
         return Result.success();
     }

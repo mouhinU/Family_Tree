@@ -28,6 +28,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -50,6 +51,7 @@ public class FamilyNodeApplicationService {
     private final VersionControlDomainService versionControlDomainService;
     private final TimelineApplicationService timelineApplicationService;
     private final FamilyUserNodeApplicationService familyUserNodeApplicationService;
+    private final FamilyNodeVisibilityApplicationService visibilityService;
 
     public FamilyNodeApplicationService(FamilyNodeRepository familyNodeRepository,
                                         FamilyRelationRepository familyRelationRepository,
@@ -59,7 +61,8 @@ public class FamilyNodeApplicationService {
                                         ApplicationEventPublisher eventPublisher,
                                         VersionControlDomainService versionControlDomainService,
                                         TimelineApplicationService timelineApplicationService,
-                                        FamilyUserNodeApplicationService familyUserNodeApplicationService) {
+                                        FamilyUserNodeApplicationService familyUserNodeApplicationService,
+                                        FamilyNodeVisibilityApplicationService visibilityService) {
         this.familyNodeRepository = familyNodeRepository;
         this.familyRelationRepository = familyRelationRepository;
         this.relationValidationDomainService = relationValidationDomainService;
@@ -69,6 +72,7 @@ public class FamilyNodeApplicationService {
         this.versionControlDomainService = versionControlDomainService;
         this.timelineApplicationService = timelineApplicationService;
         this.familyUserNodeApplicationService = familyUserNodeApplicationService;
+        this.visibilityService = visibilityService;
     }
 
     /**
@@ -84,6 +88,12 @@ public class FamilyNodeApplicationService {
     @Transactional(rollbackFor = Exception.class)
     public Long createNode(Long familyId, Long userId, String username, String ipAddress,
                            NodeCreateDTO dto) {
+        // 非管理员节点操作收口：以本次挂靠的锚点（父/子/配偶）裁决；无锚点的新根节点仅管理员可建，
+        // 新节点建成后因血缘关系自动纳入操作者可见集合，无需额外授权。
+        Long anchorNodeId = dto.getParentNodeId() != null ? dto.getParentNodeId()
+                : dto.getChildNodeId() != null ? dto.getChildNodeId() : dto.getSpouseNodeId();
+        visibilityService.assertOperableNode(familyId, userId, anchorNodeId);
+
         if (dto.getName() == null || dto.getName().isBlank()) {
             throw new BusinessException("节点名称不能为空");
         }
@@ -236,6 +246,7 @@ public class FamilyNodeApplicationService {
     @Transactional(rollbackFor = Exception.class)
     public void updateNode(Long familyId, Long userId, String username, String ipAddress,
                            FamilyNodeDTO dto) {
+        visibilityService.assertOperableNode(familyId, userId, dto.getId());
         FamilyNode existing = checkNodeBelongsToFamily(familyId, dto.getId());
 
         // 保存修改前的快照用于版本记录
@@ -360,6 +371,7 @@ public class FamilyNodeApplicationService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void deleteNode(Long familyId, Long nodeId, Long userId, String username, String ipAddress) {
+        visibilityService.assertOperableNode(familyId, userId, nodeId);
         FamilyNode node = checkNodeBelongsToFamily(familyId, nodeId);
 
         // 真人标记为本人的节点禁止删除；仅自动账号绑定的节点回收账号后放行
@@ -406,18 +418,37 @@ public class FamilyNodeApplicationService {
     }
 
     /**
-     * 搜索节点
+     * 列出家族节点，并按操作者可见集合过滤（非管理员仅见直系血缘链及其配偶；管理员见全部）。
      *
      * @param familyId 家族ID
-     * @param keyword  搜索关键词
-     * @return 匹配的节点列表
+     * @param userId   操作者用户ID
+     * @return 可见节点列表
      */
-    public List<FamilyNodeDTO> searchNodes(Long familyId, String keyword) {
+    public List<FamilyNodeDTO> listNodes(Long familyId, Long userId) {
+        Set<Long> visible = visibilityService.resolveDetailVisibleNodeIds(familyId, userId);
+        List<FamilyNode> nodes = familyNodeRepository.findByFamilyId(familyId);
+        return nodes.stream()
+                .filter(n -> visible == null || visible.contains(n.getId()))
+                .map(this::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 搜索节点，并按操作者可见集合过滤（非管理员的结果不会泄露范围外节点）。
+     *
+     * @param familyId 家族ID
+     * @param userId   操作者用户ID
+     * @param keyword  搜索关键词
+     * @return 可见的匹配节点列表
+     */
+    public List<FamilyNodeDTO> searchNodes(Long familyId, Long userId, String keyword) {
         if (keyword == null || keyword.isBlank()) {
             return List.of();
         }
+        Set<Long> visible = visibilityService.resolveDetailVisibleNodeIds(familyId, userId);
         List<FamilyNode> nodes = familyNodeRepository.findByFamilyIdAndNameContaining(familyId, keyword.trim());
         return nodes.stream()
+                .filter(n -> visible == null || visible.contains(n.getId()))
                 .map(this::toDTO)
                 .collect(Collectors.toList());
     }
@@ -439,6 +470,7 @@ public class FamilyNodeApplicationService {
             throw new BusinessException("节点ID列表不能为空");
         }
         ColorLabelEnum.validateCode(colorLabel);
+        visibilityService.assertOperableNodes(familyId, userId, nodeIds.toArray(new Long[0]));
 
         // 批量校验归属
         List<FamilyNode> nodes = familyNodeRepository.findByIds(nodeIds);

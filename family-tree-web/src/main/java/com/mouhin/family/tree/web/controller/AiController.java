@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.AiApplicationService;
+import com.mouhin.family.tree.application.service.FamilyNodeVisibilityApplicationService;
 import com.mouhin.family.tree.common.dto.*;
 import com.mouhin.family.tree.common.result.Result;
 import jakarta.servlet.http.HttpSession;
@@ -23,9 +24,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiController extends BaseController {
 
     private final AiApplicationService aiApplicationService;
+    private final FamilyNodeVisibilityApplicationService visibilityService;
 
-    public AiController(AiApplicationService aiApplicationService) {
+    public AiController(AiApplicationService aiApplicationService,
+                        FamilyNodeVisibilityApplicationService visibilityService) {
         this.aiApplicationService = aiApplicationService;
+        this.visibilityService = visibilityService;
     }
 
     /**
@@ -34,6 +38,7 @@ public class AiController extends BaseController {
     @PostMapping("/smart-entry")
     public Result<AiSmartEntryVO> smartEntry(HttpSession session, @Valid @RequestBody AiSmartEntryDTO dto) {
         Long familyId = getCurrentFamilyId(session);
+        visibilityService.assertManager(familyId, getCurrentUserId(session));
         AiSmartEntryVO vo = aiApplicationService.smartEntry(familyId, dto);
         return Result.success(vo);
     }
@@ -44,6 +49,7 @@ public class AiController extends BaseController {
     @PostMapping("/query")
     public Result<AiQueryVO> query(HttpSession session, @Valid @RequestBody AiQueryDTO dto) {
         Long familyId = getCurrentFamilyId(session);
+        visibilityService.assertManager(familyId, getCurrentUserId(session));
         AiQueryVO vo = aiApplicationService.query(familyId, dto);
         return Result.success(vo);
     }
@@ -54,6 +60,7 @@ public class AiController extends BaseController {
     @PostMapping("/story")
     public Result<AiStoryVO> generateStory(HttpSession session, @Valid @RequestBody AiStoryDTO dto) {
         Long familyId = getCurrentFamilyId(session);
+        visibilityService.assertOperableNode(familyId, getCurrentUserId(session), dto.getNodeId());
         AiStoryVO vo = aiApplicationService.generateStory(familyId, dto);
         return Result.success(vo);
     }
@@ -64,6 +71,7 @@ public class AiController extends BaseController {
     @PostMapping("/ocr-parse")
     public Result<AiSmartEntryVO> ocrParse(HttpSession session, @Valid @RequestBody AiOcrParseDTO dto) {
         Long familyId = getCurrentFamilyId(session);
+        visibilityService.assertManager(familyId, getCurrentUserId(session));
         AiSmartEntryVO vo = aiApplicationService.ocrParse(familyId, dto);
         return Result.success(vo);
     }

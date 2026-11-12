@@ -71,6 +71,9 @@ class FamilyNodeApplicationServiceTest {
     @Mock
     private FamilyUserNodeApplicationService familyUserNodeApplicationService;
 
+    @Mock
+    private FamilyNodeVisibilityApplicationService visibilityService;
+
     @InjectMocks
     private FamilyNodeApplicationService familyNodeApplicationService;
 
@@ -288,11 +291,11 @@ class FamilyNodeApplicationServiceTest {
     void searchNodes_emptyKeyword_returnsEmpty() {
         // 执行：空关键字
         List<FamilyNodeDTO> result1 =
-                familyNodeApplicationService.searchNodes(FAMILY_ID, null);
+                familyNodeApplicationService.searchNodes(FAMILY_ID, USER_ID, null);
         List<FamilyNodeDTO> result2 =
-                familyNodeApplicationService.searchNodes(FAMILY_ID, "");
+                familyNodeApplicationService.searchNodes(FAMILY_ID, USER_ID, "");
         List<FamilyNodeDTO> result3 =
-                familyNodeApplicationService.searchNodes(FAMILY_ID, "   ");
+                familyNodeApplicationService.searchNodes(FAMILY_ID, USER_ID, "   ");
 
         // 验证：返回空列表，不查询数据库
         assertTrue(result1.isEmpty());
@@ -304,7 +307,8 @@ class FamilyNodeApplicationServiceTest {
 
     @Test
     void searchNodes_withResults() {
-        // 准备：仓储返回匹配节点
+        // 准备：操作者为管理员（可见集合为 null 表示不受限），仓储返回匹配节点
+        when(visibilityService.resolveDetailVisibleNodeIds(FAMILY_ID, USER_ID)).thenReturn(null);
         List<FamilyNode> mockNodes = List.of(
                 node(1L, "蒙甲", 1),
                 node(2L, "蒙乙", 2)
@@ -314,7 +318,7 @@ class FamilyNodeApplicationServiceTest {
 
         // 执行
         List<FamilyNodeDTO> results =
-                familyNodeApplicationService.searchNodes(FAMILY_ID, "蒙");
+                familyNodeApplicationService.searchNodes(FAMILY_ID, USER_ID, "蒙");
 
         // 验证：返回匹配结果
         assertEquals(2, results.size());

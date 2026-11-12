@@ -44,6 +44,16 @@ public class FamilyNodeVisibilityApplicationService {
      */
     private static final String DENY_MESSAGE = "无权查看该族人详情";
 
+    /**
+     * 越权执行节点相关操作时的统一提示
+     */
+    private static final String OPERATE_DENY_MESSAGE = "无权操作该族人";
+
+    /**
+     * 需要族长/管理员权限时的统一提示
+     */
+    private static final String MANAGER_ONLY_MESSAGE = "仅管理员可执行此操作";
+
     private final FamilyMemberRepository familyMemberRepository;
     private final FamilyUserNodeRepository familyUserNodeRepository;
     private final FamilyRelationRepository familyRelationRepository;
@@ -130,6 +140,64 @@ public class FamilyNodeVisibilityApplicationService {
         if (nodeId == null || !scope.contains(nodeId)) {
             logger.debug("Detail access denied: familyId={} userId={} nodeId={}", familyId, userId, nodeId);
             throw new BusinessException(DENY_MESSAGE);
+        }
+    }
+
+    /**
+     * 断言用户可对指定节点执行操作（新增子女/父母/配偶、编辑、删除、上色、传记、祭奠、缅怀、回滚等）。
+     *
+     * <p>与"查看详情"复用同一份直系可见集合（自身 + 祖先链到根 + 后代链到叶 + 链上节点直系配偶）：
+     * 管理者不受限；非管理员仅能对其可见集合内的节点发起操作，越权抛出业务异常。
+     * 创建类操作以其锚点节点调用本方法（新节点随后自动纳入其可见集合）。</p>
+     *
+     * @param familyId 家族ID
+     * @param userId   用户ID
+     * @param nodeId   目标（或锚点）节点ID
+     */
+    public void assertOperableNode(Long familyId, Long userId, Long nodeId) {
+        Set<Long> scope = resolveDetailVisibleNodeIds(familyId, userId);
+        if (scope == null) {
+            return;
+        }
+        if (nodeId == null || !scope.contains(nodeId)) {
+            logger.debug("Node operation denied: familyId={} userId={} nodeId={}", familyId, userId, nodeId);
+            throw new BusinessException(OPERATE_DENY_MESSAGE);
+        }
+    }
+
+    /**
+     * 断言用户可对给定的多个节点全部执行操作（关系改删需两端均可见）。
+     *
+     * @param familyId 家族ID
+     * @param userId   用户ID
+     * @param nodeIds  需全部可操作的节点ID，任一为 null 或不在可见集合内即拒绝
+     */
+    public void assertOperableNodes(Long familyId, Long userId, Long... nodeIds) {
+        Set<Long> scope = resolveDetailVisibleNodeIds(familyId, userId);
+        if (scope == null) {
+            return;
+        }
+        if (nodeIds == null) {
+            throw new BusinessException(OPERATE_DENY_MESSAGE);
+        }
+        for (Long nodeId : nodeIds) {
+            if (nodeId == null || !scope.contains(nodeId)) {
+                logger.debug("Node operation denied: familyId={} userId={} nodeId={}", familyId, userId, nodeId);
+                throw new BusinessException(OPERATE_DENY_MESSAGE);
+            }
+        }
+    }
+
+    /**
+     * 断言用户为家族管理者（族长或管理员），用于家族级 / 整棵树操作（导出、GEDCOM、快照、回填、AI）。
+     *
+     * @param familyId 家族ID
+     * @param userId   用户ID
+     */
+    public void assertManager(Long familyId, Long userId) {
+        if (!isManager(familyId, userId)) {
+            logger.debug("Manager-only operation denied: familyId={} userId={}", familyId, userId);
+            throw new BusinessException(MANAGER_ONLY_MESSAGE);
         }
     }
 

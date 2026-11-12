@@ -153,6 +153,94 @@ class FamilyNodeVisibilityApplicationServiceTest {
                 () -> service.assertDetailVisible(FAMILY_ID, USER_ID, null));
     }
 
+    // ========== 操作门：assertOperableNode ==========
+
+    @Test
+    void assertOperableNode_manager_allowsAnyNode() {
+        stubMember("ADMIN");
+
+        service.assertOperableNode(FAMILY_ID, USER_ID, 999999L);
+    }
+
+    @Test
+    void assertOperableNode_inScope_passes() {
+        stubMember("MEMBER");
+        stubBinding(SELF);
+        when(familyRelationRepository.findByFamilyId(FAMILY_ID)).thenReturn(lineageRelations());
+
+        service.assertOperableNode(FAMILY_ID, USER_ID, 500L);
+        service.assertOperableNode(FAMILY_ID, USER_ID, SELF);
+    }
+
+    @Test
+    void assertOperableNode_outOfScope_throws() {
+        stubMember("MEMBER");
+        stubBinding(SELF);
+        when(familyRelationRepository.findByFamilyId(FAMILY_ID)).thenReturn(lineageRelations());
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.assertOperableNode(FAMILY_ID, USER_ID, 700L));
+        assertTrue(ex.getMessage().contains("无权操作"));
+    }
+
+    @Test
+    void assertOperableNode_unboundMember_throws() {
+        stubMember("MEMBER");
+        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID)).thenReturn(null);
+
+        assertThrows(BusinessException.class,
+                () -> service.assertOperableNode(FAMILY_ID, USER_ID, SELF));
+    }
+
+    // ========== 操作门：assertOperableNodes（关系两端） ==========
+
+    @Test
+    void assertOperableNodes_allInScope_passes() {
+        stubMember("MEMBER");
+        stubBinding(SELF);
+        when(familyRelationRepository.findByFamilyId(FAMILY_ID)).thenReturn(lineageRelations());
+
+        service.assertOperableNodes(FAMILY_ID, USER_ID, SELF, 500L, 501L);
+    }
+
+    @Test
+    void assertOperableNodes_oneOutOfScope_throws() {
+        stubMember("MEMBER");
+        stubBinding(SELF);
+        when(familyRelationRepository.findByFamilyId(FAMILY_ID)).thenReturn(lineageRelations());
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.assertOperableNodes(FAMILY_ID, USER_ID, SELF, 700L));
+        assertTrue(ex.getMessage().contains("无权操作"));
+    }
+
+    @Test
+    void assertOperableNodes_nullElement_throws() {
+        stubMember("MEMBER");
+        stubBinding(SELF);
+        when(familyRelationRepository.findByFamilyId(FAMILY_ID)).thenReturn(lineageRelations());
+
+        assertThrows(BusinessException.class,
+                () -> service.assertOperableNodes(FAMILY_ID, USER_ID, SELF, null));
+    }
+
+    // ========== 整族级操作门：assertManager ==========
+
+    @Test
+    void assertManager_ownerAndAdmin_pass() {
+        stubMember("OWNER");
+        service.assertManager(FAMILY_ID, USER_ID);
+    }
+
+    @Test
+    void assertManager_member_throws() {
+        stubMember("MEMBER");
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.assertManager(FAMILY_ID, USER_ID));
+        assertTrue(ex.getMessage().contains("仅管理员"));
+    }
+
     // ========== 测试夹具 ==========
 
     private void stubMember(String role) {

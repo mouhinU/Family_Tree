@@ -140,6 +140,7 @@ public class VersionControlController extends BaseController {
                                                      HttpSession session,
                                                      HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
+        visibilityService.assertOperableNode(familyId, getCurrentUserId(session), nodeId);
         String nodeData = versionControlService.rollbackNodeToVersion(nodeId, versionId, familyId,
                 getCurrentUserId(session),
                 (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME),
@@ -167,6 +168,7 @@ public class VersionControlController extends BaseController {
                                                        HttpSession session,
                                                        HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
+        visibilityService.assertManager(familyId, getCurrentUserId(session));
         Long userId = getCurrentUserId(session);
         String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
 
@@ -195,6 +197,7 @@ public class VersionControlController extends BaseController {
     @GetMapping("/snapshot/list")
     public Result<List<FamilySnapshot>> listSnapshots(HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
+        visibilityService.assertManager(familyId, getCurrentUserId(session));
         List<FamilySnapshot> snapshots = versionControlService.listSnapshots(familyId);
         return Result.success(snapshots);
     }
@@ -208,6 +211,7 @@ public class VersionControlController extends BaseController {
     @GetMapping("/snapshot/{snapshotId}")
     public Result<FamilySnapshot> getSnapshot(@PathVariable Long snapshotId, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
+        visibilityService.assertManager(familyId, getCurrentUserId(session));
         FamilySnapshot snapshot = versionControlService.getSnapshot(snapshotId, familyId);
         return Result.success(snapshot);
     }
@@ -223,6 +227,7 @@ public class VersionControlController extends BaseController {
     public Result<Void> deleteSnapshot(@PathVariable Long snapshotId, HttpSession session,
                                        HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
+        visibilityService.assertManager(familyId, getCurrentUserId(session));
         versionControlService.deleteSnapshot(snapshotId, familyId, getCurrentUserId(session),
                 (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME), getClientIp(request));
         return Result.success();
@@ -239,6 +244,7 @@ public class VersionControlController extends BaseController {
     @PostMapping("/snapshot/{snapshotId}/preview")
     public Result<Map<String, Object>> previewSnapshotRestore(@PathVariable Long snapshotId, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
+        visibilityService.assertManager(familyId, getCurrentUserId(session));
         Map<String, Object> snapshotData = versionControlService.restoreFromSnapshot(snapshotId, familyId);
         return Result.success(snapshotData);
     }

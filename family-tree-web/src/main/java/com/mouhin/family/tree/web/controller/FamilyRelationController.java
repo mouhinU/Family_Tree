@@ -66,12 +66,13 @@ public class FamilyRelationController extends BaseController {
     @GetMapping("/node/{nodeId}")
     public Result<List<FamilyRelationDTO>> listByNode(@PathVariable Long nodeId, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
-        return Result.success(familyRelationService.listRelationsByNode(familyId, nodeId));
+        return Result.success(familyRelationService.listRelationsByNode(
+                familyId, nodeId, getCurrentUserId(session)));
     }
 
     @GetMapping("/all")
     public Result<List<FamilyRelationDTO>> listAll(HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
-        return Result.success(familyRelationService.listAllRelations(familyId));
+        return Result.success(familyRelationService.listAllRelations(familyId, getCurrentUserId(session)));
     }
 }

@@ -20,24 +20,31 @@
      * @param {number} nodeId 节点ID
      */
     async function showVersionHistoryModal(nodeId) {
+        // 快照管理为整族级操作（创建/预览/删除/恢复），仅族长/管理员可见可用
+        var snapshotTabHtml = FT.state.isManager
+            ? '<button class="version-tab" data-tab="snapshot">快照管理</button>'
+            : '';
+        var snapshotPanelHtml = FT.state.isManager
+            ? '<div id="snapshot-panel" class="version-panel">'
+            + '<div style="margin-bottom:12px;text-align:right;">'
+            + '<button class="btn-sm primary" id="btn-create-snapshot">创建快照</button>'
+            + '</div>'
+            + '<div id="snapshot-list" class="snapshot-list"><p class="loading-text">加载中...</p></div>'
+            + '</div>'
+            : '';
         FT.showModal(
             '<div class="version-modal-header">'
             + '<h3 style="text-align:center;margin-bottom:0;">版本历史</h3>'
             + '<div class="version-tabs">'
             + '<button class="version-tab active" data-tab="timeline">历史时间线</button>'
-            + '<button class="version-tab" data-tab="snapshot">快照管理</button>'
+            + snapshotTabHtml
             + '</div>'
             + '</div>'
             + '<div id="version-tab-content" class="version-tab-content">'
             + '<div id="timeline-panel" class="version-panel active">'
             + '<div id="node-history-list" class="history-list"><p class="loading-text">加载中...</p></div>'
             + '</div>'
-            + '<div id="snapshot-panel" class="version-panel">'
-            + '<div style="margin-bottom:12px;text-align:right;">'
-            + '<button class="btn-sm primary" id="btn-create-snapshot">创建快照</button>'
-            + '</div>'
-            + '<div id="snapshot-list" class="snapshot-list"><p class="loading-text">加载中...</p></div>'
-            + '</div>'
+            + snapshotPanelHtml
             + '</div>'
             + '<div style="text-align:right;margin-top:12px;padding-top:8px;border-top:1px solid #d8cba8;">'
             + '<button class="btn-sm" data-close-modal>关闭</button>'
@@ -47,7 +54,9 @@
 
         bindTabEvents();
         await loadNodeHistory(nodeId);
-        loadSnapshots();
+        if (FT.state.isManager) {
+            loadSnapshots();
+        }
     }
 
     /* ================================================================

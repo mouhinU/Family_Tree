@@ -52,6 +52,7 @@ public class MemorialController extends BaseController {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
         String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        visibilityService.assertOperableNode(familyId, userId, nodeId);
         return Result.success(memorialApplicationService.postMessage(familyId, nodeId, userId, username, dto));
     }
 

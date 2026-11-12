@@ -15,19 +15,30 @@
 
     /**
      * 功能标签配置
+     * managerOnly 标签（智能录入/问答/OCR）为整族级操作，仅族长/管理员可见；
+     * 家族故事按节点生成，非管理员也可对其可见直系成员使用。
      */
     var TABS = [
-        { id: 'smart-entry', label: '智能录入', icon: '&#9998;' },
-        { id: 'query', label: '智能问答', icon: '&#10067;' },
+        { id: 'smart-entry', label: '智能录入', icon: '&#9998;', managerOnly: true },
+        { id: 'query', label: '智能问答', icon: '&#10067;', managerOnly: true },
         { id: 'story', label: '家族故事', icon: '&#128214;' },
-        { id: 'ocr', label: 'OCR 识别', icon: '&#128247;' }
+        { id: 'ocr', label: 'OCR 识别', icon: '&#128247;', managerOnly: true }
     ];
+
+    // 返回当前用户可用的标签（非管理员过滤掉 managerOnly 项）
+    function visibleTabs() {
+        if (FT.state.isManager) {
+            return TABS;
+        }
+        return TABS.filter(function (t) { return !t.managerOnly; });
+    }
 
     /**
      * 打开 AI 助手弹窗
      */
     function showAiModal() {
-        currentTab = 'smart-entry';
+        var tabs = visibleTabs();
+        currentTab = tabs.length ? tabs[0].id : 'story';
         renderModal();
         bindEvents();
     }
@@ -37,7 +48,7 @@
      */
     function renderModal() {
         var tabsHtml = '<div class="ai-tabs">';
-        TABS.forEach(function (tab) {
+        visibleTabs().forEach(function (tab) {
             var activeClass = tab.id === currentTab ? ' ai-tab-active' : '';
             tabsHtml += '<button class="ai-tab-btn' + activeClass + '" data-tab="' + tab.id + '">'
                 + '<span class="ai-tab-icon">' + tab.icon + '</span>'
