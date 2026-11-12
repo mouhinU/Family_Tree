@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -145,15 +144,22 @@ class FamilyTreeDomainServiceDetailTest {
     }
 
     @Test
-    void bloodSpouseWithOwnBranchGoesToBloodGroup() {
-        // 配偶 2 自身有父节点（100→2），属于族谱原生分支成员 → 血亲配偶
-        FamilyNode self = node(1L, "蒙甲", 2);
-        FamilyNode cousinWife = node(2L, "表妹", 2);
-        FamilyNode wifeParent = node(100L, "蒙乙", 1);
-        List<FamilyNode> nodes = List.of(self, cousinWife, wifeParent);
+    void bloodSpouseBothNativeGoesToBloodGroup() {
+        // 双方都是本支血亲（各有父节点，且共享祖父 → 亲表兄妹）：双血亲婚姻，标"各留本支"
+        // 500 ─┬─ 200 ─ 1(蒙甲)
+        //      └─ 100 ─ 2(表妹)
+        FamilyNode grandpa = node(500L, "蒙祖", 1);
+        FamilyNode selfParent = node(200L, "蒙大伯", 2);
+        FamilyNode wifeParent = node(100L, "蒙二伯", 2);
+        FamilyNode self = node(1L, "蒙甲", 3);
+        FamilyNode cousinWife = node(2L, "表妹", 3);
+        List<FamilyNode> nodes = List.of(grandpa, selfParent, wifeParent, self, cousinWife);
         List<FamilyRelation> relations = new ArrayList<>();
         relations.add(spouse(10L, 1L, 2L));
-        relations.add(parentChild(11L, 100L, 2L));
+        relations.add(parentChild(20L, 500L, 200L));
+        relations.add(parentChild(21L, 500L, 100L));
+        relations.add(parentChild(22L, 200L, 1L));
+        relations.add(parentChild(23L, 100L, 2L));
 
         NodeDetailVO detail = service.buildNodeDetail(self, nodes, relations);
 
@@ -161,7 +167,65 @@ class FamilyTreeDomainServiceDetailTest {
         assertTrue(detail.getSpouses().isEmpty());
         NodeDetailVO.SpouseRelation row = detail.getBloodSpouses().get(0);
         assertEquals(2L, row.getNodeId());
-        assertNotNull(row.getBloodRelationLabel());
+        assertEquals("亲表兄妹", row.getBloodRelationLabel());
+    }
+
+    @Test
+    void marriedInSpouseViewedByNativePartnerIsOrdinaryMarriage() {
+        // 本支蒙乙(2) 娶进门王氏(1)：王氏无父节点(as_child=0)。
+        // 从蒙乙视角看，王氏不是血亲配偶，应归普通在婚组，无"各留本支"字样
+        FamilyNode husband = node(2L, "蒙乙", 2);
+        FamilyNode wife = node(1L, "王氏", 2);
+        FamilyNode husbandParent = node(100L, "蒙甲", 1);
+        List<FamilyNode> nodes = List.of(husband, wife, husbandParent);
+        List<FamilyRelation> relations = new ArrayList<>();
+        relations.add(spouse(10L, 1L, 2L));
+        relations.add(parentChild(11L, 100L, 2L));
+
+        NodeDetailVO detail = service.buildNodeDetail(husband, nodes, relations);
+
+        assertTrue(detail.getBloodSpouses().isEmpty());
+        assertEquals(1, detail.getSpouses().size());
+        assertEquals(1L, detail.getSpouses().get(0).getNodeId());
+    }
+
+    @Test
+    void nativeViewingMarriedInSpouseIsNotBloodSpouse() {
+        // 用户报障场景：从娶/嫁进门一方(1，无父节点)查看其本支配偶蒙乙(2)。
+        // 此前仅凭配偶是本支就误判为"血亲配偶·各留本支"，现应回落普通婚姻组
+        FamilyNode wife = node(1L, "冉氏", 2);
+        FamilyNode husband = node(2L, "蒙乙", 2);
+        FamilyNode husbandParent = node(100L, "蒙甲", 1);
+        List<FamilyNode> nodes = List.of(wife, husband, husbandParent);
+        List<FamilyRelation> relations = new ArrayList<>();
+        relations.add(spouse(10L, 1L, 2L));
+        relations.add(parentChild(11L, 100L, 2L));
+
+        NodeDetailVO detail = service.buildNodeDetail(wife, nodes, relations);
+
+        assertTrue(detail.getBloodSpouses().isEmpty());
+        assertEquals(1, detail.getSpouses().size());
+        assertEquals(2L, detail.getSpouses().get(0).getNodeId());
+    }
+
+    @Test
+    void bloodSpouseWithoutCommonAncestorFallsBackToNeutralLabel() {
+        // 双方均本支但无共同祖先（不同支系联姻）：cousinDistance 返回 Integer.MAX_VALUE，
+        // 不应命中 >=4 被误标"远房表亲"，回落中性"血亲"
+        FamilyNode self = node(1L, "蒙甲", 2);
+        FamilyNode selfParent = node(200L, "蒙父", 1);
+        FamilyNode spouse = node(2L, "蒙乙", 2);
+        FamilyNode spouseParent = node(100L, "蒙丙", 1);
+        List<FamilyNode> nodes = List.of(self, selfParent, spouse, spouseParent);
+        List<FamilyRelation> relations = new ArrayList<>();
+        relations.add(spouse(10L, 1L, 2L));
+        relations.add(parentChild(11L, 200L, 1L));
+        relations.add(parentChild(12L, 100L, 2L));
+
+        NodeDetailVO detail = service.buildNodeDetail(self, nodes, relations);
+
+        assertEquals(1, detail.getBloodSpouses().size());
+        assertEquals("血亲", detail.getBloodSpouses().get(0).getBloodRelationLabel());
     }
 
     @Test

@@ -149,6 +149,9 @@ public class FamilyTreeDomainService {
                 .filter(r -> r.isParentChild() || r.isAdoption())
                 .map(FamilyRelation::getToNodeId)
                 .collect(Collectors.toSet());
+        // 所查看节点本身是否本支血亲（在亲子/过继链上）。仅当双方都是本支成员时，
+        // 该配偶关系才是"血亲配偶·各留本支"（双血亲婚姻）；一方娶/嫁进门则为普通婚姻。
+        boolean viewedNodeIsNative = childIds.contains(node.getId());
 
         NodeDetailVO detail = new NodeDetailVO();
         detail.setId(node.getId());
@@ -190,7 +193,7 @@ public class FamilyTreeDomainService {
             row.setDivorceDate(rel.getDivorceDate() != null
                     ? rel.getDivorceDate().toString() : null);
 
-            if (childIds.contains(spouseId)) {
+            if (viewedNodeIsNative && childIds.contains(spouseId)) {
                 row.setBloodRelationLabel(
                         bloodRelationLabel(node.getId(), spouseId, parentIdsByChild));
                 detail.getBloodSpouses().add(row);
@@ -405,6 +408,11 @@ public class FamilyTreeDomainService {
     private String bloodRelationLabel(Long aId, Long bId,
                                       Map<Long, List<Long>> parentIdsByChild) {
         int distance = cousinDistance(aId, bId, parentIdsByChild);
+        // 无共同祖先（如娶/嫁进门一方与本支成员）时 cousinDistance 返回 Integer.MAX_VALUE，
+        // 若不拦截会因 MAX_VALUE>=4 被误判为"远房表亲"，此处回落中性标签"血亲"
+        if (distance == Integer.MAX_VALUE) {
+            return "血亲";
+        }
         if (distance == 2) {
             return "亲表兄妹";
         }
