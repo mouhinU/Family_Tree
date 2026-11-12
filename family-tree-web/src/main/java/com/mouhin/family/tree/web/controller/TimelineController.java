@@ -1,11 +1,11 @@
 package com.mouhin.family.tree.web.controller;
 
-import com.mouhin.family.tree.application.service.FamilyNodeVisibilityApplicationService;
 import com.mouhin.family.tree.application.service.TimelineApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.PageResult;
 import com.mouhin.family.tree.common.result.Result;
 import com.mouhin.family.tree.domain.entity.TimelineEvent;
+import com.mouhin.family.tree.web.security.RequireFamilyManager;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,12 +33,9 @@ public class TimelineController extends BaseController {
     private static final Logger logger = LoggerFactory.getLogger(TimelineController.class);
 
     private final TimelineApplicationService timelineApplicationService;
-    private final FamilyNodeVisibilityApplicationService visibilityService;
 
-    public TimelineController(TimelineApplicationService timelineApplicationService,
-                              FamilyNodeVisibilityApplicationService visibilityService) {
+    public TimelineController(TimelineApplicationService timelineApplicationService) {
         this.timelineApplicationService = timelineApplicationService;
-        this.visibilityService = visibilityService;
     }
 
     /**
@@ -113,9 +110,9 @@ public class TimelineController extends BaseController {
      * @return 回填的事件数量
      */
     @PostMapping("/backfill")
+    @RequireFamilyManager
     public Result<Integer> backfill(HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
-        visibilityService.assertManager(familyId, getCurrentUserId(session));
         int count = timelineApplicationService.backfill(familyId);
         logger.info("Timeline backfill: familyId={}, count={}", familyId, count);
         return Result.success(count);

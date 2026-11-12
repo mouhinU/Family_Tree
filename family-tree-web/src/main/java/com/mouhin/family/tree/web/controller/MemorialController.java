@@ -1,11 +1,12 @@
 package com.mouhin.family.tree.web.controller;
 
-import com.mouhin.family.tree.application.service.FamilyNodeVisibilityApplicationService;
 import com.mouhin.family.tree.application.service.MemorialApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.MemorialMessageDTO;
 import com.mouhin.family.tree.common.dto.MemorialMessageVO;
 import com.mouhin.family.tree.common.result.Result;
+import com.mouhin.family.tree.web.security.NodeAccessActionEnum;
+import com.mouhin.family.tree.web.security.RequireNodeAccess;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
@@ -23,22 +24,19 @@ import java.util.List;
 public class MemorialController extends BaseController {
 
     private final MemorialApplicationService memorialApplicationService;
-    private final FamilyNodeVisibilityApplicationService visibilityService;
 
-    public MemorialController(MemorialApplicationService memorialApplicationService,
-                              FamilyNodeVisibilityApplicationService visibilityService) {
+    public MemorialController(MemorialApplicationService memorialApplicationService) {
         this.memorialApplicationService = memorialApplicationService;
-        this.visibilityService = visibilityService;
     }
 
     /**
      * 查询节点的缅怀留言列表
      */
     @GetMapping("/node/{nodeId}")
+    @RequireNodeAccess(node = "#nodeId", action = NodeAccessActionEnum.VIEW)
     public Result<List<MemorialMessageVO>> listMessages(@PathVariable Long nodeId, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
-        visibilityService.assertDetailVisible(familyId, userId, nodeId);
         return Result.success(memorialApplicationService.listMessages(familyId, nodeId, userId));
     }
 
@@ -46,13 +44,13 @@ public class MemorialController extends BaseController {
      * 发布缅怀留言
      */
     @PostMapping("/node/{nodeId}")
+    @RequireNodeAccess(node = "#nodeId", action = NodeAccessActionEnum.OPERATE)
     public Result<MemorialMessageVO> postMessage(@PathVariable Long nodeId,
                                                  @Valid @RequestBody MemorialMessageDTO dto,
                                                  HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
         String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
-        visibilityService.assertOperableNode(familyId, userId, nodeId);
         return Result.success(memorialApplicationService.postMessage(familyId, nodeId, userId, username, dto));
     }
 

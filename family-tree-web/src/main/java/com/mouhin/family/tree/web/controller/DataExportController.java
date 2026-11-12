@@ -1,18 +1,15 @@
 package com.mouhin.family.tree.web.controller;
 
-import com.mouhin.family.tree.application.service.FamilyApplicationService;
 import com.mouhin.family.tree.application.service.FamilyNodeApplicationService;
 import com.mouhin.family.tree.application.service.FamilyRelationApplicationService;
 import com.mouhin.family.tree.application.service.GedcomApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
-import com.mouhin.family.tree.common.dto.FamilyDTO;
 import com.mouhin.family.tree.common.dto.FamilyNodeDTO;
 import com.mouhin.family.tree.common.dto.FamilyRelationDTO;
 import com.mouhin.family.tree.common.dto.GedcomImportResultVO;
-import com.mouhin.family.tree.common.enums.FamilyMemberRoleEnum;
-import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.common.result.Result;
 import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
+import com.mouhin.family.tree.web.security.RequireFamilyManager;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -49,18 +46,15 @@ public class DataExportController extends BaseController {
     private final FamilyNodeApplicationService familyNodeService;
     private final FamilyRelationApplicationService familyRelationService;
     private final GedcomApplicationService gedcomApplicationService;
-    private final FamilyApplicationService familyApplicationService;
     private final ApplicationEventPublisher eventPublisher;
 
     public DataExportController(FamilyNodeApplicationService familyNodeService,
                                 FamilyRelationApplicationService familyRelationService,
                                 GedcomApplicationService gedcomApplicationService,
-                                FamilyApplicationService familyApplicationService,
                                 ApplicationEventPublisher eventPublisher) {
         this.familyNodeService = familyNodeService;
         this.familyRelationService = familyRelationService;
         this.gedcomApplicationService = gedcomApplicationService;
-        this.familyApplicationService = familyApplicationService;
         this.eventPublisher = eventPublisher;
     }
 
@@ -68,9 +62,9 @@ public class DataExportController extends BaseController {
      * 导出当前家族全部节点与关系为 JSON
      */
     @GetMapping("/export")
+    @RequireFamilyManager
     public Result<Map<String, Object>> exportData(HttpSession session, HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
-        requireManager(getCurrentUserId(session));
         List<FamilyNodeDTO> nodes = familyNodeService.listNodes(familyId);
         List<FamilyRelationDTO> relations = familyRelationService.listAllRelations(familyId);
 
@@ -95,10 +89,10 @@ public class DataExportController extends BaseController {
      * @param response HTTP响应
      */
     @GetMapping("/export/gedcom")
+    @RequireFamilyManager
     public void exportGedcom(HttpSession session, HttpServletRequest request,
                              HttpServletResponse response) throws IOException {
         Long familyId = getCurrentFamilyId(session);
-        requireManager(getCurrentUserId(session));
         String gedcomContent = gedcomApplicationService.exportGedcom(familyId, getCurrentUserId(session),
                 (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME), getClientIp(request));
 
@@ -120,12 +114,12 @@ public class DataExportController extends BaseController {
      * @return 导入结果
      */
     @PostMapping("/import/gedcom")
+    @RequireFamilyManager
     public Result<GedcomImportResultVO> importGedcom(
             @RequestParam("file") MultipartFile file,
             HttpSession session, HttpServletRequest request) throws IOException {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
-        requireManager(userId);
         String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
         String content = readGedcomFile(file);
 
@@ -144,12 +138,12 @@ public class DataExportController extends BaseController {
      * @return 导入结果
      */
     @PostMapping("/import/gedcom/append")
+    @RequireFamilyManager
     public Result<GedcomImportResultVO> appendImportGedcom(
             @RequestParam("file") MultipartFile file,
             HttpSession session, HttpServletRequest request) throws IOException {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
-        requireManager(userId);
         String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
         String content = readGedcomFile(file);
 
@@ -158,23 +152,6 @@ public class DataExportController extends BaseController {
         logger.info("GEDCOM append import completed for family={}: {} nodes imported",
                 familyId, result.getImportedNodeCount());
         return Result.success(result);
-    }
-
-    /**
-     * 校验操作者为族长或管理员，否则抛出权限异常
-     *
-     * @param userId 操作者用户ID
-     */
-    private void requireManager(Long userId) {
-        FamilyDTO family = familyApplicationService.getCurrentFamily(userId);
-        if (family == null) {
-            throw new BusinessException("请先加入或创建家族");
-        }
-        String role = family.getCurrentRole();
-        if (!FamilyMemberRoleEnum.OWNER.getCode().equals(role)
-                && !FamilyMemberRoleEnum.ADMIN.getCode().equals(role)) {
-            throw new BusinessException("仅族长或管理员可执行此操作");
-        }
     }
 
     /**

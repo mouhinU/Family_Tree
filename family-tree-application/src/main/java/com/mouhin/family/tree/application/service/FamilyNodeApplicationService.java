@@ -88,12 +88,8 @@ public class FamilyNodeApplicationService {
     @Transactional(rollbackFor = Exception.class)
     public Long createNode(Long familyId, Long userId, String username, String ipAddress,
                            NodeCreateDTO dto) {
-        // 非管理员节点操作收口：以本次挂靠的锚点（父/子/配偶）裁决；无锚点的新根节点仅管理员可建，
-        // 新节点建成后因血缘关系自动纳入操作者可见集合，无需额外授权。
-        Long anchorNodeId = dto.getParentNodeId() != null ? dto.getParentNodeId()
-                : dto.getChildNodeId() != null ? dto.getChildNodeId() : dto.getSpouseNodeId();
-        visibilityService.assertOperableNode(familyId, userId, anchorNodeId);
-
+        // 非管理员节点操作收口已上移至控制器端点 @RequireNodeAccess（以本次挂靠锚点裁决可见性）；
+        // 此处仅保留家族归属校验（checkNodeBelongsToFamily），新节点建成后因血缘自动纳入操作者可见集合。
         if (dto.getName() == null || dto.getName().isBlank()) {
             throw new BusinessException("节点名称不能为空");
         }
@@ -246,7 +242,6 @@ public class FamilyNodeApplicationService {
     @Transactional(rollbackFor = Exception.class)
     public void updateNode(Long familyId, Long userId, String username, String ipAddress,
                            FamilyNodeDTO dto) {
-        visibilityService.assertOperableNode(familyId, userId, dto.getId());
         FamilyNode existing = checkNodeBelongsToFamily(familyId, dto.getId());
 
         // 保存修改前的快照用于版本记录
@@ -371,7 +366,6 @@ public class FamilyNodeApplicationService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void deleteNode(Long familyId, Long nodeId, Long userId, String username, String ipAddress) {
-        visibilityService.assertOperableNode(familyId, userId, nodeId);
         FamilyNode node = checkNodeBelongsToFamily(familyId, nodeId);
 
         // 真人标记为本人的节点禁止删除；仅自动账号绑定的节点回收账号后放行
@@ -470,7 +464,6 @@ public class FamilyNodeApplicationService {
             throw new BusinessException("节点ID列表不能为空");
         }
         ColorLabelEnum.validateCode(colorLabel);
-        visibilityService.assertOperableNodes(familyId, userId, nodeIds.toArray(new Long[0]));
 
         // 批量校验归属
         List<FamilyNode> nodes = familyNodeRepository.findByIds(nodeIds);

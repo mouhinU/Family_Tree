@@ -1,10 +1,11 @@
 package com.mouhin.family.tree.web.controller;
 
-import com.mouhin.family.tree.application.service.FamilyNodeVisibilityApplicationService;
 import com.mouhin.family.tree.application.service.FamilyOfferingApplicationService;
 import com.mouhin.family.tree.common.dto.OfferingDTO;
 import com.mouhin.family.tree.common.dto.OfferingStatVO;
 import com.mouhin.family.tree.common.result.Result;
+import com.mouhin.family.tree.web.security.NodeAccessActionEnum;
+import com.mouhin.family.tree.web.security.RequireNodeAccess;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,22 +22,19 @@ import java.util.List;
 public class FamilyOfferingController extends BaseController {
 
     private final FamilyOfferingApplicationService familyOfferingService;
-    private final FamilyNodeVisibilityApplicationService visibilityService;
 
-    public FamilyOfferingController(FamilyOfferingApplicationService familyOfferingService,
-                                    FamilyNodeVisibilityApplicationService visibilityService) {
+    public FamilyOfferingController(FamilyOfferingApplicationService familyOfferingService) {
         this.familyOfferingService = familyOfferingService;
-        this.visibilityService = visibilityService;
     }
 
     /**
      * 记录一次上香烛 / 烧纸操作。
      */
     @PostMapping
+    @RequireNodeAccess(node = "#dto.nodeId", action = NodeAccessActionEnum.OPERATE)
     public Result<Void> offer(@RequestBody OfferingDTO dto, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
-        visibilityService.assertOperableNode(familyId, userId, dto.getNodeId());
         familyOfferingService.offer(familyId, userId, dto);
         return Result.success();
     }
@@ -45,9 +43,9 @@ public class FamilyOfferingController extends BaseController {
      * 查询某已故节点的祭奠统计（香烛、烧纸的次数与人员明细）。
      */
     @GetMapping("/node/{nodeId}")
+    @RequireNodeAccess(node = "#nodeId", action = NodeAccessActionEnum.VIEW)
     public Result<List<OfferingStatVO>> listByNode(@PathVariable Long nodeId, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
-        visibilityService.assertDetailVisible(familyId, getCurrentUserId(session), nodeId);
         return Result.success(familyOfferingService.listStatsByNode(familyId, nodeId));
     }
 }

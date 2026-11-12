@@ -1,12 +1,14 @@
 package com.mouhin.family.tree.web.controller;
 
-import com.mouhin.family.tree.application.service.FamilyNodeVisibilityApplicationService;
 import com.mouhin.family.tree.application.service.VersionControlApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.result.Result;
 import com.mouhin.family.tree.domain.entity.FamilySnapshot;
 import com.mouhin.family.tree.domain.entity.NodeHistory;
 import com.mouhin.family.tree.domain.entity.RelationHistory;
+import com.mouhin.family.tree.web.security.NodeAccessActionEnum;
+import com.mouhin.family.tree.web.security.RequireFamilyManager;
+import com.mouhin.family.tree.web.security.RequireNodeAccess;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.*;
@@ -26,12 +28,9 @@ import java.util.Map;
 public class VersionControlController extends BaseController {
 
     private final VersionControlApplicationService versionControlService;
-    private final FamilyNodeVisibilityApplicationService visibilityService;
 
-    public VersionControlController(VersionControlApplicationService versionControlService,
-                                    FamilyNodeVisibilityApplicationService visibilityService) {
+    public VersionControlController(VersionControlApplicationService versionControlService) {
         this.versionControlService = versionControlService;
-        this.visibilityService = visibilityService;
     }
 
     /**
@@ -44,12 +43,12 @@ public class VersionControlController extends BaseController {
      * @return 历史记录列表
      */
     @GetMapping("/node/{nodeId}/history")
+    @RequireNodeAccess(node = "#nodeId", action = NodeAccessActionEnum.VIEW)
     public Result<Map<String, Object>> getNodeHistory(@PathVariable Long nodeId,
                                                        @RequestParam(defaultValue = "1") int page,
                                                        @RequestParam(defaultValue = "20") int size,
                                                        HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
-        visibilityService.assertDetailVisible(familyId, getCurrentUserId(session), nodeId);
         List<NodeHistory> historyList = versionControlService.getNodeHistory(nodeId, familyId, page, size);
         long total = versionControlService.countNodeHistory(nodeId, familyId);
 
@@ -98,12 +97,12 @@ public class VersionControlController extends BaseController {
      * @return 差异Map
      */
     @GetMapping("/node/{nodeId}/compare")
+    @RequireNodeAccess(node = "#nodeId", action = NodeAccessActionEnum.VIEW)
     public Result<Map<String, Object[]>> compareNodeVersions(@PathVariable Long nodeId,
                                                               @RequestParam Integer v1,
                                                               @RequestParam Integer v2,
                                                               HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
-        visibilityService.assertDetailVisible(familyId, getCurrentUserId(session), nodeId);
         Map<String, Object[]> differences = versionControlService.compareNodeVersions(nodeId, v1, v2, familyId);
         return Result.success(differences);
     }
@@ -135,12 +134,12 @@ public class VersionControlController extends BaseController {
      * @return 回滚后的节点数据
      */
     @PostMapping("/node/{nodeId}/rollback")
+    @RequireNodeAccess(node = "#nodeId", action = NodeAccessActionEnum.OPERATE)
     public Result<Map<String, Object>> rollbackNode(@PathVariable Long nodeId,
                                                      @RequestParam Integer versionId,
                                                      HttpSession session,
                                                      HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
-        visibilityService.assertOperableNode(familyId, getCurrentUserId(session), nodeId);
         String nodeData = versionControlService.rollbackNodeToVersion(nodeId, versionId, familyId,
                 getCurrentUserId(session),
                 (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME),
@@ -163,12 +162,12 @@ public class VersionControlController extends BaseController {
      * @return 创建的快照ID
      */
     @PostMapping("/snapshot")
+    @RequireFamilyManager
     public Result<Map<String, Object>> createSnapshot(@RequestParam String snapshotName,
                                                        @RequestParam(required = false) String description,
                                                        HttpSession session,
                                                        HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
-        visibilityService.assertManager(familyId, getCurrentUserId(session));
         Long userId = getCurrentUserId(session);
         String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
 
@@ -195,9 +194,9 @@ public class VersionControlController extends BaseController {
      * @return 快照列表
      */
     @GetMapping("/snapshot/list")
+    @RequireFamilyManager
     public Result<List<FamilySnapshot>> listSnapshots(HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
-        visibilityService.assertManager(familyId, getCurrentUserId(session));
         List<FamilySnapshot> snapshots = versionControlService.listSnapshots(familyId);
         return Result.success(snapshots);
     }
@@ -209,9 +208,9 @@ public class VersionControlController extends BaseController {
      * @return 快照详情
      */
     @GetMapping("/snapshot/{snapshotId}")
+    @RequireFamilyManager
     public Result<FamilySnapshot> getSnapshot(@PathVariable Long snapshotId, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
-        visibilityService.assertManager(familyId, getCurrentUserId(session));
         FamilySnapshot snapshot = versionControlService.getSnapshot(snapshotId, familyId);
         return Result.success(snapshot);
     }
@@ -224,10 +223,10 @@ public class VersionControlController extends BaseController {
      * @return 操作结果
      */
     @DeleteMapping("/snapshot/{snapshotId}")
+    @RequireFamilyManager
     public Result<Void> deleteSnapshot(@PathVariable Long snapshotId, HttpSession session,
                                        HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
-        visibilityService.assertManager(familyId, getCurrentUserId(session));
         versionControlService.deleteSnapshot(snapshotId, familyId, getCurrentUserId(session),
                 (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME), getClientIp(request));
         return Result.success();
@@ -242,9 +241,9 @@ public class VersionControlController extends BaseController {
      * @return 快照中的节点和关系数据
      */
     @PostMapping("/snapshot/{snapshotId}/preview")
+    @RequireFamilyManager
     public Result<Map<String, Object>> previewSnapshotRestore(@PathVariable Long snapshotId, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
-        visibilityService.assertManager(familyId, getCurrentUserId(session));
         Map<String, Object> snapshotData = versionControlService.restoreFromSnapshot(snapshotId, familyId);
         return Result.success(snapshotData);
     }

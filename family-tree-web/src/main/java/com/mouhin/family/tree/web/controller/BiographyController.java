@@ -1,10 +1,11 @@
 package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.BiographyApplicationService;
-import com.mouhin.family.tree.application.service.FamilyNodeVisibilityApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.BiographyUpdateDTO;
 import com.mouhin.family.tree.common.result.Result;
+import com.mouhin.family.tree.web.security.NodeAccessActionEnum;
+import com.mouhin.family.tree.web.security.RequireNodeAccess;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,21 +23,18 @@ import java.util.Map;
 public class BiographyController extends BaseController {
 
     private final BiographyApplicationService biographyApplicationService;
-    private final FamilyNodeVisibilityApplicationService visibilityService;
 
-    public BiographyController(BiographyApplicationService biographyApplicationService,
-                               FamilyNodeVisibilityApplicationService visibilityService) {
+    public BiographyController(BiographyApplicationService biographyApplicationService) {
         this.biographyApplicationService = biographyApplicationService;
-        this.visibilityService = visibilityService;
     }
 
     /**
      * 查询人物传记（富文本）
      */
     @GetMapping("/{nodeId}")
+    @RequireNodeAccess(node = "#nodeId", action = NodeAccessActionEnum.VIEW)
     public Result<Map<String, Object>> getBiography(@PathVariable Long nodeId, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
-        visibilityService.assertDetailVisible(familyId, getCurrentUserId(session), nodeId);
         String biography = biographyApplicationService.getBiography(familyId, nodeId);
         Map<String, Object> data = new HashMap<>(4);
         data.put("nodeId", nodeId);
@@ -48,13 +46,13 @@ public class BiographyController extends BaseController {
      * 更新人物传记（富文本，服务端清洗后存储）
      */
     @PutMapping("/{nodeId}")
+    @RequireNodeAccess(node = "#nodeId", action = NodeAccessActionEnum.OPERATE)
     public Result<Void> updateBiography(@PathVariable Long nodeId,
                                         @RequestBody BiographyUpdateDTO dto,
                                         HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
         Long userId = getCurrentUserId(session);
         String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
-        visibilityService.assertOperableNode(familyId, userId, nodeId);
         biographyApplicationService.updateBiography(familyId, nodeId, userId, username, dto);
         return Result.success();
     }

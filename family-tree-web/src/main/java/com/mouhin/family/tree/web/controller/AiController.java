@@ -1,9 +1,11 @@
 package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.AiApplicationService;
-import com.mouhin.family.tree.application.service.FamilyNodeVisibilityApplicationService;
 import com.mouhin.family.tree.common.dto.*;
 import com.mouhin.family.tree.common.result.Result;
+import com.mouhin.family.tree.web.security.NodeAccessActionEnum;
+import com.mouhin.family.tree.web.security.RequireFamilyManager;
+import com.mouhin.family.tree.web.security.RequireNodeAccess;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,21 +26,18 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiController extends BaseController {
 
     private final AiApplicationService aiApplicationService;
-    private final FamilyNodeVisibilityApplicationService visibilityService;
 
-    public AiController(AiApplicationService aiApplicationService,
-                        FamilyNodeVisibilityApplicationService visibilityService) {
+    public AiController(AiApplicationService aiApplicationService) {
         this.aiApplicationService = aiApplicationService;
-        this.visibilityService = visibilityService;
     }
 
     /**
      * 智能录入：自然语言描述 → 结构化节点 + 关系
      */
     @PostMapping("/smart-entry")
+    @RequireFamilyManager
     public Result<AiSmartEntryVO> smartEntry(HttpSession session, @Valid @RequestBody AiSmartEntryDTO dto) {
         Long familyId = getCurrentFamilyId(session);
-        visibilityService.assertManager(familyId, getCurrentUserId(session));
         AiSmartEntryVO vo = aiApplicationService.smartEntry(familyId, dto);
         return Result.success(vo);
     }
@@ -47,9 +46,9 @@ public class AiController extends BaseController {
      * 自然语言查询：基于族谱数据回答问题
      */
     @PostMapping("/query")
+    @RequireFamilyManager
     public Result<AiQueryVO> query(HttpSession session, @Valid @RequestBody AiQueryDTO dto) {
         Long familyId = getCurrentFamilyId(session);
-        visibilityService.assertManager(familyId, getCurrentUserId(session));
         AiQueryVO vo = aiApplicationService.query(familyId, dto);
         return Result.success(vo);
     }
@@ -58,9 +57,9 @@ public class AiController extends BaseController {
      * 生成家族故事：基于指定节点生成人物传记
      */
     @PostMapping("/story")
+    @RequireNodeAccess(node = "#dto.nodeId", action = NodeAccessActionEnum.OPERATE)
     public Result<AiStoryVO> generateStory(HttpSession session, @Valid @RequestBody AiStoryDTO dto) {
         Long familyId = getCurrentFamilyId(session);
-        visibilityService.assertOperableNode(familyId, getCurrentUserId(session), dto.getNodeId());
         AiStoryVO vo = aiApplicationService.generateStory(familyId, dto);
         return Result.success(vo);
     }
@@ -69,9 +68,9 @@ public class AiController extends BaseController {
      * OCR 解析：将 OCR 识别文字解析为结构化数据
      */
     @PostMapping("/ocr-parse")
+    @RequireFamilyManager
     public Result<AiSmartEntryVO> ocrParse(HttpSession session, @Valid @RequestBody AiOcrParseDTO dto) {
         Long familyId = getCurrentFamilyId(session);
-        visibilityService.assertManager(familyId, getCurrentUserId(session));
         AiSmartEntryVO vo = aiApplicationService.ocrParse(familyId, dto);
         return Result.success(vo);
     }

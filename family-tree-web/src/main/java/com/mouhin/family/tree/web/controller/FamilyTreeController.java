@@ -5,6 +5,8 @@ import com.mouhin.family.tree.application.service.FamilyTreeApplicationService;
 import com.mouhin.family.tree.common.dto.DetailScopeVO;
 import com.mouhin.family.tree.common.dto.TreeNodeVO;
 import com.mouhin.family.tree.common.result.Result;
+import com.mouhin.family.tree.web.security.NodeAccessActionEnum;
+import com.mouhin.family.tree.web.security.RequireNodeAccess;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -41,9 +43,9 @@ public class FamilyTreeController extends BaseController {
     }
 
     @GetMapping("/subtree")
+    @RequireNodeAccess(node = "#nodeId", action = NodeAccessActionEnum.VIEW)
     public Result<TreeNodeVO> subTree(@RequestParam Long nodeId, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
-        visibilityService.assertDetailVisible(familyId, getCurrentUserId(session), nodeId);
         return Result.success(familyTreeService.getSubTree(familyId, nodeId));
     }
 
