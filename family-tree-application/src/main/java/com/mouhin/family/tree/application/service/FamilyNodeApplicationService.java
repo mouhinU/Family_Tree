@@ -6,6 +6,7 @@ import com.mouhin.family.tree.common.dto.NodeCreateDTO;
 import com.mouhin.family.tree.common.enums.ColorLabelEnum;
 import com.mouhin.family.tree.common.enums.RelationTypeEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
+import com.mouhin.family.tree.common.util.LunarSolarUtil;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
@@ -121,7 +122,10 @@ public class FamilyNodeApplicationService {
                     + FamilyTreeConsts.MAX_REMARK_LENGTH + "个字符");
         }
         node.setRemark(dto.getRemark());
-        node.setLunarBirthDate(dto.getLunarBirthDate());
+        // 农历出生日期以阳历为唯一真值推导；阳历缺失时保留入参手填农历（兼容 AI/历史自由文本）
+        node.setLunarBirthDate(node.getBirthDate() != null
+                ? LunarSolarUtil.solarToLunar(node.getBirthDate())
+                : dto.getLunarBirthDate());
         node.setLunarDeathDate(dto.getLunarDeathDate());
         node.setZi(dto.getZi());
         node.setHao(dto.getHao());
@@ -289,7 +293,8 @@ public class FamilyNodeApplicationService {
         }
 
         // 传统族谱字段更新
-        if (dto.getLunarBirthDate() != null) {
+        // 农历出生现由阳历推导（见下方日期块）；仅当本次未提交阳历出生日期时，才允许直接更新手填农历，兼容历史自由文本
+        if (dto.getBirthDate() == null && dto.getLunarBirthDate() != null) {
             existing.setLunarBirthDate(dto.getLunarBirthDate());
         }
         if (dto.getLunarDeathDate() != null) {
@@ -316,8 +321,10 @@ public class FamilyNodeApplicationService {
 
         // 日期字段需支持显式清除（传空字符串表示清空）
         if (dto.getBirthDate() != null) {
-            existing.setBirthDate(
-                    dto.getBirthDate().isBlank() ? null : parseDate(dto.getBirthDate()));
+            LocalDate newBirth = dto.getBirthDate().isBlank() ? null : parseDate(dto.getBirthDate());
+            existing.setBirthDate(newBirth);
+            // 阳历为唯一真值：提交阳历时农历一律重算（清空阳历则清空农历）
+            existing.setLunarBirthDate(LunarSolarUtil.solarToLunar(newBirth));
         }
         if (dto.getDeathDate() != null) {
             existing.setDeathDate(

@@ -26,7 +26,7 @@
             '<div class="form-group"><label>姓名</label><input type="text" id="modal-name" placeholder="请输入姓名"></div>' +
             '<div class="form-group"><label>性别</label><select id="modal-gender">' +
             '<option value="0">未知</option><option value="1">男</option><option value="2">女</option></select></div>' +
-            '<div class="form-group"><label>出生日期</label><input type="date" id="modal-birth"></div>' +
+            '<div class="form-group"><label>出生日期</label>' + FT.birthCalendar.buildField('modal-birth', null) + '</div>' +
             orderField +
             '<div class="form-group"><label>颜色标注</label><select id="modal-color">' + colorOpts + '</select></div>' +
             '<div class="form-group"><label>备注</label><input type="text" id="modal-remark" placeholder="可选"></div>' +
@@ -34,6 +34,8 @@
             '<button class="btn-cancel" data-close-modal>取消</button>' +
             '<button class="btn-confirm" id="modal-submit">确定</button></div>'
         );
+
+        FT.birthCalendar.init('modal-birth', {});
 
         // 添加配偶时按目标节点性别自动预选相反性别：男→女，女→男；未知则保持"未知"
         if (relationOpts.spouseNodeId) {
@@ -53,10 +55,12 @@
             if (!name) { FT.toast('请输入姓名', 'warning'); return; }
 
             var orderEl = document.getElementById('modal-order');
+            var bc = FT.birthCalendar.getSolar('modal-birth');
+            if (!bc.ok) { FT.toast(bc.message, 'warning'); return; }
             var body = {
                 name: name,
                 gender: parseInt(document.getElementById('modal-gender').value),
-                birthDate: document.getElementById('modal-birth').value || null,
+                birthDate: bc.solar,
                 birthOrder: orderEl && orderEl.value ? parseInt(orderEl.value) : null,
                 colorLabel: document.getElementById('modal-color').value,
                 remark: document.getElementById('modal-remark').value || null,
@@ -187,8 +191,7 @@
             '<h3>编辑基本信息</h3>' +
             '<div class="form-group"><label>姓名</label><input type="text" id="modal-name" value="' + FT.escapeAttr(node.name || '') + '"></div>' +
             '<div class="form-group"><label>性别</label><select id="modal-gender">' + genderOpts + '</select></div>' +
-            '<div class="form-group"><label>出生日期</label><input type="date" id="modal-birth" value="' + FT.escapeAttr(node.birthDate || '') + '"></div>' +
-            '<div class="form-group"><label>农历出生</label><input type="text" id="modal-lunar-birth" value="' + FT.escapeAttr(node.lunarBirthDate || '') + '" placeholder="如：甲子年正月初一"></div>' +
+            '<div class="form-group"><label>出生日期</label>' + FT.birthCalendar.buildField('modal-birth', node.lunarBirthDate) + '</div>' +
             '<div class="form-group"><label>农历忌日</label><input type="text" id="modal-lunar-death" value="' + FT.escapeAttr(node.lunarDeathDate || '') + '" placeholder="如：丙寅年三月十五"></div>' +
             '<div class="form-group"><label>字</label><input type="text" id="modal-zi" value="' + FT.escapeAttr(node.zi || '') + '" placeholder="表字"></div>' +
             '<div class="form-group"><label>号</label><input type="text" id="modal-hao" value="' + FT.escapeAttr(node.hao || '') + '" placeholder="别号"></div>' +
@@ -205,19 +208,22 @@
             '<button class="btn-confirm" id="modal-submit">保存</button></div>'
         , true);
 
+        FT.birthCalendar.init('modal-birth', {solar: node.birthDate, lunar: node.lunarBirthDate});
+
         document.getElementById('modal-submit').addEventListener('click', async function () {
             var orderRaw = document.getElementById('modal-order').value;
             var genRaw = document.getElementById('modal-generation').value;
+            var bc = FT.birthCalendar.getSolar('modal-birth');
+            if (!bc.ok) { FT.toast(bc.message, 'warning'); return; }
             var body = {
                 id: node.id,
                 name: document.getElementById('modal-name').value.trim(),
                 gender: parseInt(document.getElementById('modal-gender').value),
-                birthDate: document.getElementById('modal-birth').value,
+                birthDate: bc.solar,
                 birthOrder: orderRaw ? parseInt(orderRaw) : null,
                 generation: genRaw ? parseInt(genRaw) : null,
                 colorLabel: document.getElementById('modal-color').value,
                 remark: document.getElementById('modal-remark').value || null,
-                lunarBirthDate: document.getElementById('modal-lunar-birth').value || null,
                 lunarDeathDate: document.getElementById('modal-lunar-death').value || null,
                 zi: document.getElementById('modal-zi').value || null,
                 hao: document.getElementById('modal-hao').value || null,
@@ -337,6 +343,8 @@
         var counts = FT.collectGenerationCounts(FT.state.treeData, {});
         var generationNames = FT.state.generationNames;
         var MAX_TOTAL = 100;
+        // 辈分管理为家族级配置，仅族长/管理员可编辑；普通成员只读查看
+        var canEdit = !!FT.state.isManager;
 
         // 从 state 读取当前布局
         var genCols = FT.state.generationCols || 5;
@@ -358,12 +366,15 @@
             for (var gi = 1; gi <= total; gi++) {
                 var count = counts[gi] || 0;
                 var hasName = !!generationNames[gi];
+                var bodyHtml = canEdit
+                    ? '<input type="text" class="gen-input" data-gen="' + gi + '" maxlength="10" ' +
+                      'value="' + FT.escapeAttr(generationNames[gi] || '') + '" placeholder="辈分名">'
+                    : '<div class="gen-readonly">' + FT.escapeHtml(generationNames[gi] || '—') + '</div>';
                 cells += '<div class="gen-cell' + (hasName ? ' gen-cell-configured' : '') + '">' +
                     '<div class="gen-cell-head"><span>第' + gi + '世</span>' +
                     (count > 0 ? '<span class="gen-count">' + count + '人</span>' : '') +
                     '</div>' +
-                    '<input type="text" class="gen-input" data-gen="' + gi + '" maxlength="10" ' +
-                    'value="' + FT.escapeAttr(generationNames[gi] || '') + '" placeholder="辈分名">' +
+                    bodyHtml +
                     '</div>';
             }
 
@@ -371,18 +382,27 @@
             var canAddRow = (genCols * (genRows + 1)) <= MAX_TOTAL;
             var canAddCol = ((genCols + 1) * genRows) <= MAX_TOTAL;
 
+            // 管理员可编辑：显示行列调整工具条与"取消/保存"；普通成员只读：隐藏工具条，仅"关闭"
+            var toolbarHtml = canEdit
+                ? '<div class="gen-toolbar">' +
+                  '<span class="gen-matrix-info">' + genCols + ' 列 × ' + genRows + ' 行（' + total + ' 世）</span>' +
+                  '<div class="gen-toolbar-btns">' +
+                  '<button class="btn-sm" id="gen-add-row" ' + (canAddRow ? '' : 'disabled title="已达上限"') + '>+ 加一行</button>' +
+                  '<button class="btn-sm" id="gen-add-col" ' + (canAddCol ? '' : 'disabled title="已达上限"') + '>+ 加一列</button>' +
+                  '</div>' +
+                  '</div>'
+                : '';
+            var footerHtml = canEdit
+                ? '<div class="modal-actions" style="margin-top:10px;">' +
+                  '<button class="btn-cancel" data-close-modal>取消</button>' +
+                  '<button class="btn-confirm" id="gen-save">保存</button></div>'
+                : '<div class="modal-actions" style="margin-top:10px;">' +
+                  '<button class="btn-cancel" data-close-modal>关闭</button></div>';
+
             return '<h3 style="margin-bottom:8px;">辈分管理 <span style="font-weight:normal;font-size:13px;color:#888;">共 ' + totalCount + ' 人</span></h3>' +
-                '<div class="gen-toolbar">' +
-                '<span class="gen-matrix-info">' + genCols + ' 列 × ' + genRows + ' 行（' + total + ' 世）</span>' +
-                '<div class="gen-toolbar-btns">' +
-                '<button class="btn-sm" id="gen-add-row" ' + (canAddRow ? '' : 'disabled title="已达上限"') + '>+ 加一行</button>' +
-                '<button class="btn-sm" id="gen-add-col" ' + (canAddCol ? '' : 'disabled title="已达上限"') + '>+ 加一列</button>' +
-                '</div>' +
-                '</div>' +
+                toolbarHtml +
                 '<div class="gen-grid" style="grid-template-columns:repeat(' + genCols + ',1fr);">' + cells + '</div>' +
-                '<div class="modal-actions" style="margin-top:10px;">' +
-                '<button class="btn-cancel" data-close-modal>取消</button>' +
-                '<button class="btn-confirm" id="gen-save">保存</button></div>';
+                footerHtml;
         }
 
         // 首次用 showModal 打开弹框

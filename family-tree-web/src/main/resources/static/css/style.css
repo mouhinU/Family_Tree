@@ -830,6 +830,78 @@ body.toolbar-hidden .tree-container {
     border-bottom-color: var(--cinnabar);
 }
 
+.gen-cell .gen-readonly {
+    width: 100%;
+    border-bottom: 1px solid var(--border);
+    padding: 1px 0;
+    font-size: 13px;
+    font-family: var(--font-kai);
+    text-align: center;
+    color: var(--ink);
+}
+
+/* 出生日期阳历/阴历录入组件 */
+.birth-cal {
+    margin-bottom: 18px;
+}
+
+.birth-cal .bc-toggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.birth-cal .bc-chip {
+    padding: 3px 14px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: #fffdf6;
+    font-size: 13px;
+    font-family: var(--font-kai);
+    color: var(--ink-light);
+    cursor: pointer;
+}
+
+.birth-cal .bc-chip.active {
+    background: var(--cinnabar);
+    border-color: var(--cinnabar);
+    color: #fff;
+}
+
+.birth-cal .bc-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.birth-cal .bc-row input[type="date"],
+.birth-cal .bc-row input.bc-solar {
+    flex: 1;
+    min-width: 150px;
+}
+
+.birth-cal .bc-ly {
+    width: 78px;
+}
+
+.birth-cal .bc-derive {
+    font-size: 13px;
+    color: var(--ink-light);
+    white-space: nowrap;
+}
+
+.birth-cal .bc-derive b {
+    color: var(--ink);
+    font-weight: normal;
+}
+
+.birth-cal .bc-legacy {
+    font-size: 12px;
+    color: var(--ink-light);
+    margin-top: 4px;
+}
+
 .modal h3 {
     margin-bottom: 20px;
     font-size: 20px;

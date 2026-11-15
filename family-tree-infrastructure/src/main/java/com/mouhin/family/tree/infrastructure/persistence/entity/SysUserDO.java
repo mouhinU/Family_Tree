@@ -50,6 +50,11 @@ public class SysUserDO {
     private String birthDate;
 
     /**
+     * 农历出生日期（由阳历推导，个人信息记录两个日期）
+     */
+    private String lunarBirthDate;
+
+    /**
      * 当前激活的家族ID（多家族管理）
      */
     private Long currentFamilyId;

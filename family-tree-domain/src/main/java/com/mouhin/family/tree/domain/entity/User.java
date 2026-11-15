@@ -30,6 +30,10 @@ public class User {
     private String phone;
     private Integer generation;
     private String birthDate;
+    /**
+     * 农历出生日期（由阳历推导，个人信息记录两个日期）
+     */
+    private String lunarBirthDate;
     private Long currentFamilyId;
     /**
      * 是否族谱节点自动开通的账号（区别于真人注册账号）

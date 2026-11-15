@@ -4,6 +4,7 @@ import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.GedcomImportResultVO;
 import com.mouhin.family.tree.common.enums.RelationTypeEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
+import com.mouhin.family.tree.common.util.LunarSolarUtil;
 import com.mouhin.family.tree.domain.entity.Family;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
@@ -220,6 +221,7 @@ public class GedcomApplicationService {
         node.setName(individual.getName() != null ? individual.getName().trim() : "未知");
         node.setGender(convertGedcomSex(individual.getSex()));
         node.setBirthDate(parseGedcomDate(individual.getBirthDate()));
+        node.setLunarBirthDate(LunarSolarUtil.solarToLunar(node.getBirthDate()));
         node.setDeathDate(parseGedcomDate(individual.getDeathDate()));
         node.setRemark(individual.getNote());
         node.setZi(individual.getZi());

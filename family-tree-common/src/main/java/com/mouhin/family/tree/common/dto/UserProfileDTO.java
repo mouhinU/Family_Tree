@@ -29,6 +29,11 @@ public class UserProfileDTO {
     private String birthDate;
 
     /**
+     * 农历出生日期（由阳历推导，与 birthDate 一并记录）
+     */
+    private String lunarBirthDate;
+
+    /**
      * 邮箱（仅本人资料可见，不在成员列表等他人视图暴露）
      */
     private String email;

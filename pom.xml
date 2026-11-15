@@ -33,6 +33,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <mybatis-plus.version>3.5.17</mybatis-plus.version>
         <spring-ai.version>2.0.0</spring-ai.version>
+        <!-- 农历↔阳历换算（无二级依赖，前后端同版本 1.7.8 保证换算表一致） -->
+        <lunar.version>1.7.8</lunar.version>
         <!-- H2 2.4 移除了 DATETIME 类型，会破坏存量迁移脚本，固定在已验证的 2.3.232 -->
         <h2.version>2.3.232</h2.version>
         <family-tree.version>1.0.0-SNAPSHOT</family-tree.version>
@@ -83,6 +85,13 @@
                 <groupId>org.jsoup</groupId>
                 <artifactId>jsoup</artifactId>
                 <version>1.18.3</version>
+            </dependency>
+
+            <!-- 农历（阴历）↔阳历（公历）换算工具 -->
+            <dependency>
+                <groupId>cn.6tail</groupId>
+                <artifactId>lunar</artifactId>
+                <version>${lunar.version}</version>
             </dependency>
 
             <!-- ZXing QR Code -->

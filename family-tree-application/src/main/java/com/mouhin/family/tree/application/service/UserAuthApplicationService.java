@@ -8,6 +8,7 @@ import com.mouhin.family.tree.common.dto.ProfileUpdateDTO;
 import com.mouhin.family.tree.common.dto.RegisterDTO;
 import com.mouhin.family.tree.common.dto.UserProfileDTO;
 import com.mouhin.family.tree.common.exception.BusinessException;
+import com.mouhin.family.tree.common.util.LunarSolarUtil;
 import com.mouhin.family.tree.domain.entity.User;
 import com.mouhin.family.tree.domain.repository.UserRepository;
 import org.slf4j.Logger;
@@ -213,6 +214,7 @@ public class UserAuthApplicationService {
         dto.setNickname(user.getNickname());
         dto.setGeneration(user.getGeneration());
         dto.setBirthDate(user.getBirthDate());
+        dto.setLunarBirthDate(user.getLunarBirthDate());
         // 联系方式仅用于本人查看与编辑，不进入成员列表等他人视图
         dto.setEmail(user.getEmail());
         dto.setPhone(user.getPhone());
@@ -247,6 +249,7 @@ public class UserAuthApplicationService {
             }
             if (!Objects.equals(birthDate, user.getBirthDate())) {
                 user.setBirthDate(birthDate);
+                user.setLunarBirthDate(LunarSolarUtil.solarTextToLunarOrNull(birthDate));
                 changed = true;
             }
         }

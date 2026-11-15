@@ -278,7 +278,7 @@
         FT.showModal(
             '<h3>个人信息</h3>' +
             '<div class="form-group"><label>昵称</label><input type="text" id="profile-nickname" value="' + FT.escapeAttr(user.nickname || '') + '" placeholder="请输入昵称"></div>' +
-            '<div class="form-group"><label>出生日期</label><input type="date" id="profile-birth" value="' + FT.escapeAttr(user.birthDate || '') + '"></div>' +
+            '<div class="form-group"><label>出生日期</label>' + FT.birthCalendar.buildField('profile-birth', user.lunarBirthDate) + '</div>' +
             '<div class="form-group"><label>辈分（第几世）</label><select id="profile-generation"><option value=""' + genUnset + '>未设置</option>' + genOpts + '</select></div>' +
             '<div class="form-group"><label>邮箱（留空不修改，可用于登录）</label><input type="email" maxlength="100" id="profile-email" value="' + FT.escapeAttr(user.email || '') + '" placeholder="请输入邮箱"></div>' +
             '<div class="form-group"><label>手机号（留空不修改，可用于登录）</label><input type="tel" maxlength="20" id="profile-phone" value="' + FT.escapeAttr(user.phone || '') + '" placeholder="11位大陆手机号"></div>' +
@@ -288,6 +288,8 @@
             '<button class="btn-confirm" id="profile-save">保存</button></div>'
         );
 
+        FT.birthCalendar.init('profile-birth', {solar: user.birthDate, lunar: user.lunarBirthDate});
+
         document.getElementById('profile-changepwd').addEventListener('click', function () {
             FT.closeModal();
             FT.showChangePasswordModal(false);
@@ -295,12 +297,13 @@
 
         document.getElementById('profile-save').addEventListener('click', async function () {
             var nickname = document.getElementById('profile-nickname').value.trim();
-            var birthDate = document.getElementById('profile-birth').value || null;
+            if (!nickname) { FT.toast('昵称不能为空', 'warning'); return; }
+            var bc = FT.birthCalendar.getSolar('profile-birth');
+            if (!bc.ok) { FT.toast(bc.message, 'warning'); return; }
+            var birthDate = bc.solar;
             var genRaw = document.getElementById('profile-generation').value;
             var email = document.getElementById('profile-email').value.trim();
             var phone = document.getElementById('profile-phone').value.trim();
-
-            if (!nickname) { FT.toast('昵称不能为空', 'warning'); return; }
 
             var body = {
                 nickname: nickname,
