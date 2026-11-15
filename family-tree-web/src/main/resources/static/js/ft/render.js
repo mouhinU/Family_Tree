@@ -579,9 +579,9 @@
                     .text(ch);
             });
 
-            // 性别 + 出生年份（底部小字）
+            // 性别 + 出生农历年份（底部小字，由后端以阳历真值派生）
             const info = ((n.data.gender === 1 ? '♂' : n.data.gender === 2 ? '♀' : '') +
-                (n.data.birthDate ? ' ' + n.data.birthDate.substring(0, 4) : '')).trim();
+                (n.data.lunarBirthYear ? ' ' + n.data.lunarBirthYear : '')).trim();
             if (info) {
                 inner.append('text')
                     .attr('class', 'node-info')

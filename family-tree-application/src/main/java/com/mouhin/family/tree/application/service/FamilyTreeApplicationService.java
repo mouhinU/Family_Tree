@@ -34,8 +34,10 @@ public class FamilyTreeApplicationService {
 
     /**
      * Redis 缓存 Key 前缀
+     * <p>
+     * VO 结构变更时需同步升版本，避免旧结构的缓存树在新前端下缺字段渲染。
      */
-    private static final String TREE_CACHE_KEY_PREFIX = "family:tree:";
+    private static final String TREE_CACHE_KEY_PREFIX = "family:tree:v2:";
 
     /**
      * 树缓存过期时间：除写操作主动失效外的兜底，防止遗漏写路径导致长期脏读

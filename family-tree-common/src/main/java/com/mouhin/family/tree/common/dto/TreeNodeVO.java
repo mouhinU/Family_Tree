@@ -20,6 +20,12 @@ public class TreeNodeVO {
     private String name;
     private Integer gender;
     private String birthDate;
+
+    /**
+     * 出生阳历所属的农历年份，由后端以阳历为真值派生；birthDate 为空时为 null
+     */
+    private Integer lunarBirthYear;
+
     private String deathDate;
     private Integer generation;
     private String colorLabel;

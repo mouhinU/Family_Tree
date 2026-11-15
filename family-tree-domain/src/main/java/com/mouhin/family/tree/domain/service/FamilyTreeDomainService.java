@@ -2,6 +2,7 @@ package com.mouhin.family.tree.domain.service;
 
 import com.mouhin.family.tree.common.dto.NodeDetailVO;
 import com.mouhin.family.tree.common.dto.TreeNodeVO;
+import com.mouhin.family.tree.common.util.LunarSolarUtil;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
 import org.springframework.stereotype.Service;
@@ -475,6 +476,7 @@ public class FamilyTreeDomainService {
         vo.setGender(node.getGender());
         vo.setBirthDate(node.getBirthDate() != null
                 ? node.getBirthDate().toString() : null);
+        vo.setLunarBirthYear(LunarSolarUtil.solarToLunarYear(node.getBirthDate()));
         vo.setDeathDate(node.getDeathDate() != null
                 ? node.getDeathDate().toString() : null);
         vo.setGeneration(node.getGeneration());

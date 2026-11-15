@@ -66,6 +66,23 @@ public final class LunarSolarUtil {
     }
 
     /**
+     * 阳历日期转其所属的农历年份数字。
+     * <p>
+     * 农历以正月为岁首，阳历 1 月至春节前的日期仍属上一个农历年，故结果可能与阳历年相差 1。
+     *
+     * @param solarDate 阳历日期，可为 null
+     * @return 农历年份；solarDate 为 null 时返回 null
+     */
+    public static Integer solarToLunarYear(LocalDate solarDate) {
+        if (solarDate == null) {
+            return null;
+        }
+        Lunar lunar = Solar.fromYmd(solarDate.getYear(), solarDate.getMonthValue(), solarDate.getDayOfMonth())
+                .getLunar();
+        return lunar.getYear();
+    }
+
+    /**
      * 农历日期转阳历日期。
      *
      * @param lunarYear  农历年

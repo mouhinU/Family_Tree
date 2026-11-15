@@ -54,6 +54,25 @@ class LunarSolarUtilTest {
     }
 
     @Test
+    void solarToLunarYearKeepsSolarYearAfterSpringFestival() {
+        assertEquals(1986, LunarSolarUtil.solarToLunarYear(LocalDate.of(1986, 5, 28)));
+        assertEquals(1990, LunarSolarUtil.solarToLunarYear(LocalDate.of(1990, 11, 23)));
+    }
+
+    @Test
+    void solarToLunarYearFallsBackToPreviousYearBeforeSpringFestival() {
+        // 1991 年春节为 1991-02-15，1 月出生仍属庚午（1990）年
+        assertEquals(1990, LunarSolarUtil.solarToLunarYear(LocalDate.of(1991, 1, 8)));
+        // 仅有年份的占位日期 YYYY-01-01 一律落在上一个农历年
+        assertEquals(1949, LunarSolarUtil.solarToLunarYear(LocalDate.of(1950, 1, 1)));
+    }
+
+    @Test
+    void solarToLunarYearReturnsNullForNull() {
+        assertNull(LunarSolarUtil.solarToLunarYear(null));
+    }
+
+    @Test
     void lunarToSolarHandlesNormalMonth() {
         assertEquals(LocalDate.of(1986, 5, 28), LunarSolarUtil.lunarToSolar(1986, 4, 20, false));
     }

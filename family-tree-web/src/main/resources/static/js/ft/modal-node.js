@@ -266,7 +266,7 @@
 
         var rows = '';
         children.forEach(function (c) {
-            var birthYear = c.birthDate ? c.birthDate.substring(0, 4) : '';
+            var birthYear = c.lunarBirthYear ? String(c.lunarBirthYear) : '';
             rows += '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f0f0f0;">' +
                 '<input type="number" min="1" class="bo-input" data-id="' + c.id + '" value="' + (c.birthOrder != null ? c.birthOrder : '') + '" ' +
                 'style="width:64px;padding:4px 6px;border:1px solid #ddd;border-radius:4px;text-align:center;">' +
@@ -413,18 +413,24 @@
             var addRowBtn = document.getElementById('gen-add-row');
             if (addRowBtn) {
                 addRowBtn.addEventListener('click', function () {
-                    saveCurrentInputs();
-                    genRows++;
-                    refreshGrid();
+                    FT.confirm('确定增加一行？布局将变为 ' + genCols + ' 列 × ' + (genRows + 1) + ' 行（共 ' +
+                        Math.min(genCols * (genRows + 1), MAX_TOTAL) + ' 世），点击保存后生效。', function () {
+                        saveCurrentInputs();
+                        genRows++;
+                        refreshGrid();
+                    });
                 });
             }
             // 加一列
             var addColBtn = document.getElementById('gen-add-col');
             if (addColBtn) {
                 addColBtn.addEventListener('click', function () {
-                    saveCurrentInputs();
-                    genCols++;
-                    refreshGrid();
+                    FT.confirm('确定增加一列？布局将变为 ' + (genCols + 1) + ' 列 × ' + genRows + ' 行（共 ' +
+                        Math.min((genCols + 1) * genRows, MAX_TOTAL) + ' 世），点击保存后生效。', function () {
+                        saveCurrentInputs();
+                        genCols++;
+                        refreshGrid();
+                    });
                 });
             }
             // 保存
