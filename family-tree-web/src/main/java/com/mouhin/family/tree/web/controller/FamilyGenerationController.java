@@ -6,6 +6,7 @@ import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.FamilyGenerationDTO;
 import com.mouhin.family.tree.common.dto.GenerationLayoutDTO;
 import com.mouhin.family.tree.common.result.Result;
+import com.mouhin.family.tree.web.security.RequireFamilyManager;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.*;
@@ -44,6 +45,7 @@ public class FamilyGenerationController extends BaseController {
      * 批量保存辈分（世代名称）
      */
     @PutMapping
+    @RequireFamilyManager
     public Result<Void> save(@RequestBody List<FamilyGenerationDTO> dtos, HttpSession session) {
         Long familyId = getCurrentFamilyId(session);
         familyGenerationService.saveGenerations(familyId, dtos);
