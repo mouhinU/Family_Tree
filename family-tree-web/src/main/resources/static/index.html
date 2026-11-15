@@ -347,12 +347,6 @@
 <script src="/js/ft/context-menu.js?v=20261111a"></script>
 <script src="/js/ft/websocket.js?v=20260827a"></script>
 <script src="/js/ft/main.js?v=20261112a"></script>
-<script>
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function () {
-        navigator.serviceWorker.register('/sw.js').catch(function () {});
-    });
-}
-</script>
+<script src="/js/ft/sw-register.js?v=20261115a"></script>
 </body>
 </html>
