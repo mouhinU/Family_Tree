@@ -3,12 +3,18 @@ package com.mouhin.family.tree.infrastructure.persistence.repository;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.mouhin.family.tree.domain.entity.FamilyMember;
 import com.mouhin.family.tree.domain.repository.FamilyMemberRepository;
+import com.mouhin.family.tree.infrastructure.converter.FamilyCountConverter;
 import com.mouhin.family.tree.infrastructure.converter.FamilyMemberConverter;
+import com.mouhin.family.tree.infrastructure.converter.UserCountConverter;
+import com.mouhin.family.tree.infrastructure.persistence.entity.FamilyCountDO;
 import com.mouhin.family.tree.infrastructure.persistence.entity.FamilyMemberDO;
+import com.mouhin.family.tree.infrastructure.persistence.entity.UserCountDO;
 import com.mouhin.family.tree.infrastructure.persistence.mapper.FamilyMemberMapper;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * FamilyMember 仓储实现
@@ -82,8 +88,26 @@ public class FamilyMemberRepositoryImpl implements FamilyMemberRepository {
     }
 
     @Override
+    public Map<Long, Long> countGroupedByUserIds(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<UserCountDO> counts = mapper.countGroupedByUserIds(userIds);
+        return UserCountConverter.toMap(counts);
+    }
+
+    @Override
     public void update(FamilyMember entity) {
         FamilyMemberDO doObj = FamilyMemberConverter.toDO(entity);
         mapper.updateById(doObj);
+    }
+
+    @Override
+    public Map<Long, Long> countGroupedByFamilyIds(List<Long> familyIds) {
+        if (familyIds == null || familyIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<FamilyCountDO> counts = mapper.countGroupedByFamilyIds(familyIds);
+        return FamilyCountConverter.toMap(counts);
     }
 }

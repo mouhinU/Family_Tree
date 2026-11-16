@@ -39,6 +39,11 @@ public final class AccountConsts {
      */
     public static final String NODE_ACCOUNT_INITIAL_PASSWORD = "123456";
 
+    /**
+     * 平台重置密码下发的一次性口令长度，须不小于 {@link #MIN_PASSWORD_LENGTH}
+     */
+    public static final int ONE_TIME_PASSWORD_LENGTH = 10;
+
     private AccountConsts() {
     }
 }

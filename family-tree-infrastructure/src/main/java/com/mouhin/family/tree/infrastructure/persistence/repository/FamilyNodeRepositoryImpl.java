@@ -4,12 +4,16 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
+import com.mouhin.family.tree.infrastructure.converter.FamilyCountConverter;
 import com.mouhin.family.tree.infrastructure.converter.FamilyNodeConverter;
+import com.mouhin.family.tree.infrastructure.persistence.entity.FamilyCountDO;
 import com.mouhin.family.tree.infrastructure.persistence.entity.FamilyNodeDO;
 import com.mouhin.family.tree.infrastructure.persistence.mapper.FamilyNodeMapper;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * FamilyNode 仓储实现
@@ -125,5 +129,28 @@ public class FamilyNodeRepositoryImpl implements FamilyNodeRepository {
         wrapper.eq(FamilyNodeDO::getFamilyId, familyId);
         wrapper.in(FamilyNodeDO::getId, nodeIds);
         mapper.update(null, wrapper);
+    }
+
+    @Override
+    public long countAll() {
+        return mapper.selectCount(new LambdaQueryWrapper<>());
+    }
+
+    @Override
+    public Map<Long, Long> countGroupedByFamilyIds(List<Long> familyIds) {
+        if (familyIds == null || familyIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<FamilyCountDO> counts = mapper.countGroupedByFamilyIds(familyIds);
+        return FamilyCountConverter.toMap(counts);
+    }
+
+    @Override
+    public Map<Long, Long> countDeceasedGroupedByFamilyIds(List<Long> familyIds) {
+        if (familyIds == null || familyIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<FamilyCountDO> counts = mapper.countDeceasedGroupedByFamilyIds(familyIds);
+        return FamilyCountConverter.toMap(counts);
     }
 }

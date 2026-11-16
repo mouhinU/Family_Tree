@@ -53,6 +53,7 @@ public class FamilyNodeApplicationService {
     private final TimelineApplicationService timelineApplicationService;
     private final FamilyUserNodeApplicationService familyUserNodeApplicationService;
     private final FamilyNodeVisibilityApplicationService visibilityService;
+    private final FamilySettingApplicationService settingService;
 
     public FamilyNodeApplicationService(FamilyNodeRepository familyNodeRepository,
                                         FamilyRelationRepository familyRelationRepository,
@@ -63,7 +64,8 @@ public class FamilyNodeApplicationService {
                                         VersionControlDomainService versionControlDomainService,
                                         TimelineApplicationService timelineApplicationService,
                                         FamilyUserNodeApplicationService familyUserNodeApplicationService,
-                                        FamilyNodeVisibilityApplicationService visibilityService) {
+                                        FamilyNodeVisibilityApplicationService visibilityService,
+                                        FamilySettingApplicationService settingService) {
         this.familyNodeRepository = familyNodeRepository;
         this.familyRelationRepository = familyRelationRepository;
         this.relationValidationDomainService = relationValidationDomainService;
@@ -74,6 +76,7 @@ public class FamilyNodeApplicationService {
         this.timelineApplicationService = timelineApplicationService;
         this.familyUserNodeApplicationService = familyUserNodeApplicationService;
         this.visibilityService = visibilityService;
+        this.settingService = settingService;
     }
 
     /**
@@ -98,6 +101,7 @@ public class FamilyNodeApplicationService {
             throw new BusinessException("节点名称不能超过"
                     + FamilyTreeConsts.MAX_NAME_LENGTH + "个字符");
         }
+        settingService.assertNodeQuotaAvailable(familyId);
 
         FamilyNode node = new FamilyNode();
         node.setUserId(userId);

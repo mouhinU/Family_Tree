@@ -2,6 +2,7 @@ package com.mouhin.family.tree.domain.repository;
 
 import com.mouhin.family.tree.domain.entity.Family;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -50,4 +51,37 @@ public interface FamilyRepository {
      * @param family 家族领域对象
      */
     void update(Family family);
+
+    /**
+     * 平台侧分页查询家族（按创建时间倒序）
+     *
+     * @param keyword 家族名称或邀请码模糊词，为空表示不过滤
+     * @param offset  偏移量
+     * @param size    每页大小
+     * @return 当前页家族列表
+     */
+    List<Family> listPaged(String keyword, int offset, int size);
+
+    /**
+     * 统计符合关键词的家族数
+     *
+     * @param keyword 家族名称或邀请码模糊词，为空表示全部
+     * @return 家族数量
+     */
+    long countByKeyword(String keyword);
+
+    /**
+     * 统计全平台家族总数
+     *
+     * @return 家族数量
+     */
+    long countAll();
+
+    /**
+     * 统计指定时刻之后新建的家族数
+     *
+     * @param since 起始时间（含）
+     * @return 家族数量
+     */
+    long countCreatedAfter(LocalDateTime since);
 }

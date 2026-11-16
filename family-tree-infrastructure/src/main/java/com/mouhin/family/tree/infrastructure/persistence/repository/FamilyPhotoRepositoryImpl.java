@@ -101,4 +101,11 @@ public class FamilyPhotoRepositoryImpl implements FamilyPhotoRepository {
         PhotoTagDO doObj = tagMapper.selectById(tagId);
         return PhotoTagConverter.toDomain(doObj);
     }
+
+    @Override
+    public long countByFamilyId(Long familyId) {
+        LambdaQueryWrapper<FamilyPhotoDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(FamilyPhotoDO::getFamilyId, familyId);
+        return photoMapper.selectCount(wrapper);
+    }
 }

@@ -90,4 +90,12 @@ public interface FamilyPhotoRepository {
      * @return 标记领域对象，不存在返回null
      */
     PhotoTag findTagById(Long tagId);
+
+    /**
+     * 统计指定家族的照片数
+     *
+     * @param familyId 家族ID
+     * @return 照片数量
+     */
+    long countByFamilyId(Long familyId);
 }

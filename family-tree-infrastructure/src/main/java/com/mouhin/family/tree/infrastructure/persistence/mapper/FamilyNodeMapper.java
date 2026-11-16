@@ -1,8 +1,13 @@
 package com.mouhin.family.tree.infrastructure.persistence.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.mouhin.family.tree.infrastructure.persistence.entity.FamilyCountDO;
 import com.mouhin.family.tree.infrastructure.persistence.entity.FamilyNodeDO;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+
+import java.util.List;
 
 /**
  * 族谱节点 Mapper 接口
@@ -12,4 +17,32 @@ import org.apache.ibatis.annotations.Mapper;
  */
 @Mapper
 public interface FamilyNodeMapper extends BaseMapper<FamilyNodeDO> {
+
+    /**
+     * 按家族分组统计节点数，一次查询覆盖多个家族，避免逐家族往返
+     *
+     * @param familyIds 家族ID列表，调用方保证非空且不超过 1000 个
+     * @return 家族维度计数结果
+     */
+    @Select("<script>"
+            + "SELECT family_id AS familyId, COUNT(*) AS total FROM family_node"
+            + " WHERE family_id IN"
+            + "<foreach collection='familyIds' item='familyId' open='(' separator=',' close=')'>#{familyId}</foreach>"
+            + " GROUP BY family_id"
+            + "</script>")
+    List<FamilyCountDO> countGroupedByFamilyIds(@Param("familyIds") List<Long> familyIds);
+
+    /**
+     * 按家族分组统计已故节点数（death_date 非空视为已故）
+     *
+     * @param familyIds 家族ID列表，调用方保证非空且不超过 1000 个
+     * @return 家族维度计数结果
+     */
+    @Select("<script>"
+            + "SELECT family_id AS familyId, COUNT(*) AS total FROM family_node"
+            + " WHERE death_date IS NOT NULL AND family_id IN"
+            + "<foreach collection='familyIds' item='familyId' open='(' separator=',' close=')'>#{familyId}</foreach>"
+            + " GROUP BY family_id"
+            + "</script>")
+    List<FamilyCountDO> countDeceasedGroupedByFamilyIds(@Param("familyIds") List<Long> familyIds);
 }

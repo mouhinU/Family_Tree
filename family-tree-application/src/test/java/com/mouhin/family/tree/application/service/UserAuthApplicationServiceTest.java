@@ -6,6 +6,7 @@ import com.mouhin.family.tree.common.dto.ChangePasswordDTO;
 import com.mouhin.family.tree.common.dto.LoginDTO;
 import com.mouhin.family.tree.common.dto.ProfileUpdateDTO;
 import com.mouhin.family.tree.common.dto.RegisterDTO;
+import com.mouhin.family.tree.common.enums.PlatformSettingKeyEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.User;
 import com.mouhin.family.tree.domain.repository.UserRepository;
@@ -49,6 +50,9 @@ class UserAuthApplicationServiceTest {
     @Mock
     private ValueOperations<String, String> valueOperations;
 
+    @Mock
+    private PlatformSettingApplicationService platformSettingService;
+
     /**
      * 假 Redis 存储：让 mock 具备 INCR/GET/DEL 语义，否则失败计数永远为 0、锁定链路测不到
      */
@@ -87,7 +91,36 @@ class UserAuthApplicationServiceTest {
     }
 
     private UserAuthApplicationService createService(LoginAttemptService loginAttemptService) {
-        return new UserAuthApplicationService(userRepository, loginAttemptService);
+        return new UserAuthApplicationService(userRepository, loginAttemptService, platformSettingService);
+    }
+
+    @Test
+    void registerRejectedWhenPlatformClosesRegistration() {
+        doThrow(new BusinessException("开放注册已被平台管理员关闭，请联系平台管理员"))
+                .when(platformSettingService).assertEnabled(PlatformSettingKeyEnum.REGISTER_ENABLED);
+        RegisterDTO dto = new RegisterDTO();
+        dto.setUsername("newbie");
+        dto.setPassword(RAW_PASSWORD);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service().register(dto));
+
+        assertTrue(ex.getMessage().contains("请联系平台管理员"));
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void registerPersistsUserWhenPlatformAllowsRegistration() {
+        when(userRepository.findByUsername("newbie")).thenReturn(null);
+        RegisterDTO dto = new RegisterDTO();
+        dto.setUsername("newbie");
+        dto.setPassword(RAW_PASSWORD);
+
+        service().register(dto);
+
+        verify(platformSettingService).assertEnabled(PlatformSettingKeyEnum.REGISTER_ENABLED);
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        assertEquals("newbie", captor.getValue().getUsername());
     }
 
     private User userWithHash(String hash) {
@@ -474,6 +507,44 @@ class UserAuthApplicationServiceTest {
         dto.setNewPassword("123");
 
         assertThrows(BusinessException.class, () -> service().changePassword(1L, dto));
+        verify(userRepository, never()).update(any());
+    }
+
+    @Test
+    void platformReset_issuesOneTimePasswordAndForcesChange() {
+        User user = userWithHash(BCrypt.hashpw(RAW_PASSWORD, BCrypt.gensalt()));
+        when(userRepository.findById(1L)).thenReturn(user);
+
+        String oneTimePassword = service().resetPasswordByPlatform(1L);
+
+        assertEquals(AccountConsts.ONE_TIME_PASSWORD_LENGTH, oneTimePassword.length());
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).update(captor.capture());
+        User saved = captor.getValue();
+        assertTrue(BCrypt.checkpw(oneTimePassword, saved.getPasswordHash()), "一次性口令应以 BCrypt 存储");
+        assertTrue(saved.getMustChangePassword(), "重置后应要求首登改密");
+        assertFalse(BCrypt.checkpw(RAW_PASSWORD, saved.getPasswordHash()), "旧口令应在重置后失效");
+    }
+
+    @Test
+    void platformReset_clearsLoginLockout() {
+        LoginAttemptService loginAttemptService = createLoginAttemptService();
+        for (int i = 0; i < LoginSecurityConsts.MAX_FAILED_ATTEMPTS; i++) {
+            loginAttemptService.recordFailure("botest");
+        }
+        assertTrue(loginAttemptService.isLocked("botest"));
+        when(userRepository.findById(1L)).thenReturn(userWithHash("x"));
+
+        createService(loginAttemptService).resetPasswordByPlatform(1L);
+
+        assertFalse(loginAttemptService.isLocked("botest"), "重置口令应同时解除登录锁定");
+    }
+
+    @Test
+    void platformReset_unknownUser_throwsWithoutUpdate() {
+        when(userRepository.findById(1L)).thenReturn(null);
+
+        assertThrows(BusinessException.class, () -> service().resetPasswordByPlatform(1L));
         verify(userRepository, never()).update(any());
     }
 

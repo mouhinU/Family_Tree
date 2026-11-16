@@ -7,8 +7,10 @@ import com.mouhin.family.tree.common.dto.LoginDTO;
 import com.mouhin.family.tree.common.dto.ProfileUpdateDTO;
 import com.mouhin.family.tree.common.dto.RegisterDTO;
 import com.mouhin.family.tree.common.dto.UserProfileDTO;
+import com.mouhin.family.tree.common.enums.PlatformSettingKeyEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.common.util.LunarSolarUtil;
+import com.mouhin.family.tree.common.util.OneTimePasswordUtils;
 import com.mouhin.family.tree.domain.entity.User;
 import com.mouhin.family.tree.domain.repository.UserRepository;
 import org.slf4j.Logger;
@@ -47,11 +49,14 @@ public class UserAuthApplicationService {
 
     private final UserRepository userRepository;
     private final LoginAttemptService loginAttemptService;
+    private final PlatformSettingApplicationService platformSettingService;
 
     public UserAuthApplicationService(UserRepository userRepository,
-                                      LoginAttemptService loginAttemptService) {
+                                      LoginAttemptService loginAttemptService,
+                                      PlatformSettingApplicationService platformSettingService) {
         this.userRepository = userRepository;
         this.loginAttemptService = loginAttemptService;
+        this.platformSettingService = platformSettingService;
     }
 
     /**
@@ -62,6 +67,7 @@ public class UserAuthApplicationService {
      */
     @Transactional(rollbackFor = Exception.class)
     public Long register(RegisterDTO dto) {
+        platformSettingService.assertEnabled(PlatformSettingKeyEnum.REGISTER_ENABLED);
         if (dto.getUsername() == null || dto.getUsername().isBlank()) {
             throw new BusinessException("用户名不能为空");
         }
@@ -194,6 +200,31 @@ public class UserAuthApplicationService {
         user.setUpdateTime(LocalDateTime.now());
         userRepository.update(user);
         logger.info("User password changed: id={}", userId);
+    }
+
+    /**
+     * 平台管理员重置指定账号的密码：不校验旧口令，直接换为随机一次性口令，
+     * 并沿用首登强制改密链路（must_change_password 置真）与登录失败锁定清零。
+     *
+     * <p>已登录的会话不会因重置而失效：会话与口令无索引关系，仅影响下一次登录。</p>
+     *
+     * @param userId 目标用户ID
+     * @return 新生成的一次性口令，仅本次返回给操作人转达
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public String resetPasswordByPlatform(Long userId) {
+        User user = userRepository.findById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+        String oneTimePassword = OneTimePasswordUtils.generate();
+        user.setPasswordHash(hashPassword(oneTimePassword));
+        user.setMustChangePassword(true);
+        user.setUpdateTime(LocalDateTime.now());
+        userRepository.update(user);
+        loginAttemptService.clearAttempts(user.getUsername());
+        logger.info("Platform reset password for user id={}, username={}", userId, user.getUsername());
+        return oneTimePassword;
     }
 
     /**

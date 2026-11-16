@@ -74,6 +74,9 @@ class FamilyNodeApplicationServiceTest {
     @Mock
     private FamilyNodeVisibilityApplicationService visibilityService;
 
+    @Mock
+    private FamilySettingApplicationService settingService;
+
     @InjectMocks
     private FamilyNodeApplicationService familyNodeApplicationService;
 
@@ -184,6 +187,20 @@ class FamilyNodeApplicationServiceTest {
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> familyNodeApplicationService.createNode(FAMILY_ID, USER_ID, "testUser", "127.0.0.1", dto));
         assertTrue(exception.getMessage().contains("去世日期不能早于出生日期"));
+    }
+
+    @Test
+    void createNode_nodeQuotaReached_throwsBeforeSaving() {
+        // 准备：平台侧节点数量上限已用尽
+        NodeCreateDTO dto = createDTO("蒙子", null);
+        doThrow(new BusinessException("族谱节点数量已达上限5000，请联系平台管理员调整"))
+                .when(settingService).assertNodeQuotaAvailable(FAMILY_ID);
+
+        // 执行 & 验证：配额校验先于落库拦截
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> familyNodeApplicationService.createNode(FAMILY_ID, USER_ID, "testUser", "127.0.0.1", dto));
+        assertTrue(exception.getMessage().contains("节点数量已达上限"));
+        verify(familyNodeRepository, never()).save(any(FamilyNode.class));
     }
 
     @Test

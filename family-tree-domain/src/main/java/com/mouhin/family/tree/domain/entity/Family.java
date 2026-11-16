@@ -1,5 +1,7 @@
 package com.mouhin.family.tree.domain.entity;
 
+import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
+import com.mouhin.family.tree.common.enums.FamilyStatusEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import lombok.Getter;
 import lombok.Setter;
@@ -25,6 +27,12 @@ public class Family {
     private String ancestralHome;
     private Integer generationCols;
     private Integer generationRows;
+
+    /**
+     * 家族状态编码，取值见 {@link FamilyStatusEnum}
+     */
+    private String status;
+
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 
@@ -35,8 +43,8 @@ public class Family {
         if (name == null || name.isBlank()) {
             throw new BusinessException("家族名称不能为空");
         }
-        if (name.length() > 100) {
-            throw new BusinessException("家族名称不能超过100个字符");
+        if (name.length() > FamilyTreeConsts.MAX_FAMILY_NAME_LENGTH) {
+            throw new BusinessException("家族名称不能超过" + FamilyTreeConsts.MAX_FAMILY_NAME_LENGTH + "个字符");
         }
     }
 
@@ -59,6 +67,30 @@ public class Family {
     public void updateHallInfo(String hallName, String ancestralHome) {
         this.hallName = hallName;
         this.ancestralHome = ancestralHome;
+    }
+
+    /**
+     * 读取家族状态，历史数据未落状态时按正常处理
+     *
+     * @return 家族状态枚举，不为 null
+     */
+    public FamilyStatusEnum statusOrDefault() {
+        if (status == null || status.isBlank()) {
+            return FamilyStatusEnum.NORMAL;
+        }
+        return FamilyStatusEnum.fromCode(status);
+    }
+
+    /**
+     * 变更家族状态
+     *
+     * @param targetStatus 目标状态
+     */
+    public void changeStatus(FamilyStatusEnum targetStatus) {
+        if (targetStatus == null) {
+            throw new BusinessException("缺少家族状态");
+        }
+        this.status = targetStatus.getCode();
     }
 
     @Override
@@ -89,6 +121,7 @@ public class Family {
                 + ", ancestralHome='" + ancestralHome + '\''
                 + ", generationCols=" + generationCols
                 + ", generationRows=" + generationRows
+                + ", status='" + status + '\''
                 + '}';
     }
 }

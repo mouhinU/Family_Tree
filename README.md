@@ -111,6 +111,22 @@ web → application → domain ← infrastructure
 - 头像上传路径遍历防护
 - MySQL 凭据外部化（环境变量占位）
 
+### 平台管理
+
+面向平台运营者（与家族角色 OWNER/ADMIN/MEMBER 相互独立）的独立页面 `/admin.html`，身份由环境变量
+`PLATFORM_ADMIN_USERNAMES` 白名单授予，接口侧由 `@RequireSystemAdmin` 切面统一鉴权，前端按 `isSystemAdmin`
+显隐入口。
+
+- **家族概况**：全平台总览（家族数、注册用户、节点与关系总量、近 30 天新增）、家族分页检索、单家族概况与配置读写
+- **家族治理**：平台侧重命名家族、冻结 / 归档（仅状态流转，不物理删除数据）、转让族长
+- **用户账号**：全平台账号分页（可按真人注册 / 系统代开筛选）、账号详情、重置密码为一次性随机口令（强制首登改密）、解锁被锁定账号
+- **数据巡检**：只读体检孤儿节点、断裂关系、越界配置、无主家族等异常项并给出样本，不修改任何记录
+- **操作日志**：按家族、操作类型、关键字（右模糊）、时间范围检索全平台审计日志并分页
+- **平台配置**：`platform_setting` 与 `family_setting`、代码默认值构成「家族覆盖 → 平台覆盖 → 代码默认」三级生效链；
+  标注「家族可覆盖」的项仅作为新建家族的默认值，家族单独设置后以家族值优先；`REGISTER_ENABLED`（开放注册）、
+  `INVITE_JOIN_ENABLED`（邀请码加入）、`MAX_FAMILY_COUNT`（家族总数上限）为平台专属开关，在对应入口即时生效。
+  取值改回代码默认即删除覆盖行（恢复默认）
+
 ## 快速开始
 
 ### 环境要求
@@ -148,7 +164,13 @@ cd family-tree-web
 | `dev`（默认） | H2 文件库 `./data/family-tree`（AUTO_SERVER 模式）     | `db/migration/h2`    |
 | `mysql`   | MySQL `jdbc:mysql://localhost:3306/family_tree` | `db/migration/mysql` |
 
-Flyway 在启动时自动执行迁移（V1~V30），`baseline-on-migrate: true`。
+Flyway 在启动时自动执行迁移（V1~V36），`baseline-on-migrate: true`。
+
+平台管理相关环境变量：
+
+| 变量                         | 默认值 | 说明                                                       |
+|----------------------------|-----|----------------------------------------------------------|
+| `PLATFORM_ADMIN_USERNAMES` | 空   | 平台管理员白名单，逗号分隔的登录用户名；与家族角色无关，修改后需重启生效。为空时 `/api/admin/**` 全部拒绝访问 |
 
 ### AI 功能配置
 
@@ -168,7 +190,7 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 
 ## 数据库模型
 
-共 25 张表，通过 30 个 Flyway 迁移版本管理：
+共 27 张表，通过 36 个 Flyway 迁移版本管理：
 
 | 表名                      | 说明        | 核心字段                                                                       |
 |-------------------------|-----------|----------------------------------------------------------------------------|
@@ -197,6 +219,8 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 | `family_memorial_message` | 祭堂缅怀留言  | family_id, node_id, user_id, content                                       |
 | `family_timeline`       | 家族事件时间线  | family_id, source_type, source_id, event_type, event_date, node_id         |
 | `family_user_node`      | 用户-节点绑定（按家族） | family_id, user_id, node_id（唯一索引 family_id + user_id）                   |
+| `family_setting`        | 家族级配置覆盖项（仅存覆盖，未覆盖时回落平台默认） | family_id, setting_key, setting_value（唯一索引 family_id + setting_key） |
+| `platform_setting`      | 平台级配置覆盖项（仅存覆盖，未覆盖时回落代码默认） | setting_key, setting_value（唯一索引 setting_key）                            |
 
 ### 迁移历史
 
@@ -232,23 +256,30 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 | V28 | 收回与「标记为我」绑定重复的 `fp_{节点ID}` 账号（保留绑定账号；自动账号自己完成绑定时不误删） |
 | V29 | 为存量在世节点的 `fp_{节点ID}` 账号补建 `family_user_node` 绑定（双重 NOT EXISTS 幂等，不覆盖真人标记） |
 | V30 | 自动账号改用真实姓名登录：新增 `is_auto_account` 标记列替代用户名形态识别；姓名干净且无重名者把 `username` 对换为姓名，脱敏/空名/重名者保留 `fp_{节点ID}` 兜底（nickname 与密码不变，NOT EXISTS 保护唯一键） |
+| V31 | 首登强制改密：`sys_user.must_change_password` 标记 + 一次性口令链路（平台/节点开通账号下发随机口令）             |
+| V32 | 出生日期农历双录：`sys_user.lunar_birth_date`，以阳历为唯一真值、保存时权威派生农历                          |
+| V33 | 家族级配置表 `family_setting`（KV 覆盖，唯一索引 family_id + setting_key）                        |
+| V34 | 家族状态列 `family.status`（ACTIVE / FROZEN / ARCHIVED），平台侧冻结与归档只作状态流转，不物理删除数据      |
+| V35 | 操作日志组合索引 `idx_log_family_time`（family_id, create_time），支撑平台级日志检索与分页            |
+| V36 | 平台级配置表 `platform_setting`（KV 覆盖，唯一索引 setting_key），与代码默认构成「家族覆盖 → 平台覆盖 → 代码默认」三级生效链 |
 
 ## API 概览
 
-共 26 个控制器、103 个 API 端点：
+共 32 个控制器、129 个 API 端点：
 
 | 前缀                       | 端点数 | 说明                                            |
 |--------------------------|-----|-----------------------------------------------|
-| `/api/auth`              | 6   | 注册 / 登录 / 登出 / 当前用户信息 / 修改个人资料 / 标记为我         |
+| `/api/admin`             | 17  | 平台管理：总览 / 家族列表与详情 / 家族配置读写 / 改名·冻结·归档·转让族长 / 用户列表与详情 / 重置密码·解锁 / 数据巡检 / 操作日志检索 / 平台配置读写（仅白名单账号） |
+| `/api/auth`              | 7   | 注册 / 登录 / 登出 / 当前用户信息 / 修改个人资料 / 修改密码 / 标记为我    |
 | `/api/family`            | 10  | 创建 / 加入 / 查询 / 修改家族、成员管理、角色设置、邀请码、切换家族、我的家族列表 |
 | `/api/invite`            | 2   | 邀请链接校验与邀请加入                                  |
-| `/api/node`              | 7   | 节点增删改查、列表、搜索、批量修改颜色                           |
+| `/api/node`              | 8   | 节点增删改查、列表、搜索、批量修改颜色、节点详情                        |
 | `/api/relation`          | 5   | 关系增删改查（配偶 / 亲子 / 过继）、单节点关系列表、全量关系列表           |
-| `/api/tree`              | 2   | 完整族谱树（Caffeine 缓存）/ 子树                        |
+| `/api/tree`              | 3   | 完整族谱树（Caffeine 缓存）/ 子树 / 详情可见范围                    |
 | `/api/generation`        | 4   | 辈分名列表 / 批量保存 / 布局查询 / 布局保存                    |
 | `/api/offering`          | 2   | 祭奠记录 / 节点祭奠统计                                 |
 | `/api/message`           | 6   | 留言发布（含回复）/ 分页列表 / 回复列表 / 点赞与取消 / 删除         |
-| `/api/timeline`          | 1   | 家族事件时间线（分页）                                   |
+| `/api/timeline`          | 2   | 家族事件时间线（分页）/ 历史事件回填                            |
 | `/api/death-anniversary` | 1   | 忌日提醒（可指定天数范围）                                 |
 | `/api/birthday`          | 1   | 生日提醒（未来 N 天内在世成员）                              |
 | `/api/anniversary`       | 4   | 纪念日增删改查（含周数与距下次纪念日天数）                          |
@@ -275,6 +306,7 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 - `index.html` — 族谱主页面（卷轴动画、工具栏、SVG 画布、右键菜单、留言轮播）
 - `login.html` — 登录/注册（支持 `?invite=XXX` 邀请链接自动跳转注册）
 - `family-setup.html` — 家族初始化（创建新家族 / 加入已有家族）
+- `admin.html` — 平台管理页（家族概况 / 用户账号 / 数据巡检 / 平台配置 / 操作日志五个页签，仅白名单账号可见）
 
 **JS 模块**（`js/ft/` 目录，IIFE 组件化，共享 `window.FT` 命名空间）
 
@@ -301,6 +333,7 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 | `message-carousel.js` | 底部留言轮播：自动加载、无缝滚动、悬停暂停、关闭记忆（sessionStorage）                      |
 | `context-menu.js`     | 右键菜单（10 个操作：添加子女/配偶/关联配偶/添加父母/过继/排次/标记为我/编辑/颜色/删除）                  |
 | `main.js`             | 应用入口：工具栏事件绑定、搜索（防抖 + 下拉）、布局方向切换、健在/外嫁过滤                             |
+| `admin.js`            | 平台管理页：五个页签的列表/分页/检索、家族治理操作、账号口令重置与解锁、平台配置与家族配置的差异提交与二次确认               |
 
 > 注意：应用从 `target/classes/static` 提供静态资源。修改前端后需执行
 > `./mvnw compile -pl family-tree-web` 复制到 target 并重启方可生效。
@@ -318,17 +351,18 @@ Family_Tree/
 │   ├── src/main/java/.../web/
 │   │   ├── FamilyTreeApplication.java  # 启动类
 │   │   ├── config/                     # 全局异常处理、Web MVC 配置
-│   │   ├── controller/                 # 26 个 REST 控制器
+│   │   ├── controller/                 # 32 个 REST 控制器
 │   │   ├── filter/                     # CSRF 过滤器、安全响应头过滤器
-│   │   └── interceptor/                # 登录拦截器、限流拦截器
+│   │   ├── interceptor/                # 登录拦截器、限流拦截器、家族状态拦截器（冻结/归档只读）
+│   │   └── security/                   # 访问控制注解与切面（家族管理员 / 节点访问 / 平台管理员）
 │   └── src/main/resources/
 │       ├── application*.yml            # 多环境配置
 │       ├── db/migration/               # Flyway 迁移（h2 / mysql 双轨）
 │       └── static/                     # 前端页面与资源
-│           ├── index.html / login.html / family-setup.html
+│           ├── index.html / login.html / family-setup.html / admin.html
 │           ├── css/style.css           # 古典族谱主题样式（CSS 变量）
 │           ├── img/longwen.png         # 龙纹水印背景图
-│           └── js/ft/                  # 21 个前端模块
+│           └── js/ft/                  # 31 个前端模块
 ├── deploy/                             # 部署配置
 │   ├── DEPLOY.md                       # 部署指南
 │   ├── nginx/family-tree.conf          # Nginx 反向代理模板

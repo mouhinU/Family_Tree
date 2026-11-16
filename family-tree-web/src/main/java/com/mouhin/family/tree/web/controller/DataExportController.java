@@ -2,11 +2,13 @@ package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.FamilyNodeApplicationService;
 import com.mouhin.family.tree.application.service.FamilyRelationApplicationService;
+import com.mouhin.family.tree.application.service.FamilySettingApplicationService;
 import com.mouhin.family.tree.application.service.GedcomApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.FamilyNodeDTO;
 import com.mouhin.family.tree.common.dto.FamilyRelationDTO;
 import com.mouhin.family.tree.common.dto.GedcomImportResultVO;
+import com.mouhin.family.tree.common.enums.FamilySettingKeyEnum;
 import com.mouhin.family.tree.common.result.Result;
 import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import com.mouhin.family.tree.web.security.RequireFamilyManager;
@@ -46,15 +48,18 @@ public class DataExportController extends BaseController {
     private final FamilyNodeApplicationService familyNodeService;
     private final FamilyRelationApplicationService familyRelationService;
     private final GedcomApplicationService gedcomApplicationService;
+    private final FamilySettingApplicationService settingService;
     private final ApplicationEventPublisher eventPublisher;
 
     public DataExportController(FamilyNodeApplicationService familyNodeService,
                                 FamilyRelationApplicationService familyRelationService,
                                 GedcomApplicationService gedcomApplicationService,
+                                FamilySettingApplicationService settingService,
                                 ApplicationEventPublisher eventPublisher) {
         this.familyNodeService = familyNodeService;
         this.familyRelationService = familyRelationService;
         this.gedcomApplicationService = gedcomApplicationService;
+        this.settingService = settingService;
         this.eventPublisher = eventPublisher;
     }
 
@@ -65,6 +70,7 @@ public class DataExportController extends BaseController {
     @RequireFamilyManager
     public Result<Map<String, Object>> exportData(HttpSession session, HttpServletRequest request) {
         Long familyId = getCurrentFamilyId(session);
+        settingService.assertEnabled(familyId, FamilySettingKeyEnum.DATA_EXPORT_ENABLED);
         List<FamilyNodeDTO> nodes = familyNodeService.listNodes(familyId);
         List<FamilyRelationDTO> relations = familyRelationService.listAllRelations(familyId);
 
@@ -93,6 +99,7 @@ public class DataExportController extends BaseController {
     public void exportGedcom(HttpSession session, HttpServletRequest request,
                              HttpServletResponse response) throws IOException {
         Long familyId = getCurrentFamilyId(session);
+        settingService.assertEnabled(familyId, FamilySettingKeyEnum.DATA_EXPORT_ENABLED);
         String gedcomContent = gedcomApplicationService.exportGedcom(familyId, getCurrentUserId(session),
                 (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME), getClientIp(request));
 
@@ -119,6 +126,7 @@ public class DataExportController extends BaseController {
             @RequestParam("file") MultipartFile file,
             HttpSession session, HttpServletRequest request) throws IOException {
         Long familyId = getCurrentFamilyId(session);
+        settingService.assertEnabled(familyId, FamilySettingKeyEnum.GEDCOM_IMPORT_ENABLED);
         Long userId = getCurrentUserId(session);
         String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
         String content = readGedcomFile(file);
@@ -143,6 +151,7 @@ public class DataExportController extends BaseController {
             @RequestParam("file") MultipartFile file,
             HttpSession session, HttpServletRequest request) throws IOException {
         Long familyId = getCurrentFamilyId(session);
+        settingService.assertEnabled(familyId, FamilySettingKeyEnum.GEDCOM_IMPORT_ENABLED);
         Long userId = getCurrentUserId(session);
         String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
         String content = readGedcomFile(file);

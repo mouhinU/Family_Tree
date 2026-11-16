@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta name="theme-color" content="#a63a2b">
+    <title>平台管理 - 族谱管理系统</title>
+    <link href="/css/style.css?v=20261114a" rel="stylesheet">
+    <style>
+        .admin-body {
+            margin: 0;
+            background: #f4efe2;
+            color: #2b2622;
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        }
+
+        .admin-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 24px;
+            background: #2b2622;
+            color: #f7f2e6;
+            flex-wrap: wrap;
+        }
+
+        .admin-header h1 {
+            font-size: 19px;
+            margin: 0;
+            letter-spacing: 2px;
+        }
+
+        .admin-sub {
+            font-size: 12px;
+            color: #cbbfa4;
+            margin-left: 10px;
+        }
+
+        .admin-header-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+        }
+
+        .admin-link, .admin-btn {
+            font-size: 13px;
+            padding: 6px 12px;
+            border-radius: 4px;
+            border: 1px solid #7d6f56;
+            background: transparent;
+            color: #f7f2e6;
+            cursor: pointer;
+            text-decoration: none;
+            font-family: inherit;
+        }
+
+        .admin-link:hover, .admin-btn:hover {
+            background: #3d352c;
+        }
+
+        .admin-wrap {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px 24px 40px;
+        }
+
+        .admin-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #fffdf7;
+            border: 1px solid #d8cba8;
+            border-radius: 6px;
+            padding: 14px 16px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #8a7f6a;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            margin-top: 6px;
+        }
+
+        .stat-extra {
+            font-size: 12px;
+            color: #a0522d;
+            margin-top: 4px;
+        }
+
+        .admin-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .admin-tab {
+            padding: 7px 18px;
+            border: 1px solid #cbbfa4;
+            border-radius: 4px;
+            background: #efe6d2;
+            color: #6b5f4a;
+            font-size: 13px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .admin-tab.on {
+            background: #a63a2b;
+            border-color: #a63a2b;
+            color: #fff;
+        }
+
+        .admin-toolbar select {
+            padding: 7px 8px;
+            border: 1px solid #cbbfa4;
+            border-radius: 4px;
+            font-size: 13px;
+            background: #fff;
+            font-family: inherit;
+        }
+
+        .admin-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 420px;
+            gap: 16px;
+            align-items: start;
+        }
+
+        .admin-panel {
+            background: #fffdf7;
+            border: 1px solid #d8cba8;
+            border-radius: 6px;
+            padding: 16px;
+        }
+
+        .admin-panel h2 {
+            font-size: 15px;
+            margin: 0 0 12px;
+            letter-spacing: 1px;
+        }
+
+        .admin-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+
+        .admin-toolbar input {
+            flex: 1 1 220px;
+            padding: 7px 10px;
+            border: 1px solid #cbbfa4;
+            border-radius: 4px;
+            font-size: 13px;
+            background: #fff;
+        }
+
+        .admin-hint {
+            font-size: 12px;
+            color: #8a7f6a;
+        }
+
+        .admin-table-scroll {
+            overflow-x: auto;
+        }
+
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .admin-table th, .admin-table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #e6dcc4;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .admin-table th {
+            background: #efe6d2;
+            color: #6b5f4a;
+            font-weight: 600;
+        }
+
+        .admin-table tbody tr {
+            cursor: pointer;
+        }
+
+        .admin-table tbody tr:hover, .admin-table tbody tr.active {
+            background: #f6ecd8;
+        }
+
+        .admin-table .num {
+            text-align: right;
+        }
+
+        .pager {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 8px;
+            margin-top: 12px;
+            font-size: 13px;
+        }
+
+        .pager button {
+            padding: 5px 10px;
+            border: 1px solid #cbbfa4;
+            background: #fffdf7;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .pager button:disabled {
+            opacity: 0.45;
+            cursor: default;
+        }
+
+        .detail-empty {
+            font-size: 13px;
+            color: #8a7f6a;
+            padding: 24px 0;
+            text-align: center;
+        }
+
+        .kv-grid {
+            display: grid;
+            grid-template-columns: 84px 1fr;
+            gap: 6px 10px;
+            font-size: 13px;
+            margin-bottom: 14px;
+        }
+
+        .kv-grid dt {
+            color: #8a7f6a;
+        }
+
+        .kv-grid dd {
+            margin: 0;
+            word-break: break-all;
+        }
+
+        .mini-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .mini-stat {
+            border: 1px solid #e6dcc4;
+            border-radius: 4px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .mini-stat b {
+            display: block;
+            font-size: 17px;
+        }
+
+        .mini-stat span {
+            font-size: 12px;
+            color: #8a7f6a;
+        }
+
+        .section-title {
+            font-size: 13px;
+            color: #6b5f4a;
+            border-left: 3px solid #a63a2b;
+            padding-left: 8px;
+            margin: 16px 0 8px;
+        }
+
+        .setting-row {
+            border: 1px solid #e6dcc4;
+            border-radius: 5px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+        }
+
+        .setting-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .status-tag {
+            font-size: 11px;
+            padding: 1px 6px;
+            border-radius: 8px;
+            margin-left: 6px;
+            color: #fff;
+        }
+
+        .st-frozen {
+            background: #c8862a;
+        }
+
+        .st-archived {
+            background: #6b6b6b;
+        }
+
+        .gov-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+
+        .gov-row input {
+            padding: 5px 8px;
+            border: 1px solid #cbbfa4;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: inherit;
+            min-width: 200px;
+        }
+
+        .gov-btns {
+            margin-bottom: 4px;
+        }
+
+        .setting-tag {
+            font-size: 11px;
+            padding: 1px 6px;
+            border-radius: 8px;
+            background: #efe6d2;
+            color: #8a7f6a;
+        }
+
+        .setting-tag.on {
+            background: #a63a2b;
+            color: #fff;
+        }
+
+        .setting-desc {
+            font-size: 12px;
+            color: #8a7f6a;
+            margin-bottom: 6px;
+        }
+
+        .setting-field {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .setting-field select, .setting-field input {
+            padding: 5px 8px;
+            border: 1px solid #cbbfa4;
+            border-radius: 4px;
+            font-size: 13px;
+            background: #fff;
+            font-family: inherit;
+        }
+
+        .setting-field input {
+            width: 110px;
+        }
+
+        .op-list {
+            max-height: 260px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+
+        .op-item {
+            display: flex;
+            gap: 8px;
+            padding: 5px 0;
+            border-bottom: 1px dashed #e6dcc4;
+        }
+
+        .op-time {
+            color: #8a7f6a;
+            white-space: nowrap;
+        }
+
+        .admin-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 12px;
+        }
+
+        .primary-btn, .ghost-btn {
+            padding: 7px 16px;
+            border-radius: 4px;
+            border: 1px solid #a63a2b;
+            font-size: 13px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .primary-btn {
+            background: #a63a2b;
+            color: #fff;
+        }
+
+        .primary-btn:disabled {
+            opacity: 0.5;
+            cursor: default;
+        }
+
+        .ghost-btn {
+            background: transparent;
+            color: #a63a2b;
+        }
+
+        .reset-result {
+            margin-top: 12px;
+            padding: 12px 14px;
+            border: 1px solid #a63a2b;
+            border-radius: 4px;
+            background: #fdf6ef;
+            font-size: 13px;
+            color: #6b3a2a;
+        }
+
+        .reset-pwd {
+            display: block;
+            width: 100%;
+            box-sizing: border-box;
+            margin: 8px 0 6px;
+            padding: 8px 10px;
+            font-family: "SFMono-Regular", Menlo, Consolas, monospace;
+            font-size: 17px;
+            letter-spacing: 2px;
+            color: #a63a2b;
+            background: #fff;
+            border: 1px solid #d8c9b0;
+            border-radius: 4px;
+        }
+
+        .admin-denied {
+            text-align: center;
+            padding: 60px 20px;
+            font-size: 14px;
+            color: #6b5f4a;
+        }
+
+        .admin-layout.solo {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .insp-item {
+            border: 1px solid #e6dcc4;
+            border-radius: 5px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+        }
+
+        .insp-item.clean {
+            opacity: 0.66;
+        }
+
+        .insp-item-head {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .insp-item-title {
+            font-weight: 600;
+            color: #2b2622;
+        }
+
+        .insp-item-count {
+            margin-left: auto;
+            font-size: 12px;
+            color: #a0522d;
+            white-space: nowrap;
+        }
+
+        .sev-high {
+            background: #a63a2b;
+            color: #fff;
+        }
+
+        .sev-medium {
+            background: #c8862a;
+            color: #fff;
+        }
+
+        .sev-low {
+            background: #efe6d2;
+            color: #6b5f4a;
+        }
+
+        .insp-samples {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin-top: 6px;
+        }
+
+        .insp-samples th, .insp-samples td {
+            padding: 4px 8px;
+            border-bottom: 1px dashed #e6dcc4;
+            text-align: left;
+        }
+
+        .insp-samples th {
+            color: #8a7f6a;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .insp-samples td {
+            word-break: break-all;
+        }
+
+        .insp-samples tbody tr, .insp-samples tbody tr:hover {
+            background: transparent;
+            cursor: default;
+        }
+
+        .insp-truncated {
+            font-size: 12px;
+            color: #8a7f6a;
+            margin-top: 6px;
+        }
+
+        @media (max-width: 1000px) {
+            .admin-layout {
+                grid-template-columns: minmax(0, 1fr);
+            }
+        }
+    </style>
+</head>
+<body class="admin-body">
+<header class="admin-header">
+    <div>
+        <h1>平台管理<span class="admin-sub">家族概况 · 用户账号 · 平台配置</span></h1>
+    </div>
+    <div class="admin-header-right">
+        <span id="admin-user"></span>
+        <a class="admin-link" href="/index.html">返回族谱</a>
+        <button class="admin-btn" id="btn-admin-logout" type="button">退出</button>
+    </div>
+</header>
+
+<div class="admin-wrap">
+    <div class="admin-denied" id="admin-denied" style="display:none;">
+        当前账号不在平台管理员白名单内，无法访问本页。<br>
+        <a class="admin-link" href="/index.html" style="color:#a63a2b;border-color:#a63a2b;display:inline-block;margin-top:14px;">返回族谱</a>
+    </div>
+
+    <div id="admin-content" style="display:none;">
+        <section class="admin-overview" id="overview-cards"></section>
+
+        <section class="admin-tabs">
+            <button class="admin-tab on" id="tab-families" type="button">家族概况</button>
+            <button class="admin-tab" id="tab-users" type="button">用户账号</button>
+            <button class="admin-tab" id="tab-inspection" type="button">数据巡检</button>
+            <button class="admin-tab" id="tab-settings" type="button">平台配置</button>
+            <button class="admin-tab" id="tab-logs" type="button">操作日志</button>
+        </section>
+
+        <section class="admin-layout" id="admin-layout">
+            <div class="admin-panel">
+                <div id="pane-families">
+                    <h2>家族列表</h2>
+                    <div class="admin-toolbar">
+                        <input autocomplete="off" id="family-search" placeholder="搜索家族名称 / 堂号 / 邀请码"
+                               type="text">
+                        <button class="ghost-btn" id="btn-search" type="button">搜索</button>
+                        <button class="ghost-btn" id="btn-reset" type="button">重置</button>
+                        <span class="admin-hint" id="list-count"></span>
+                    </div>
+                    <div class="admin-table-scroll">
+                        <table class="admin-table">
+                            <thead>
+                            <tr>
+                                <th>家族</th>
+                                <th>堂号</th>
+                                <th>邀请码</th>
+                                <th>创建人</th>
+                                <th class="num">成员</th>
+                                <th class="num">节点</th>
+                                <th class="num">关系</th>
+                                <th>创建时间</th>
+                            </tr>
+                            </thead>
+                            <tbody id="family-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="pager" id="family-pager"></div>
+                </div>
+
+                <div id="pane-users" style="display:none;">
+                    <h2>用户列表</h2>
+                    <div class="admin-toolbar">
+                        <input autocomplete="off" id="user-search" placeholder="搜索用户名 / 昵称 / 完整手机号 / 邮箱"
+                               type="text">
+                        <select id="user-account-type">
+                            <option value="ALL">全部账号</option>
+                            <option value="REAL">真人注册</option>
+                            <option value="AUTO">系统代开</option>
+                        </select>
+                        <button class="ghost-btn" id="btn-user-search" type="button">搜索</button>
+                        <button class="ghost-btn" id="btn-user-reset" type="button">重置</button>
+                        <span class="admin-hint" id="user-list-count"></span>
+                    </div>
+                    <div class="admin-table-scroll">
+                        <table class="admin-table">
+                            <thead>
+                            <tr>
+                                <th>用户名</th>
+                                <th>昵称</th>
+                                <th>账号类型</th>
+                                <th class="num">家族数</th>
+                                <th>当前家族</th>
+                                <th>手机号</th>
+                                <th>注册时间</th>
+                            </tr>
+                            </thead>
+                            <tbody id="user-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="pager" id="user-pager"></div>
+                </div>
+
+                <div id="pane-inspection" style="display:none;">
+                    <h2>数据巡检</h2>
+                    <div class="admin-toolbar">
+                        <button class="ghost-btn" id="btn-inspection" type="button">重新巡检</button>
+                        <span class="admin-hint" id="insp-hint">巡检只读取数据，不修改任何记录；发现问题需人工核对后处理</span>
+                    </div>
+                    <div id="insp-body">
+                        <div class="detail-empty">点击「数据巡检」页签后自动开始体检</div>
+                    </div>
+                </div>
+
+                <div id="pane-settings" style="display:none;">
+                    <h2>平台配置</h2>
+                    <div class="admin-toolbar">
+                        <button class="ghost-btn" id="btn-platform-reload" type="button">重新加载</button>
+                        <button class="primary-btn" disabled id="btn-platform-save" type="button">保存配置</button>
+                        <span class="admin-hint">标注「家族可覆盖」的配置只是全站默认值，家族单独设置后以家族值优先；其余配置对全平台立即生效</span>
+                    </div>
+                    <div id="platform-body">
+                        <div class="detail-empty">加载中…</div>
+                    </div>
+                </div>
+
+                <div id="pane-logs" style="display:none;">
+                    <h2>操作日志</h2>
+                    <div class="admin-toolbar">
+                        <select id="log-family">
+                            <option value="">全部家族</option>
+                        </select>
+                        <select id="log-type">
+                            <option value="">全部类型</option>
+                        </select>
+                        <input autocomplete="off" id="log-keyword" placeholder="搜索用户名 / 操作描述" type="text">
+                        <input id="log-start" type="date">
+                        <span class="admin-hint">至</span>
+                        <input id="log-end" type="date">
+                        <button class="ghost-btn" id="btn-log-search" type="button">搜索</button>
+                        <button class="ghost-btn" id="btn-log-reset" type="button">重置</button>
+                        <span class="admin-hint" id="log-list-count"></span>
+                    </div>
+                    <div class="admin-table-scroll">
+                        <table class="admin-table">
+                            <thead>
+                            <tr>
+                                <th>时间</th>
+                                <th>操作人</th>
+                                <th>类型</th>
+                                <th>描述</th>
+                                <th>家族</th>
+                                <th>对象</th>
+                                <th>IP</th>
+                            </tr>
+                            </thead>
+                            <tbody id="log-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="pager" id="log-pager"></div>
+                </div>
+            </div>
+
+            <aside class="admin-panel" id="detail-pane">
+                <h2>家族详情</h2>
+                <div class="detail-empty">点击左侧任一家族查看概况与配置</div>
+            </aside>
+        </section>
+    </div>
+</div>
+
+<script src="/js/ft/core.js?v=20261112a"></script>
+<script src="/js/ft/api.js?v=20261111a"></script>
+<script src="/js/ft/modals.js?v=20260828b"></script>
+<script src="/js/ft/admin.js?v=20261116i"></script>
+</body>
+</html>

@@ -71,3 +71,9 @@ management:
 ai:
   llm:
     enabled: false
+
+# 平台（系统）管理员白名单：逗号分隔的登录用户名，与家族角色无关
+# 生产环境通过环境变量 PLATFORM_ADMIN_USERNAMES 注入，修改后需重启生效
+family-tree:
+  platform:
+    admin-usernames: ${PLATFORM_ADMIN_USERNAMES:}

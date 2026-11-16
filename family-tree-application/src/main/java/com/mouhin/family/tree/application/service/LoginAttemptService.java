@@ -55,10 +55,41 @@ public class LoginAttemptService {
      * @param username 用户名
      */
     public void recordSuccess(String username) {
+        clearAttempts(username);
+    }
+
+    /**
+     * 清除失败计数，解除因连续失败触发的登录锁定
+     *
+     * @param username 用户名
+     */
+    public void clearAttempts(String username) {
         if (username == null || username.isBlank()) {
             return;
         }
         stringRedisTemplate.delete(LOGIN_ATTEMPT_KEY_PREFIX + username);
+    }
+
+    /**
+     * 查询当前累计的登录失败次数，用于判断账号是否处于锁定边缘
+     *
+     * @param username 用户名
+     * @return 失败次数，无记录或计数异常时为 0
+     */
+    public int getFailedAttempts(String username) {
+        if (username == null || username.isBlank()) {
+            return 0;
+        }
+        String value = stringRedisTemplate.opsForValue().get(LOGIN_ATTEMPT_KEY_PREFIX + username);
+        if (value == null) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            logger.warn("Invalid login attempt count for user={}: {}", username, value);
+            return 0;
+        }
     }
 
     /**
@@ -68,18 +99,6 @@ public class LoginAttemptService {
      * @return true 表示已锁定，禁止登录
      */
     public boolean isLocked(String username) {
-        if (username == null || username.isBlank()) {
-            return false;
-        }
-        String value = stringRedisTemplate.opsForValue().get(LOGIN_ATTEMPT_KEY_PREFIX + username);
-        if (value == null) {
-            return false;
-        }
-        try {
-            return Integer.parseInt(value) >= LoginSecurityConsts.MAX_FAILED_ATTEMPTS;
-        } catch (NumberFormatException e) {
-            logger.warn("Invalid login attempt count for user={}: {}", username, value);
-            return false;
-        }
+        return getFailedAttempts(username) >= LoginSecurityConsts.MAX_FAILED_ATTEMPTS;
     }
 }

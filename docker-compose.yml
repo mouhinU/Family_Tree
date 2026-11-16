@@ -24,6 +24,8 @@ services:
       - family-tree-logs:/app/logs
     environment:
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      # 平台管理员白名单（逗号分隔的登录用户名，与家族角色无关；为空则 /api/admin 全部拒绝）
+      - PLATFORM_ADMIN_USERNAMES=${PLATFORM_ADMIN_USERNAMES:-}
       - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
     # 运行时为 distroless 镜像（无 curl），健康检查由 sidecar 容器执行
     healthcheck:
@@ -97,6 +99,8 @@ services:
       - DB_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-family_tree}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
       - DB_USERNAME=${DB_USERNAME:-family_tree_app}
       - DB_PASSWORD=${DB_PASSWORD}
+      # 平台管理员白名单（逗号分隔的登录用户名，与家族角色无关；为空则 /api/admin 全部拒绝）
+      - PLATFORM_ADMIN_USERNAMES=${PLATFORM_ADMIN_USERNAMES:-}
       - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
     # 运行时为 distroless 镜像（无 curl），健康检查由 sidecar 容器执行
     healthcheck:

@@ -3,6 +3,7 @@ package com.mouhin.family.tree.domain.repository;
 import com.mouhin.family.tree.domain.entity.FamilyMember;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 家族成员仓储接口
@@ -69,6 +70,22 @@ public interface FamilyMemberRepository {
      * @return 成员数量
      */
     long countByFamilyId(Long familyId);
+
+    /**
+     * 按家族分组批量统计成员数量（平台管理概况用，避免逐家族往返）
+     *
+     * @param familyIds 家族ID列表，调用方保证非空且不超过 1000 个
+     * @return 家族ID → 成员数量，无成员的家族不出现在结果中
+     */
+    Map<Long, Long> countGroupedByFamilyIds(List<Long> familyIds);
+
+    /**
+     * 按用户分组批量统计其加入的家族数（平台管理用户列表用，避免逐用户往返）
+     *
+     * @param userIds 用户ID列表，调用方保证非空且不超过 1000 个
+     * @return 用户ID → 家族数量，未加入家族的账号不出现在结果中
+     */
+    Map<Long, Long> countGroupedByUserIds(List<Long> userIds);
 
     /**
      * 更新成员

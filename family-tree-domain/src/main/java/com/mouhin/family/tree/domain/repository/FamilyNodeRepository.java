@@ -3,6 +3,7 @@ package com.mouhin.family.tree.domain.repository;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 族谱节点仓储接口
@@ -96,6 +97,29 @@ public interface FamilyNodeRepository {
      * @return 节点数量
      */
     long countByFamilyId(Long familyId);
+
+    /**
+     * 统计全平台族谱节点总数
+     *
+     * @return 节点数量
+     */
+    long countAll();
+
+    /**
+     * 按家族分组统计节点数（一次查询覆盖当页全部家族，避免逐家族往返）
+     *
+     * @param familyIds 家族ID列表，最多 1000 个
+     * @return 家族ID → 节点数；无数据的家族不在结果中
+     */
+    Map<Long, Long> countGroupedByFamilyIds(List<Long> familyIds);
+
+    /**
+     * 按家族分组统计已故节点数
+     *
+     * @param familyIds 家族ID列表，最多 1000 个
+     * @return 家族ID → 已故节点数；无数据的家族不在结果中
+     */
+    Map<Long, Long> countDeceasedGroupedByFamilyIds(List<Long> familyIds);
 
     /**
      * 根据用户ID更新所属家族ID（数据迁移场景）

@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
+import com.mouhin.family.tree.common.constant.PlatformAdminConsts;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
@@ -36,6 +37,24 @@ public abstract class BaseController {
             throw new BusinessException("请先加入或创建家族");
         }
         return familyId;
+    }
+
+    /**
+     * 校验并规整平台管理页的搜索关键词
+     *
+     * @param keyword 原始关键词，可为空
+     * @return 去除首尾空格的关键词；空白入参返回 null 表示不过滤
+     * @throws BusinessException 关键词超长时抛出
+     */
+    protected String normalizeSearchKeyword(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return null;
+        }
+        String trimmed = keyword.trim();
+        if (trimmed.length() > PlatformAdminConsts.MAX_KEYWORD_LENGTH) {
+            throw new BusinessException("搜索关键词不能超过" + PlatformAdminConsts.MAX_KEYWORD_LENGTH + "个字符");
+        }
+        return trimmed;
     }
 
     /**

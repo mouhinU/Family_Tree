@@ -2,6 +2,7 @@ package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.FamilyApplicationService;
 import com.mouhin.family.tree.application.service.FamilyUserNodeApplicationService;
+import com.mouhin.family.tree.application.service.PlatformAdminApplicationService;
 import com.mouhin.family.tree.application.service.UserAuthApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.*;
@@ -36,14 +37,17 @@ public class AuthController extends BaseController {
     private final UserAuthApplicationService userService;
     private final FamilyApplicationService familyService;
     private final FamilyUserNodeApplicationService familyUserNodeService;
+    private final PlatformAdminApplicationService platformAdminService;
     private final ApplicationEventPublisher eventPublisher;
 
     public AuthController(UserAuthApplicationService userService, FamilyApplicationService familyService,
                           FamilyUserNodeApplicationService familyUserNodeService,
+                          PlatformAdminApplicationService platformAdminService,
                           ApplicationEventPublisher eventPublisher) {
         this.userService = userService;
         this.familyService = familyService;
         this.familyUserNodeService = familyUserNodeService;
+        this.platformAdminService = platformAdminService;
         this.eventPublisher = eventPublisher;
     }
 
@@ -110,12 +114,13 @@ public class AuthController extends BaseController {
         // 生成 CSRF Token 并写入响应
         String csrfToken = CsrfFilter.generateToken(session);
 
-        Map<String, Object> data = new HashMap<>(8);
+        Map<String, Object> data = new HashMap<>(16);
         data.put("userId", userId);
         data.put("nickname", nickname);
         data.put("csrfToken", csrfToken);
         data.put("hasFamily", family != null);
         data.put("mustChangePassword", userService.isMustChangePassword(userId));
+        data.put("isSystemAdmin", platformAdminService.isPlatformAdmin(userId));
         if (family != null) {
             data.put("familyId", family.getId());
             data.put("familyName", family.getName());
@@ -154,7 +159,7 @@ public class AuthController extends BaseController {
         // 一次查询获取用户所有信息
         UserProfileDTO profile = userService.getUserProfile(userId);
 
-        Map<String, Object> data = new HashMap<>(8);
+        Map<String, Object> data = new HashMap<>(16);
         data.put("userId", userId);
         data.put("nickname", profile != null ? profile.getNickname() : null);
         data.put("generation", profile != null ? profile.getGeneration() : null);
@@ -167,6 +172,8 @@ public class AuthController extends BaseController {
         data.put("nodeId", familyUserNodeService.getBoundNodeId(familyId, userId));
         data.put("csrfToken", csrfToken);
         data.put("mustChangePassword", userService.isMustChangePassword(userId));
+        // 平台管理员身份独立于家族角色，由配置白名单裁决，前端据此决定是否展示平台管理入口
+        data.put("isSystemAdmin", platformAdminService.isPlatformAdmin(userId));
 
         data.put("hasFamily", family != null);
         if (family != null) {

@@ -37,6 +37,7 @@ public final class FamilyConverter {
         entity.setAncestralHome(doObj.getAncestralHome());
         entity.setGenerationCols(doObj.getGenerationCols());
         entity.setGenerationRows(doObj.getGenerationRows());
+        entity.setStatus(doObj.getStatus());
         entity.setCreateTime(doObj.getCreateTime());
         entity.setUpdateTime(doObj.getUpdateTime());
         return entity;
@@ -61,6 +62,7 @@ public final class FamilyConverter {
         doObj.setAncestralHome(entity.getAncestralHome());
         doObj.setGenerationCols(entity.getGenerationCols());
         doObj.setGenerationRows(entity.getGenerationRows());
+        doObj.setStatus(entity.getStatus());
         doObj.setCreateTime(entity.getCreateTime());
         doObj.setUpdateTime(entity.getUpdateTime());
         return doObj;

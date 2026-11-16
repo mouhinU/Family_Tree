@@ -7,6 +7,7 @@ import com.mouhin.family.tree.common.dto.FamilyJoinDTO;
 import com.mouhin.family.tree.common.dto.FamilyMemberDTO;
 import com.mouhin.family.tree.common.dto.PageResult;
 import com.mouhin.family.tree.common.enums.FamilyMemberRoleEnum;
+import com.mouhin.family.tree.common.enums.PlatformSettingKeyEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.Family;
 import com.mouhin.family.tree.domain.entity.FamilyMember;
@@ -61,6 +62,7 @@ public class FamilyApplicationService {
     private final FamilyOfferingRepository familyOfferingRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final PlatformSettingApplicationService platformSettingService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public FamilyApplicationService(FamilyRepository familyRepository,
@@ -70,7 +72,8 @@ public class FamilyApplicationService {
                                     FamilyGenerationRepository familyGenerationRepository,
                                     FamilyOfferingRepository familyOfferingRepository,
                                     UserRepository userRepository,
-                                    ApplicationEventPublisher eventPublisher) {
+                                    ApplicationEventPublisher eventPublisher,
+                                    PlatformSettingApplicationService platformSettingService) {
         this.familyRepository = familyRepository;
         this.familyMemberRepository = familyMemberRepository;
         this.familyNodeRepository = familyNodeRepository;
@@ -79,6 +82,7 @@ public class FamilyApplicationService {
         this.familyOfferingRepository = familyOfferingRepository;
         this.userRepository = userRepository;
         this.eventPublisher = eventPublisher;
+        this.platformSettingService = platformSettingService;
     }
 
     /**
@@ -90,6 +94,7 @@ public class FamilyApplicationService {
      */
     @Transactional(rollbackFor = Exception.class)
     public Long createFamily(Long userId, FamilyCreateDTO dto) {
+        platformSettingService.assertFamilyQuotaAvailable();
         if (dto.getName() == null || dto.getName().isBlank()) {
             throw new BusinessException("家族名称不能为空");
         }
@@ -138,6 +143,7 @@ public class FamilyApplicationService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void joinFamily(Long userId, FamilyJoinDTO dto) {
+        platformSettingService.assertEnabled(PlatformSettingKeyEnum.INVITE_JOIN_ENABLED);
         if (dto.getInviteCode() == null || dto.getInviteCode().isBlank()) {
             throw new BusinessException("邀请码不能为空");
         }

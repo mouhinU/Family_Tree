@@ -2,6 +2,7 @@ package com.mouhin.family.tree.web.config;
 
 import com.mouhin.family.tree.web.filter.CsrfFilter;
 import com.mouhin.family.tree.web.filter.SecurityHeadersFilter;
+import com.mouhin.family.tree.web.interceptor.FamilyStatusInterceptor;
 import com.mouhin.family.tree.web.interceptor.LoginInterceptor;
 import com.mouhin.family.tree.web.interceptor.RateLimitInterceptor;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -21,16 +22,24 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     private final LoginInterceptor loginInterceptor;
     private final RateLimitInterceptor rateLimitInterceptor;
+    private final FamilyStatusInterceptor familyStatusInterceptor;
 
     public WebMvcConfig(LoginInterceptor loginInterceptor,
-                        RateLimitInterceptor rateLimitInterceptor) {
+                        RateLimitInterceptor rateLimitInterceptor,
+                        FamilyStatusInterceptor familyStatusInterceptor) {
         this.loginInterceptor = loginInterceptor;
         this.rateLimitInterceptor = rateLimitInterceptor;
+        this.familyStatusInterceptor = familyStatusInterceptor;
     }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(loginInterceptor)
+                .addPathPatterns("/api/**")
+                .excludePathPatterns("/api/auth/login", "/api/auth/register");
+
+        // 家族冻结 / 归档治理（在登录认证之后、限流之前执行）
+        registry.addInterceptor(familyStatusInterceptor)
                 .addPathPatterns("/api/**")
                 .excludePathPatterns("/api/auth/login", "/api/auth/register");
 

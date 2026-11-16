@@ -59,6 +59,10 @@ MYSQL_ROOT_PASSWORD=StrongRootP@ssw0rd
 MYSQL_DATABASE=family_tree
 DB_USERNAME=family_tree_app
 DB_PASSWORD=StrongAppP@ssw0rd
+
+# 平台管理员白名单：逗号分隔的登录用户名，与家族角色（OWNER/ADMIN/MEMBER）无关
+# 为空时 /admin.html 入口隐藏且 /api/admin/** 全部拒绝；修改后需重启应用容器
+PLATFORM_ADMIN_USERNAMES=admin
 ```
 
 ### 2.3 启动服务

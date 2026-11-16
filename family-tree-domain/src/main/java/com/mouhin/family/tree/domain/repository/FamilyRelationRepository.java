@@ -3,6 +3,7 @@ package com.mouhin.family.tree.domain.repository;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 族谱关系仓储接口
@@ -115,4 +116,19 @@ public interface FamilyRelationRepository {
      * @return 是否存在
      */
     boolean existsRelation(Long familyId, Long fromNodeId, Long toNodeId, Integer relationType);
+
+    /**
+     * 统计全平台亲缘关系总数
+     *
+     * @return 关系数量
+     */
+    long countAll();
+
+    /**
+     * 按家族分组统计关系数
+     *
+     * @param familyIds 家族ID列表，最多 1000 个
+     * @return 家族ID → 关系数；无数据的家族不在结果中
+     */
+    Map<Long, Long> countGroupedByFamilyIds(List<Long> familyIds);
 }

@@ -91,4 +91,56 @@ public class UserRepositoryImpl implements UserRepository {
     public void deleteById(Long id) {
         mapper.deleteById(id);
     }
+
+    @Override
+    public List<User> listPaged(String keyword, Boolean autoAccount, int offset, int size) {
+        LambdaQueryWrapper<SysUserDO> wrapper = filterWrapper(keyword, autoAccount)
+                .orderByDesc(SysUserDO::getCreateTime)
+                .orderByDesc(SysUserDO::getId)
+                .last("LIMIT " + size + " OFFSET " + offset);
+        List<SysUserDO> doList = mapper.selectList(wrapper);
+        return UserConverter.toDomainList(doList);
+    }
+
+    @Override
+    public long countByFilter(String keyword, Boolean autoAccount) {
+        // H2 严格模式下 selectCount 不允许携带 ORDER BY，计数使用无条件包装器
+        return mapper.selectCount(filterWrapper(keyword, autoAccount));
+    }
+
+    @Override
+    public long countAll() {
+        return mapper.selectCount(new LambdaQueryWrapper<>());
+    }
+
+    @Override
+    public long countAutoAccounts() {
+        LambdaQueryWrapper<SysUserDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(SysUserDO::getAutoAccount, Boolean.TRUE);
+        return mapper.selectCount(wrapper);
+    }
+
+    /**
+     * 组装平台用户列表的筛选条件：文本走右模糊，联系方式走精确匹配，避免按号码逐位试探。
+     */
+    private LambdaQueryWrapper<SysUserDO> filterWrapper(String keyword, Boolean autoAccount) {
+        LambdaQueryWrapper<SysUserDO> wrapper = new LambdaQueryWrapper<>();
+        if (autoAccount != null) {
+            if (autoAccount) {
+                wrapper.eq(SysUserDO::getAutoAccount, Boolean.TRUE);
+            } else {
+                // 存量真人账号可能尚未回写标记，FALSE 需把 NULL 一并视为真人账号
+                wrapper.and(w -> w.isNull(SysUserDO::getAutoAccount).or().eq(SysUserDO::getAutoAccount, Boolean.FALSE));
+            }
+        }
+        if (keyword == null || keyword.isBlank()) {
+            return wrapper;
+        }
+        String trimmed = keyword.trim();
+        wrapper.and(w -> w.likeRight(SysUserDO::getUsername, trimmed)
+                .or().likeRight(SysUserDO::getNickname, trimmed)
+                .or().eq(SysUserDO::getPhone, trimmed)
+                .or().eq(SysUserDO::getEmail, trimmed));
+        return wrapper;
+    }
 }

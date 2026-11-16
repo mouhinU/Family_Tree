@@ -18,6 +18,13 @@
         }
     }
 
+    function showIfPresent(id, display) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.style.display = display || 'block';
+        }
+    }
+
     async function init() {
         // 恢复 CSRF Token（登录时存储在 sessionStorage）
         var savedToken = sessionStorage.getItem('csrfToken');
@@ -94,6 +101,11 @@
                 FT.state.isManager = false;
                 hideIfPresent('btn-add-root');
                 hideIfPresent('drawer-btn-add-root');
+            }
+            // 平台管理员入口与家族角色无关，由配置白名单裁决；隐藏仅为体验优化，服务端另有校验
+            if (res.data.isSystemAdmin) {
+                showIfPresent('btn-admin', 'inline-block');
+                showIfPresent('drawer-btn-admin', 'flex');
             }
         } catch (e) {
             window.location.href = '/login.html';
@@ -190,6 +202,16 @@
                 var dropdown = document.getElementById('header-more-dropdown');
                 if (dropdown) dropdown.style.display = 'none';
                 FT.showOperationLogModal();
+            });
+        }
+
+        // 平台管理入口（仅配置白名单用户可见），独立页面
+        const btnAdmin = document.getElementById('btn-admin');
+        if (btnAdmin) {
+            btnAdmin.addEventListener('click', function () {
+                var dropdown = document.getElementById('header-more-dropdown');
+                if (dropdown) dropdown.style.display = 'none';
+                window.location.href = '/admin.html';
             });
         }
 
@@ -597,6 +619,7 @@
             'drawer-btn-chat': function () { closeDrawer(); FT.showChatModal(); },
             'drawer-btn-event': function () { closeDrawer(); FT.showEventModal(); },
             'drawer-btn-operation-log': function () { closeDrawer(); FT.showOperationLogModal(); },
+            'drawer-btn-admin': function () { closeDrawer(); window.location.href = '/admin.html'; },
             'drawer-btn-export': function () { closeDrawer(); FT.exportToPdf(); },
             'drawer-btn-add-root': function () { closeDrawer(); FT.showNodeModal('添加始祖', {}); },
             'drawer-btn-logout': function () {

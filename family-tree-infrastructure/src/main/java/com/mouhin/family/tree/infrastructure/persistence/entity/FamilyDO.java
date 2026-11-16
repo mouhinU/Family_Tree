@@ -57,6 +57,11 @@ public class FamilyDO {
      */
     private Integer generationRows;
 
+    /**
+     * 家族状态：NORMAL / FROZEN / ARCHIVED
+     */
+    private String status;
+
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

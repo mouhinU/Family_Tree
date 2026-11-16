@@ -1,7 +1,9 @@
 package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.AiApplicationService;
+import com.mouhin.family.tree.application.service.FamilySettingApplicationService;
 import com.mouhin.family.tree.common.dto.*;
+import com.mouhin.family.tree.common.enums.FamilySettingKeyEnum;
 import com.mouhin.family.tree.common.result.Result;
 import com.mouhin.family.tree.web.security.NodeAccessActionEnum;
 import com.mouhin.family.tree.web.security.RequireFamilyManager;
@@ -26,9 +28,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiController extends BaseController {
 
     private final AiApplicationService aiApplicationService;
+    private final FamilySettingApplicationService settingService;
 
-    public AiController(AiApplicationService aiApplicationService) {
+    public AiController(AiApplicationService aiApplicationService,
+                        FamilySettingApplicationService settingService) {
         this.aiApplicationService = aiApplicationService;
+        this.settingService = settingService;
     }
 
     /**
@@ -38,6 +43,7 @@ public class AiController extends BaseController {
     @RequireFamilyManager
     public Result<AiSmartEntryVO> smartEntry(HttpSession session, @Valid @RequestBody AiSmartEntryDTO dto) {
         Long familyId = getCurrentFamilyId(session);
+        assertAiEnabled(familyId);
         AiSmartEntryVO vo = aiApplicationService.smartEntry(familyId, dto);
         return Result.success(vo);
     }
@@ -49,6 +55,7 @@ public class AiController extends BaseController {
     @RequireFamilyManager
     public Result<AiQueryVO> query(HttpSession session, @Valid @RequestBody AiQueryDTO dto) {
         Long familyId = getCurrentFamilyId(session);
+        assertAiEnabled(familyId);
         AiQueryVO vo = aiApplicationService.query(familyId, dto);
         return Result.success(vo);
     }
@@ -60,6 +67,7 @@ public class AiController extends BaseController {
     @RequireNodeAccess(node = "#dto.nodeId", action = NodeAccessActionEnum.OPERATE)
     public Result<AiStoryVO> generateStory(HttpSession session, @Valid @RequestBody AiStoryDTO dto) {
         Long familyId = getCurrentFamilyId(session);
+        assertAiEnabled(familyId);
         AiStoryVO vo = aiApplicationService.generateStory(familyId, dto);
         return Result.success(vo);
     }
@@ -71,7 +79,15 @@ public class AiController extends BaseController {
     @RequireFamilyManager
     public Result<AiSmartEntryVO> ocrParse(HttpSession session, @Valid @RequestBody AiOcrParseDTO dto) {
         Long familyId = getCurrentFamilyId(session);
+        assertAiEnabled(familyId);
         AiSmartEntryVO vo = aiApplicationService.ocrParse(familyId, dto);
         return Result.success(vo);
+    }
+
+    /**
+     * 平台侧关闭该家族 AI 能力时拒绝访问
+     */
+    private void assertAiEnabled(Long familyId) {
+        settingService.assertEnabled(familyId, FamilySettingKeyEnum.AI_FEATURE_ENABLED);
     }
 }

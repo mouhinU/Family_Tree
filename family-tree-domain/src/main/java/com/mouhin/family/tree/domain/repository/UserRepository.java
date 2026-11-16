@@ -83,4 +83,38 @@ public interface UserRepository {
      * @param id 用户ID
      */
     void deleteById(Long id);
+
+    /**
+     * 平台侧分页查询用户（按创建时间倒序）
+     *
+     * @param keyword     用户名 / 昵称前缀或手机号邮箱精确词，为空表示不过滤
+     * @param autoAccount 账号类型：TRUE 仅自动账号，FALSE 仅真人账号，null 表示不过滤
+     * @param offset      偏移量
+     * @param size        每页大小
+     * @return 当前页用户列表
+     */
+    List<User> listPaged(String keyword, Boolean autoAccount, int offset, int size);
+
+    /**
+     * 统计符合筛选条件的用户数
+     *
+     * @param keyword     用户名 / 昵称前缀或手机号邮箱精确词，为空表示不过滤
+     * @param autoAccount 账号类型，null 表示不过滤
+     * @return 用户数量
+     */
+    long countByFilter(String keyword, Boolean autoAccount);
+
+    /**
+     * 统计全平台注册用户总数
+     *
+     * @return 用户数量
+     */
+    long countAll();
+
+    /**
+     * 统计族谱节点自动开通的账号数
+     *
+     * @return 自动账号数量
+     */
+    long countAutoAccounts();
 }

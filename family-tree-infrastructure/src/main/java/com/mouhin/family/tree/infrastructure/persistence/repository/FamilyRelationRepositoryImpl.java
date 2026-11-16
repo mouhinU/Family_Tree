@@ -4,12 +4,16 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
 import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
+import com.mouhin.family.tree.infrastructure.converter.FamilyCountConverter;
 import com.mouhin.family.tree.infrastructure.converter.FamilyRelationConverter;
+import com.mouhin.family.tree.infrastructure.persistence.entity.FamilyCountDO;
 import com.mouhin.family.tree.infrastructure.persistence.entity.FamilyRelationDO;
 import com.mouhin.family.tree.infrastructure.persistence.mapper.FamilyRelationMapper;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * FamilyRelation 仓储实现
@@ -130,5 +134,19 @@ public class FamilyRelationRepositoryImpl implements FamilyRelationRepository {
         wrapper.eq(FamilyRelationDO::getRelationType, relationType);
         Long count = mapper.selectCount(wrapper);
         return count != null && count > 0;
+    }
+
+    @Override
+    public long countAll() {
+        return mapper.selectCount(new LambdaQueryWrapper<>());
+    }
+
+    @Override
+    public Map<Long, Long> countGroupedByFamilyIds(List<Long> familyIds) {
+        if (familyIds == null || familyIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<FamilyCountDO> counts = mapper.countGroupedByFamilyIds(familyIds);
+        return FamilyCountConverter.toMap(counts);
     }
 }

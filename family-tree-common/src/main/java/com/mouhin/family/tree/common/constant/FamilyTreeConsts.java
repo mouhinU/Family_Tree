@@ -21,6 +21,10 @@ public final class FamilyTreeConsts {
      */
     public static final int MAX_NAME_LENGTH = 50;
     /**
+     * 家族名称最大长度
+     */
+    public static final int MAX_FAMILY_NAME_LENGTH = 100;
+    /**
      * 备注最大长度
      */
     public static final int MAX_REMARK_LENGTH = 500;
