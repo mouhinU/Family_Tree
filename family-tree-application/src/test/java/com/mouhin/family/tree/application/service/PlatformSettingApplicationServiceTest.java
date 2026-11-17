@@ -7,6 +7,7 @@ import com.mouhin.family.tree.common.enums.PlatformSettingKeyEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.PlatformSetting;
 import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
+import com.mouhin.family.tree.domain.repository.FamilyMemberRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRepository;
 import com.mouhin.family.tree.domain.repository.PlatformSettingRepository;
 import com.mouhin.family.tree.domain.service.PlatformSettingDomainService;
@@ -47,6 +48,13 @@ class PlatformSettingApplicationServiceTest {
 
     private static final String OPERATOR_IP = "127.0.0.1";
 
+    private static final Long FAMILY_ID = 100L;
+
+    /**
+     * 成员上限的代码默认值，与 PlatformSettingKeyEnum.MAX_FAMILY_MEMBERS 默认口径一致
+     */
+    private static final int DEFAULT_MEMBER_LIMIT = 50;
+
     @Mock
     private PlatformSettingRepository platformSettingRepository;
 
@@ -54,11 +62,14 @@ class PlatformSettingApplicationServiceTest {
     private FamilyRepository familyRepository;
 
     @Mock
+    private FamilyMemberRepository familyMemberRepository;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     private PlatformSettingApplicationService service() {
         return new PlatformSettingApplicationService(platformSettingRepository,
-                new PlatformSettingDomainService(), familyRepository, eventPublisher);
+                new PlatformSettingDomainService(), familyRepository, familyMemberRepository, eventPublisher);
     }
 
     private PlatformSetting existing(String key, String value) {
@@ -199,6 +210,38 @@ class PlatformSettingApplicationServiceTest {
         when(familyRepository.countAll()).thenReturn(2L);
 
         service().assertFamilyQuotaAvailable();
+    }
+
+    @Test
+    void memberQuotaRejectsAtPlatformOverride() {
+        when(platformSettingRepository.findAll()).thenReturn(
+                List.of(existing(PlatformSettingKeyEnum.MAX_FAMILY_MEMBERS.getCode(), "3")));
+        when(familyMemberRepository.countByFamilyId(FAMILY_ID)).thenReturn(3L);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service().assertMemberQuotaAvailable(FAMILY_ID));
+
+        assertTrue(ex.getMessage().contains("上限（3人）"));
+    }
+
+    @Test
+    void memberQuotaAllowsBelowLimit() {
+        when(platformSettingRepository.findAll()).thenReturn(
+                List.of(existing(PlatformSettingKeyEnum.MAX_FAMILY_MEMBERS.getCode(), "3")));
+        when(familyMemberRepository.countByFamilyId(FAMILY_ID)).thenReturn(2L);
+
+        service().assertMemberQuotaAvailable(FAMILY_ID);
+    }
+
+    @Test
+    void memberQuotaFallsBackToCodeDefaultWhenNotOverridden() {
+        when(platformSettingRepository.findAll()).thenReturn(List.of());
+        when(familyMemberRepository.countByFamilyId(FAMILY_ID)).thenReturn((long) DEFAULT_MEMBER_LIMIT);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service().assertMemberQuotaAvailable(FAMILY_ID));
+
+        assertTrue(ex.getMessage().contains("上限（" + DEFAULT_MEMBER_LIMIT + "人）"));
     }
 
     @Test

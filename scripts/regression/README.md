@@ -17,7 +17,7 @@ scratch 环境 = Phase 1 修复后的镜像 + 独立库（示例：端口 8093�
 ```bash
 # 1. 构建含修复的镜像
 #    1a. 离线/网络差时：本地打包 jar 后只套一层 distroless 运行时（与 Dockerfile 运行阶段等价）
-/Users/mac/Tools/apache-maven-3.6.3/bin/mvn -B package            # 顺带跑全量单测（当前基线 482 用例）
+/Users/mac/Tools/apache-maven-3.6.3/bin/mvn -B package            # 顺带跑全量单测（当前基线 487 用例）
 mkdir -p /tmp/ft-v51-ctx && cp family-tree-web/target/family-tree-web-1.0.0-SNAPSHOT.jar /tmp/ft-v51-ctx/app.jar
 # /tmp/ft-v51-ctx/Dockerfile：FROM gcr.io/distroless/java21-debian12 + COPY app.jar + java -jar 入口
 docker build -t family-tree:v51-local /tmp/ft-v51-ctx
@@ -75,6 +75,10 @@ python3 r6_r10_platform.py # R6 三级配置生效链与平台开关、R7 家族
 （均为 r3 的 D-08 未知路径与路径参数类型）。
 D-05 家族层配置改回默认已修复，r6 的读回行已改为正例断言并全部通过（111 项无 KNOWN）。
 D-01 版本回滚已落地：r4 的回滚段改为「回滚生效 + 写入 ROLLBACK 历史行」两条正例断言（103 项无 KNOWN）。
+D-07 家族成员上限改由平台配置 `MAX_FAMILY_MEMBERS` 承担，r6 新增「收紧上限→加入被拒→提交默认值→放行
+→回到代码默认」共 5 行（r6 共 116 项，三只电池 283 项）。这批改动只跑过单测（全量 487 例）：scratch
+电池复跑被宿主机重启打断（`/tmp` 下的 scratch 库导出与容器数据随之清空），下次在 v55 scratch 环境复跑
+时以上述 5 行为准。
 
 电池内新建的测试账号（`regv50a`、`regpwd1` 等）用户名固定，**同一库重复跑会被「用户名已存在」拦住**。
 要复跑得先复置 scratch 库：删库后按上面第 2 步重新导入 `/tmp/ft-v51reg-seed.sql`，再重启容器。

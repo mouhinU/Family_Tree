@@ -6,6 +6,7 @@ import com.mouhin.family.tree.common.enums.PlatformSettingKeyEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.PlatformSetting;
 import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
+import com.mouhin.family.tree.domain.repository.FamilyMemberRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRepository;
 import com.mouhin.family.tree.domain.repository.PlatformSettingRepository;
 import com.mouhin.family.tree.domain.service.PlatformSettingDomainService;
@@ -52,15 +53,18 @@ public class PlatformSettingApplicationService {
     private final PlatformSettingRepository platformSettingRepository;
     private final PlatformSettingDomainService settingDomainService;
     private final FamilyRepository familyRepository;
+    private final FamilyMemberRepository familyMemberRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     public PlatformSettingApplicationService(PlatformSettingRepository platformSettingRepository,
                                              PlatformSettingDomainService settingDomainService,
                                              FamilyRepository familyRepository,
+                                             FamilyMemberRepository familyMemberRepository,
                                              ApplicationEventPublisher eventPublisher) {
         this.platformSettingRepository = platformSettingRepository;
         this.settingDomainService = settingDomainService;
         this.familyRepository = familyRepository;
+        this.familyMemberRepository = familyMemberRepository;
         this.eventPublisher = eventPublisher;
     }
 
@@ -171,6 +175,20 @@ public class PlatformSettingApplicationService {
         long currentCount = familyRepository.countAll();
         if (currentCount >= maxFamilyCount) {
             throw new BusinessException("平台家族总数已达上限" + maxFamilyCount + "，暂时无法新建家族");
+        }
+    }
+
+    /**
+     * 断言目标家族成员数尚未达到配置的上限
+     *
+     * @param familyId 目标家族ID
+     */
+    public void assertMemberQuotaAvailable(Long familyId) {
+        int maxMembers = settingDomainService.getInt(effectiveSettings(),
+                PlatformSettingKeyEnum.MAX_FAMILY_MEMBERS);
+        long currentCount = familyMemberRepository.countByFamilyId(familyId);
+        if (currentCount >= maxMembers) {
+            throw new BusinessException("家族成员数已达上限（" + maxMembers + "人），请联系平台管理员调整");
         }
     }
 

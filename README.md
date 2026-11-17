@@ -124,7 +124,8 @@ web → application → domain ← infrastructure
 - **操作日志**：按家族、操作类型、关键字（右模糊）、时间范围检索全平台审计日志并分页
 - **平台配置**：`platform_setting` 与 `family_setting`、代码默认值构成「家族覆盖 → 平台覆盖 → 代码默认」三级生效链；
   标注「家族可覆盖」的项仅作为新建家族的默认值，家族单独设置后以家族值优先；`REGISTER_ENABLED`（开放注册）、
-  `INVITE_JOIN_ENABLED`（邀请码加入）、`MAX_FAMILY_COUNT`（家族总数上限）为平台专属开关，在对应入口即时生效。
+  `INVITE_JOIN_ENABLED`（邀请码加入）、`MAX_FAMILY_COUNT`（家族总数上限）、
+  `MAX_FAMILY_MEMBERS`（单家族成员上限）为平台专属开关，在对应入口即时生效。
   取值改回代码默认即删除覆盖行（恢复默认）
 
 ## 快速开始

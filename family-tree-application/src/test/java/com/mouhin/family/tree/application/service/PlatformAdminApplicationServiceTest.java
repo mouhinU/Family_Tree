@@ -135,7 +135,8 @@ class PlatformAdminApplicationServiceTest {
 
     private PlatformAdminApplicationService newService(String adminUsernames) {
         PlatformSettingApplicationService platformSettingService = new PlatformSettingApplicationService(
-                platformSettingRepository, new PlatformSettingDomainService(), familyRepository, eventPublisher);
+                platformSettingRepository, new PlatformSettingDomainService(), familyRepository,
+                familyMemberRepository, eventPublisher);
         return new PlatformAdminApplicationService(familyRepository, familyNodeRepository,
                 familyRelationRepository, familyMemberRepository, familyUserNodeRepository,
                 familyPhotoRepository,

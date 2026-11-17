@@ -71,7 +71,14 @@ public enum PlatformSettingKeyEnum {
      */
     MAX_FAMILY_COUNT("MAX_FAMILY_COUNT", "家族总数上限", SettingValueTypeEnum.INTEGER,
             "200", 1, 1000000, null,
-            "全平台可创建的家族总数上限，达到上限后新建家族将被拒绝，用于控制容量与成本");
+            "全平台可创建的家族总数上限，达到上限后新建家族将被拒绝，用于控制容量与成本"),
+
+    /**
+     * 单家族成员数上限：平台独有配置，无家族覆盖层
+     */
+    MAX_FAMILY_MEMBERS("MAX_FAMILY_MEMBERS", "家族成员上限", SettingValueTypeEnum.INTEGER,
+            "50", 1, 100000, null,
+            "单个家族可拥有的成员数上限，达到上限后凭邀请码加入家族将被拒绝，已在册成员不受影响");
 
     /**
      * 配置键编码，落库值与接口入参均使用该编码

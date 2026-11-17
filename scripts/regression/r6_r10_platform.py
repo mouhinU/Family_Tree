@@ -162,18 +162,6 @@ def main(b):
     b.check("R7", "regv50g", "POST", "/api/family/join", 200, {"inviteCode": new_code},
             note="新码可加入")
 
-    # 主家族人数已达 MAX_FAMILY_MEMBERS 时按设计拒绝加入（可配置化是缺陷 D-07）
-    fam_main = (owner.call("GET", "/api/auth/me")[1].get("data") or {})
-    main_code = fam_main.get("inviteCode")
-    capped = b.session("regcap1")
-    capped.register("regcap1")
-    cap_res = capped.call("POST", "/api/family/join", {"inviteCode": main_code}, csrf=True)[1]
-    b.raw_call("R7", "regcap1", "POST", "/api/family/join",
-               cap_res.get("code") in (200, 400)
-               and (cap_res.get("code") == 200 or "上限" in str(cap_res.get("message"))),
-               "加入主家族：要么成功要么受成员上限拦截",
-               "got=%s %s" % (cap_res.get("code"), str(cap_res.get("message"))[:60]))
-
     # ---------- R7 家族信息治理（堂号/祖籍，仅家族管理员） ----------
     fam_before = (user_a.call("GET", "/api/family")[1].get("data") or {})
     b.check("R7", "regv50e", "PUT", "/api/family/info", 400, {"hallName": "越权堂号"},
@@ -314,6 +302,30 @@ def main(b):
     b.raw_call("R6", "OWNER", "GET", "/api/admin/platform-settings",
                plat5["MAX_FAMILY_COUNT"].get("overridden") is False,
                "总数上限回到代码默认", "row=%s" % plat5.get("MAX_FAMILY_COUNT"))
+
+    # 家族成员上限（D-07）：收紧到在册人数后邀请码加入被拦，提交默认值后恢复
+    members_a = (user_a.call("GET", "/api/family/members?page=1&size=1")[1].get("data") or {}).get("total") or 0
+    member_default = platform_settings(b)["MAX_FAMILY_MEMBERS"].get("defaultValue")
+    b.check("R6", "OWNER", "PUT", "/api/admin/platform-settings", 200,
+            {"settings": {"MAX_FAMILY_MEMBERS": str(members_a)}},
+            note="成员上限=%d（家族A 在册人数）" % members_a)
+    joiner = b.session("regmem1")
+    joiner.register("regmem1")
+    res = joiner.call("POST", "/api/family/join", {"inviteCode": new_code}, csrf=True)[1]
+    b.raw_call("R6", "regmem1", "POST", "/api/family/join",
+               res.get("code") == 400 and "上限" in str(res.get("message")),
+               "达成员上限时加入被拒", "got=%s %s" % (res.get("code"), str(res.get("message"))[:60]))
+    b.check("R6", "OWNER", "PUT", "/api/admin/platform-settings", 200,
+            {"settings": {"MAX_FAMILY_MEMBERS": member_default}},
+            note="成员上限提交默认值=%s 删覆盖行" % member_default)
+    res = joiner.call("POST", "/api/family/join", {"inviteCode": new_code}, csrf=True)[1]
+    b.raw_call("R6", "regmem1", "POST", "/api/family/join", res.get("code") == 200,
+               "恢复默认上限后可加入", "got=%s %s" % (res.get("code"), str(res.get("message"))[:60]))
+    plat6 = platform_settings(b)
+    b.raw_call("R6", "OWNER", "GET", "/api/admin/platform-settings",
+               plat6["MAX_FAMILY_MEMBERS"].get("overridden") is False
+               and plat6["MAX_FAMILY_MEMBERS"].get("value") == member_default,
+               "成员上限回到代码默认", "row=%s" % plat6.get("MAX_FAMILY_MEMBERS"))
 
     # ---------- R7 平台侧家族治理（对电池家族A 操作，避免污染真实家族） ----------
     b.check("R7", "MEMBER", "GET", "/api/admin/families?page=1&size=10", 400, note="非白名单读家族列表被拒")

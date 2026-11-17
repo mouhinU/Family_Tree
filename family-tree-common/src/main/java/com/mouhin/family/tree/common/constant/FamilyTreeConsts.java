@@ -45,10 +45,6 @@ public final class FamilyTreeConsts {
      */
     public static final int INVITE_CODE_LENGTH = 8;
     /**
-     * 单个家族最大成员数
-     */
-    public static final int MAX_FAMILY_MEMBERS = 50;
-    /**
      * 写接口限流：滑动窗口时长（秒）
      */
     public static final int RATE_LIMIT_WINDOW_SECONDS = 60;

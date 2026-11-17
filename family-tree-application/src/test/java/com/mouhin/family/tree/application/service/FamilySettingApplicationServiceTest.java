@@ -5,6 +5,7 @@ import com.mouhin.family.tree.common.enums.PlatformSettingKeyEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.FamilySetting;
 import com.mouhin.family.tree.domain.entity.PlatformSetting;
+import com.mouhin.family.tree.domain.repository.FamilyMemberRepository;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRepository;
 import com.mouhin.family.tree.domain.repository.FamilySettingRepository;
@@ -55,7 +56,8 @@ class FamilySettingApplicationServiceTest {
         when(platformSettingRepository.findAll()).thenReturn(platformOverrides);
         PlatformSettingApplicationService platformSettingService = new PlatformSettingApplicationService(
                 platformSettingRepository, new PlatformSettingDomainService(),
-                mock(FamilyRepository.class), mock(ApplicationEventPublisher.class));
+                mock(FamilyRepository.class), mock(FamilyMemberRepository.class),
+                mock(ApplicationEventPublisher.class));
         return new FamilySettingApplicationService(familySettingRepository,
                 new FamilySettingDomainService(), familyNodeRepository, platformSettingService);
     }

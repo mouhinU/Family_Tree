@@ -199,12 +199,8 @@ public class FamilyApplicationService {
             throw new BusinessException("邀请码无效");
         }
 
-        // 检查成员数上限
-        long memberCount = familyMemberRepository.countByFamilyId(family.getId());
-        if (memberCount >= FamilyTreeConsts.MAX_FAMILY_MEMBERS) {
-            throw new BusinessException("家族成员数已达上限（"
-                    + FamilyTreeConsts.MAX_FAMILY_MEMBERS + "人）");
-        }
+        // 检查成员数上限（平台配置 MAX_FAMILY_MEMBERS，未覆盖时代码默认口径不变）
+        platformSettingService.assertMemberQuotaAvailable(family.getId());
 
         // 加入家族
         FamilyMember member = new FamilyMember();
