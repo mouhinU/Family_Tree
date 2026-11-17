@@ -192,6 +192,24 @@ public class PlatformSettingApplicationService {
         }
     }
 
+    /**
+     * 断言该账号归属的家族数尚未达到配置的上限
+     *
+     * <p>默认值为 1，即保持原有的「一人只能属于一个家族」口径；平台调到 N 后，已在册成员可再创建或加入
+     * 家族，并在过渡页切换当前家族。家族唯一约束 uk_family_user 保证同一账号在同一家族只有一行，
+     * 故调用方传入的成员记录数即为在册家族数，避免同一请求里重复查询成员表。</p>
+     *
+     * @param currentFamilyCount 该账号当前归属的家族数
+     */
+    public void assertUserFamilyQuotaAvailable(int currentFamilyCount) {
+        int maxFamilies = settingDomainService.getInt(effectiveSettings(),
+                PlatformSettingKeyEnum.MAX_FAMILY_PER_USER);
+        if (currentFamilyCount >= maxFamilies) {
+            throw new BusinessException("账号可归属的家族数已达上限（" + maxFamilies
+                    + "个），请联系平台管理员调整");
+        }
+    }
+
     private Map<String, String> loadOverrides() {
         List<PlatformSetting> settings = platformSettingRepository.findAll();
         Map<String, String> overrides = new LinkedHashMap<>(settings.size() * 2);

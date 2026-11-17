@@ -78,7 +78,15 @@ public enum PlatformSettingKeyEnum {
      */
     MAX_FAMILY_MEMBERS("MAX_FAMILY_MEMBERS", "家族成员上限", SettingValueTypeEnum.INTEGER,
             "50", 1, 100000, null,
-            "单个家族可拥有的成员数上限，达到上限后凭邀请码加入家族将被拒绝，已在册成员不受影响");
+            "单个家族可拥有的成员数上限，达到上限后凭邀请码加入家族将被拒绝，已在册成员不受影响"),
+
+    /**
+     * 单账号可拥有的家族数上限：平台独有配置，无家族覆盖层
+     */
+    MAX_FAMILY_PER_USER("MAX_FAMILY_PER_USER", "每账号家族数上限", SettingValueTypeEnum.INTEGER,
+            "1", 1, 100, null,
+            "单个账号可归属的家族数上限，默认 1 即一人只能属于一个家族；调到 N 后已在册成员可再创建或加入家族，"
+                    + "并在过渡页切换当前家族");
 
     /**
      * 配置键编码，落库值与接口入参均使用该编码

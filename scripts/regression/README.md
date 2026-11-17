@@ -17,7 +17,7 @@ scratch 环境 = Phase 1 修复后的镜像 + 独立库（示例：端口 8093�
 ```bash
 # 1. 构建含修复的镜像
 #    1a. 离线/网络差时：本地打包 jar 后只套一层 distroless 运行时（与 Dockerfile 运行阶段等价）
-/Users/mac/Tools/apache-maven-3.6.3/bin/mvn -B package            # 顺带跑全量单测（当前基线 487 用例）
+/Users/mac/Tools/apache-maven-3.6.3/bin/mvn -B package            # 顺带跑全量单测（当前基线 499 用例）
 mkdir -p /tmp/ft-v51-ctx && cp family-tree-web/target/family-tree-web-1.0.0-SNAPSHOT.jar /tmp/ft-v51-ctx/app.jar
 # /tmp/ft-v51-ctx/Dockerfile：FROM gcr.io/distroless/java21-debian12 + COPY app.jar + java -jar 入口
 docker build -t family-tree:v51-local /tmp/ft-v51-ctx
@@ -65,7 +65,7 @@ until curl -s -o /dev/null http://127.0.0.1:8093/api/auth/me; do sleep 2; done
 cd scripts/regression
 python3 r3_readonly.py     # R3 认证/会话/CSRF、R4 只读面、R5 权限矩阵、R8 日志读、D-04 邀请码、D-08 已知项
 python3 r4_r9_write.py     # R4 节点/关系/版本写、R8 快照、R9 辈分/留言/私信/纪念日/祭祀/相册/导出/AI/时间线
-python3 r6_r10_platform.py # R6 三级配置生效链与平台开关、R7 家族治理、R10 注册建族与一人一家族、R9 账号口令
+python3 r6_r10_platform.py # R6 三级配置生效链与平台开关、R7 家族治理、R10 注册建族与每账号家族数上限、R9 账号口令
 ```
 
 退出码 0 表示没有 FAIL；命中「已知缺陷」的用例记为 KNOWN，不影响退出码。
@@ -78,8 +78,14 @@ D-01 版本回滚已落地：r4 的回滚段改为「回滚生效 + 写入 ROLLB
 D-07 家族成员上限改由平台配置 `MAX_FAMILY_MEMBERS` 承担，r6 新增「收紧上限→加入被拒→提交默认值→放行
 →回到代码默认」共 5 行，与既有总量上限、节点上限两行一并全部通过。
 
+多家族支持（平台配置 `MAX_FAMILY_PER_USER`，默认 1）在 r6 追加 12 行：放开上限=2 后已在族内账号可再建第二个
+家族、`my-list` 返回 2、新建家族即当前家族、第二个家族不会搬走原家族数据（空树）、切回原家族后节点仍在、
+达到上限时第三个家族被拒、提交默认值删覆盖行并回到代码默认、恢复默认后已在族内账号不能再建家族。
+**这 12 行尚未在 v55 scratch 环境复跑**，上述 282 项基线只覆盖到 D-07；断言本身已在本地 H2 实例逐条验证通过，
+复跑时按下一节复置 scratch 库即可（电池账号固定，同库重复跑会被「用户名已存在」拦住）。
+
 三只电池分段为 r3 64 项（PASS 62 / KNOWN 2）、r4 103 项、r6 115 项（FAIL 0 / KNOWN 0），退出码均为 0；
-全量单测基线 487 例。
+全量单测基线 499 例（多家族链路 9 例 + 每账号家族数上限 3 例为本次新增）。
 
 电池内新建的测试账号（`regv50a`、`regpwd1` 等）用户名固定，**同一库重复跑会被「用户名已存在」拦住**。
 要复跑得先复置 scratch 库：删库后按上面第 2 步重新导入 `/tmp/ft-v51reg-seed.sql`，再重启容器。

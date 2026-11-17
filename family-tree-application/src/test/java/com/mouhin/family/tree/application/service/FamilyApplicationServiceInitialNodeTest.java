@@ -3,6 +3,7 @@ package com.mouhin.family.tree.application.service;
 import com.mouhin.family.tree.common.dto.FamilyCreateDTO;
 import com.mouhin.family.tree.common.dto.NodeCreateDTO;
 import com.mouhin.family.tree.domain.entity.Family;
+import com.mouhin.family.tree.domain.entity.User;
 import com.mouhin.family.tree.domain.repository.FamilyGenerationRepository;
 import com.mouhin.family.tree.domain.repository.FamilyMemberRepository;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
@@ -96,6 +97,15 @@ class FamilyApplicationServiceInitialNodeTest {
         }).when(familyRepository).save(any(Family.class));
     }
 
+    /**
+     * 建族要把新家族标记为该账号的当前家族，因此需要账号行存在
+     */
+    private void stubCurrentUser() {
+        User user = new User();
+        user.setId(USER_ID);
+        when(userRepository.findById(USER_ID)).thenReturn(user);
+    }
+
     private FamilyCreateDTO buildDTO(String initialNodeName) {
         FamilyCreateDTO dto = new FamilyCreateDTO();
         dto.setName("mengshi");
@@ -106,6 +116,7 @@ class FamilyApplicationServiceInitialNodeTest {
     @Test
     void createFamily_withInitialNodeName_createsNodeAndBindsCreator() {
         stubFamilyIdGenerated();
+        stubCurrentUser();
         when(familyNodeService.createNode(anyLong(), anyLong(), any(), any(), any(NodeCreateDTO.class)))
                 .thenReturn(NEW_NODE_ID);
 
@@ -129,6 +140,7 @@ class FamilyApplicationServiceInitialNodeTest {
     @Test
     void createFamily_blankInitialNodeName_skipsNodeCreation() {
         stubFamilyIdGenerated();
+        stubCurrentUser();
 
         Long familyId = familyApplicationService.createFamily(USER_ID, buildDTO("   "),
                 OPERATOR_NAME, OPERATOR_IP);
@@ -141,6 +153,7 @@ class FamilyApplicationServiceInitialNodeTest {
     @Test
     void createFamily_trimsInitialNodeName() {
         stubFamilyIdGenerated();
+        stubCurrentUser();
         when(familyNodeService.createNode(anyLong(), anyLong(), any(), any(), any(NodeCreateDTO.class)))
                 .thenReturn(NEW_NODE_ID);
 
@@ -155,6 +168,7 @@ class FamilyApplicationServiceInitialNodeTest {
     @Test
     void createFamily_nodeCreationFails_doesNotBind() {
         stubFamilyIdGenerated();
+        stubCurrentUser();
         when(familyNodeService.createNode(anyLong(), anyLong(), any(), any(), any(NodeCreateDTO.class)))
                 .thenThrow(new IllegalStateException("quota exceeded"));
 

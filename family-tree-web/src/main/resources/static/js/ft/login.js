@@ -15,8 +15,9 @@
     var messageEl = document.getElementById('login-message');
     var loginTabs = document.querySelector('.login-tabs');
 
+    /** 已归属家族的用户落到家族过渡页，可在其中切换家族或再创建、加入一个 */
     function redirectToApp(hasFamily) {
-        window.location.href = hasFamily ? '/index.html' : '/family-setup.html';
+        window.location.href = hasFamily ? '/portal.html' : '/family-setup.html';
     }
 
     // 检测 URL 中的邀请码参数，自动切换到注册页并填入邀请码
@@ -173,7 +174,7 @@
             var res = await fetch('/api/auth/me', {headers: {'Accept': 'application/json'}});
             var data = await res.json();
             var hasFamily = data.code === 200 && data.data && data.data.hasFamily;
-            window.location.href = hasFamily ? '/index.html' : '/family-setup.html';
+            redirectToApp(hasFamily);
         } catch (err) {
             window.location.href = '/index.html';
         }

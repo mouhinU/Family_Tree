@@ -112,10 +112,10 @@ public class FamilyApplicationService {
             throw new BusinessException("家族名称不能超过100个字符");
         }
 
-        // 检查用户是否已属于某个家族
-        if (!familyMemberRepository.findByUserId(userId).isEmpty()) {
-            throw new BusinessException("您已属于某个家族，请先退出后再创建");
-        }
+        // 检查该账号归属的家族数是否已达平台上限（默认 1，即保持原有的一人一家族口径）
+        List<FamilyMember> memberships = familyMemberRepository.findByUserId(userId);
+        platformSettingService.assertUserFamilyQuotaAvailable(memberships.size());
+        boolean firstFamily = memberships.isEmpty();
 
         // 创建家族
         Family family = new Family();
@@ -136,8 +136,13 @@ public class FamilyApplicationService {
         member.setUpdateTime(LocalDateTime.now());
         familyMemberRepository.save(member);
 
-        // 将该用户已有的领域数据迁移到新家族
-        migrateUserDataToFamily(userId, family.getId());
+        // 新家族成为当前家族，再建第二个家族时不会搬走已有家族的数据
+        markCurrentFamily(userId, family.getId());
+
+        // 仅首个家族迁移用户此前的散落数据；后续家族的数据留在原家族
+        if (firstFamily) {
+            migrateUserDataToFamily(userId, family.getId());
+        }
 
         // 按填写的个人信息生成家族第一个族谱节点，并把创建者本人绑定到该节点
         createInitialNode(userId, username, ipAddress, family.getId(), dto);
@@ -188,16 +193,22 @@ public class FamilyApplicationService {
             throw new BusinessException("邀请码不能为空");
         }
 
-        // 检查用户是否已属于某个家族
-        if (!familyMemberRepository.findByUserId(userId).isEmpty()) {
-            throw new BusinessException("您已属于某个家族，请先退出后再加入其他家族");
-        }
-
         // 查找邀请码对应的家族（大小写不敏感）
         Family family = familyRepository.findByInviteCode(dto.getInviteCode().trim().toUpperCase());
         if (family == null) {
             throw new BusinessException("邀请码无效");
         }
+
+        List<FamilyMember> memberships = familyMemberRepository.findByUserId(userId);
+        boolean alreadyMember = memberships.stream()
+                .anyMatch(item -> Objects.equals(item.getFamilyId(), family.getId()));
+        if (alreadyMember) {
+            throw new BusinessException("您已在该家族中");
+        }
+
+        // 该账号归属的家族数已达平台上限时不能再加入（默认 1，即保持一人一家族口径）
+        platformSettingService.assertUserFamilyQuotaAvailable(memberships.size());
+        boolean firstFamily = memberships.isEmpty();
 
         // 检查成员数上限（平台配置 MAX_FAMILY_MEMBERS，未覆盖时代码默认口径不变）
         platformSettingService.assertMemberQuotaAvailable(family.getId());
@@ -212,8 +223,13 @@ public class FamilyApplicationService {
         member.setUpdateTime(LocalDateTime.now());
         familyMemberRepository.save(member);
 
-        // 将该用户已有的领域数据迁移到家族
-        migrateUserDataToFamily(userId, family.getId());
+        // 新家族成为当前家族，再 join 第二个家族时不会搬走已有家族的数据
+        markCurrentFamily(userId, family.getId());
+
+        // 仅首个家族迁移用户此前的散落数据；后续家族的数据留在原家族
+        if (firstFamily) {
+            migrateUserDataToFamily(userId, family.getId());
+        }
 
         logger.info("User={} joined family id={} name={}", userId, family.getId(), family.getName());
         eventPublisher.publishEvent(MemberJoinedEvent.of(family.getId(), userId, null));
@@ -221,6 +237,9 @@ public class FamilyApplicationService {
 
     /**
      * 获取用户当前所属家族
+     *
+     * <p>多家族账号以 sys_user.current_family_id 指向的家族为当前家族，该列为空或指向已不属于的
+     * 家族时回退第一条成员记录，故单家族账号的行为与从前一致。</p>
      *
      * @param userId 用户ID
      * @return 家族信息，未加入返回 null
@@ -230,7 +249,7 @@ public class FamilyApplicationService {
         if (memberRecords.isEmpty()) {
             return null;
         }
-        FamilyMember memberRecord = memberRecords.get(0);
+        FamilyMember memberRecord = pickCurrentMember(userId, memberRecords);
         Family family = familyRepository.findById(memberRecord.getFamilyId());
         if (family == null) {
             return null;
@@ -419,13 +438,7 @@ public class FamilyApplicationService {
             throw new BusinessException("您不属于该家族");
         }
 
-        User user = userRepository.findById(userId);
-        if (user == null) {
-            throw new BusinessException("用户不存在");
-        }
-        user.setCurrentFamilyId(familyId);
-        user.setUpdateTime(LocalDateTime.now());
-        userRepository.update(user);
+        markCurrentFamily(userId, familyId);
 
         logger.info("User {} switched to family {}", userId, familyId);
     }
@@ -575,14 +588,53 @@ public class FamilyApplicationService {
     }
 
     /**
-     * 将用户已有的领域数据迁移到指定家族。
+     * 将用户此前的散落数据迁移到指定家族（仅首个家族调用）。
      * 更新各 domain 表中 user_id 对应记录的 family_id 字段。
+     *
+     * <p>多家族场景不能调用它：那些 update 形如 SET family_id = 新家族 WHERE user_id = 我，
+     * 会把已有家族的节点、关系、世代、祭祀整体搬空。</p>
      */
     private void migrateUserDataToFamily(Long userId, Long familyId) {
         familyNodeRepository.updateFamilyIdByUserId(userId, familyId);
         familyRelationRepository.updateFamilyIdByUserId(userId, familyId);
         familyGenerationRepository.updateFamilyIdByUserId(userId, familyId);
         familyOfferingRepository.updateFamilyIdByUserId(userId, familyId);
+    }
+
+    /**
+     * 把指定家族标记为该账号的当前家族
+     *
+     * @param userId   用户ID
+     * @param familyId 目标家族ID
+     */
+    private void markCurrentFamily(Long userId, Long familyId) {
+        User user = userRepository.findById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+        user.setCurrentFamilyId(familyId);
+        user.setUpdateTime(LocalDateTime.now());
+        userRepository.update(user);
+    }
+
+    /**
+     * 从成员记录中选出当前家族对应的行：优先 sys_user.current_family_id 指向且仍在册的家族，
+     * 该列为空或指向已不属于的家族时回退第一条。
+     *
+     * @param userId        用户ID
+     * @param memberRecords 该账号的在册成员记录，调用方保证非空
+     * @return 当前家族对应的成员记录
+     */
+    private FamilyMember pickCurrentMember(Long userId, List<FamilyMember> memberRecords) {
+        User user = userRepository.findById(userId);
+        Long currentFamilyId = user == null ? null : user.getCurrentFamilyId();
+        if (currentFamilyId == null) {
+            return memberRecords.get(0);
+        }
+        return memberRecords.stream()
+                .filter(item -> Objects.equals(item.getFamilyId(), currentFamilyId))
+                .findFirst()
+                .orElse(memberRecords.get(0));
     }
 
     private FamilyDTO toDTO(Family family, String currentRole) {

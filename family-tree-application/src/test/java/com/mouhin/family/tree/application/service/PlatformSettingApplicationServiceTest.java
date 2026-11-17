@@ -55,6 +55,12 @@ class PlatformSettingApplicationServiceTest {
      */
     private static final int DEFAULT_MEMBER_LIMIT = 50;
 
+    /**
+     * 每账号家族数上限的代码默认值，与 PlatformSettingKeyEnum.MAX_FAMILY_PER_USER 默认口径一致；
+     * 默认 1 即保持原有的「一人只能属于一个家族」行为
+     */
+    private static final int DEFAULT_FAMILY_LIMIT_PER_USER = 1;
+
     @Mock
     private PlatformSettingRepository platformSettingRepository;
 
@@ -242,6 +248,35 @@ class PlatformSettingApplicationServiceTest {
                 () -> service().assertMemberQuotaAvailable(FAMILY_ID));
 
         assertTrue(ex.getMessage().contains("上限（" + DEFAULT_MEMBER_LIMIT + "人）"));
+    }
+
+    @Test
+    void userFamilyQuotaRejectsAtCodeDefaultOfOne() {
+        when(platformSettingRepository.findAll()).thenReturn(List.of());
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service().assertUserFamilyQuotaAvailable(1));
+
+        assertTrue(ex.getMessage().contains("上限（" + DEFAULT_FAMILY_LIMIT_PER_USER + "个）"));
+    }
+
+    @Test
+    void userFamilyQuotaAllowsBelowPlatformOverride() {
+        when(platformSettingRepository.findAll()).thenReturn(
+                List.of(existing(PlatformSettingKeyEnum.MAX_FAMILY_PER_USER.getCode(), "3")));
+
+        service().assertUserFamilyQuotaAvailable(2);
+    }
+
+    @Test
+    void userFamilyQuotaRejectsAtPlatformOverride() {
+        when(platformSettingRepository.findAll()).thenReturn(
+                List.of(existing(PlatformSettingKeyEnum.MAX_FAMILY_PER_USER.getCode(), "2")));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service().assertUserFamilyQuotaAvailable(2));
+
+        assertTrue(ex.getMessage().contains("上限（2个）"));
     }
 
     @Test

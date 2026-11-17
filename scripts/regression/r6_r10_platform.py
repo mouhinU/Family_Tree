@@ -81,6 +81,7 @@ def main(b):
     user_d.register("regv50d")
     b.check("R10", "regv50d", "POST", "/api/family", 200,
             {"name": "回归家族D", "initialNodeName": "  trim 测试  "}, note="初始节点姓名 trim")
+    fid_d1 = b.val("familyD1", ((user_d.call("GET", "/api/family")[1].get("data") or {}).get("id")))
     b.check("R10", "regv50d", "GET", "/api/tree/full", 200, note="trim 后姓名无首尾空格",
             assert_fn=lambda d, r: (d or [{}])[0].get("name") == "trim 测试")
 
@@ -117,6 +118,37 @@ def main(b):
             assert_fn=lambda d, r: (d or {}).get("total") == 2)
     b.check("R7", "regv50e", "POST", "/api/family/join", 400, {"inviteCode": code_a},
             note="已在族内时重复加入被拒")
+
+    # ---------- R10 每账号家族数上限（MAX_FAMILY_PER_USER，默认 1） ----------
+    per_user_default = platform_settings(b)["MAX_FAMILY_PER_USER"].get("defaultValue")
+    b.check("R10", "OWNER", "PUT", "/api/admin/platform-settings", 200,
+            {"settings": {"MAX_FAMILY_PER_USER": "2"}}, note="放开每账号家族数上限=2")
+    fam_d2 = b.check("R10", "regv50d", "POST", "/api/family", 200, {"name": "回归家族D2"},
+                     note="上限放开后已在族内可再建第二个家族")
+    fid_d2 = b.val("familyD2", ((fam_d2 or {}).get("data") or {}).get("familyId"))
+    b.check("R10", "regv50d", "GET", "/api/family/my-list", 200, note="我的家族列表=2",
+            assert_fn=lambda d, r: len(d or []) == 2)
+    b.check("R10", "regv50d", "GET", "/api/family", 200, note="新建家族即当前家族",
+            assert_fn=lambda d, r: d.get("id") == fid_d2)
+    b.check("R10", "regv50d", "GET", "/api/tree/full", 200, note="第二个家族不搬走原家族数据（空树）",
+            assert_fn=lambda d, r: len(d or []) == 0)
+    b.check("R10", "regv50d", "PUT", "/api/family/switch/%s" % fid_d1, 200, note="切回原家族")
+    b.check("R10", "regv50d", "GET", "/api/family", 200, note="当前家族回到第一个家族",
+            assert_fn=lambda d, r: d.get("id") == fid_d1)
+    b.check("R10", "regv50d", "GET", "/api/tree/full", 200, note="原家族节点仍在",
+            assert_fn=lambda d, r: (d or [{}])[0].get("name") == "trim 测试")
+    b.check("R10", "regv50d", "POST", "/api/family", 400, {"name": "回归家族D3"},
+            note="达到上限2时第三个家族被拒")
+    b.check("R10", "OWNER", "PUT", "/api/admin/platform-settings", 200,
+            {"settings": {"MAX_FAMILY_PER_USER": per_user_default}},
+            note="上限提交默认值=%s 删覆盖行" % per_user_default)
+    plat_per_user = platform_settings(b)["MAX_FAMILY_PER_USER"]
+    b.raw_call("R10", "OWNER", "GET", "/api/admin/platform-settings",
+               plat_per_user.get("overridden") is False
+               and plat_per_user.get("value") == per_user_default,
+               "每账号家族数上限回到代码默认", "row=%s" % plat_per_user)
+    b.check("R10", "regv50e", "POST", "/api/family", 400, {"name": "回归家族E2"},
+            note="恢复默认1后已在族内账号不能再建家族")
 
     guest = b.session("regv50f")
     gr = guest.register("regv50f", inviteCode=code_a)

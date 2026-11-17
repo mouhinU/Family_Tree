@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>族谱管理系统 - 我的家族</title>
+    <link href="/css/style.css?v=20261117a" rel="stylesheet">
+    <style>
+        .portal-body {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            background: #f5f5f5;
+            padding: 32px 0;
+        }
+        .portal-card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 40px;
+            max-width: 520px;
+            width: 90%;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        .portal-card h1 {
+            text-align: center;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        .portal-card .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 28px;
+            font-size: 14px;
+        }
+        .portal-section {
+            margin-bottom: 24px;
+            padding: 20px;
+            border: 1px solid #e8e8e8;
+            border-radius: 8px;
+        }
+        .portal-section h3 {
+            margin-bottom: 6px;
+            color: #333;
+        }
+        .portal-section > p {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+        .portal-section label {
+            display: block;
+            margin: 10px 0 4px;
+            font-size: 13px;
+            color: #555;
+        }
+        .portal-section input,
+        .portal-section select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #d9d9d9;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .portal-section button {
+            margin-top: 12px;
+            width: 100%;
+        }
+        .section-tip {
+            color: #999;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+        .family-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        .family-list li {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        .family-list li:last-child {
+            border-bottom: none;
+        }
+        .family-list .family-role {
+            color: #999;
+            font-size: 12px;
+            margin-left: 6px;
+        }
+        .family-list .family-empty {
+            color: #999;
+            font-size: 13px;
+        }
+        .family-list button {
+            width: auto;
+            margin: 0;
+            padding: 4px 14px;
+            font-size: 13px;
+        }
+        .family-current {
+            color: #1890ff;
+            font-size: 12px;
+            margin-left: 6px;
+        }
+        #portal-message {
+            display: none;
+            padding: 10px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        #portal-message.error {
+            display: block;
+            background: #fff2f0;
+            border: 1px solid #ffccc7;
+            color: #cf1322;
+        }
+        #portal-message.success {
+            display: block;
+            background: #f6ffed;
+            border: 1px solid #b7eb8f;
+            color: #389e0d;
+        }
+    </style>
+</head>
+<body class="portal-body">
+<div class="portal-card">
+    <h1>族谱管理系统</h1>
+    <p class="subtitle">选择要进入的家族，或再创建、加入一个家族</p>
+
+    <div class="portal-section">
+        <h3>我的家族</h3>
+        <p>点「进入」把该家族设为当前家族，之后所有族谱操作都在这个家族内进行。</p>
+        <ul class="family-list" id="my-family-list">
+            <li class="family-empty">加载中...</li>
+        </ul>
+    </div>
+
+    <div class="portal-section">
+        <h3>创建新家族</h3>
+        <p>输入家族名称，创建一个新的家族并成为族长。</p>
+        <input id="create-name" placeholder="例如：张氏家族" type="text">
+        <p class="section-tip">选填：创建时把您的信息写成该家族第一个族谱节点，并标记为「我的位置」。辈分（世代名称）可稍后在族谱里补录。</p>
+        <label for="init-name">初始节点姓名</label>
+        <input id="init-name" maxlength="50" placeholder="您的姓名" type="text">
+        <label for="init-gender">性别</label>
+        <select id="init-gender">
+            <option value="">不设置</option>
+            <option value="1">男</option>
+            <option value="2">女</option>
+        </select>
+        <label for="init-birth">出生日期（阳历）</label>
+        <input id="init-birth" type="date">
+        <button id="btn-create" type="button">创建家族</button>
+    </div>
+
+    <div class="portal-section">
+        <h3>加入已有家族</h3>
+        <p>输入族长分享给您的邀请码，加入该家族。</p>
+        <input id="join-code" placeholder="请输入邀请码" style="text-transform: uppercase;" type="text">
+        <button class="btn-secondary" id="btn-join" type="button">加入家族</button>
+    </div>
+
+    <div id="portal-message"></div>
+</div>
+
+<script src="/js/ft/portal.js?v=20261117b"></script>
+</body>
+</html>

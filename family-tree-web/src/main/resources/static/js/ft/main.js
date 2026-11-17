@@ -321,6 +321,15 @@
             });
         }
 
+        // 我的家族入口（过渡页）：列出归属家族并可切换，也可创建或加入其他家族
+        var btnFamilyPortal = document.getElementById('btn-family-portal');
+        if (btnFamilyPortal) {
+            btnFamilyPortal.addEventListener('click', function () {
+                document.getElementById('header-more-dropdown').style.display = 'none';
+                window.location.href = '/portal.html';
+            });
+        }
+
         // 邀请族人按钮
         var btnInvite = document.getElementById('btn-invite');
         if (btnInvite) {
@@ -611,6 +620,7 @@
             'drawer-btn-relation-path': function () { closeDrawer(); FT.showRelationPathModal(); },
             'drawer-btn-profile': function () { closeDrawer(); FT.showProfileModal(); },
             'drawer-btn-family-switch': function () { closeDrawer(); FT.showFamilySwitcherModal(); },
+            'drawer-btn-family-portal': function () { closeDrawer(); window.location.href = '/portal.html'; },
             'drawer-btn-death-anniversary': function () { closeDrawer(); FT.showDeathAnniversaryModal(); },
             'drawer-btn-birthday': function () { closeDrawer(); FT.showBirthdayModal(); },
             'drawer-btn-anniversary': function () { closeDrawer(); FT.showAnniversaryModal(); },

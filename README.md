@@ -65,7 +65,7 @@ web → application → domain ← infrastructure
 
 - **家族管理**：创建家族、邀请码加入、邀请链接分享；三级角色权限（OWNER 族长 > ADMIN 管理员 > MEMBER 成员）。创建家族时可选填初始节点（姓名/性别/出生日期），系统据此生成该家族第一个族谱节点并自动标记为创建者的「我的位置」，辈分可后续在辈分管理中补录。
 - **成员角色**：OWNER 可设/取消管理员、移除任何人、修改家族信息（堂号/籍贯）；ADMIN 可移除普通成员；邀请码刷新与链接生成。
-- **多家族切换**：用户可加入多个家族，随时切换当前活跃家族。
+- **多家族与登录过渡页**：登录后先落到 `portal.html` 过渡页，列出「我的家族」并可点「进入」把该家族设为当前家族，也可再创建新家族或凭邀请码加入已有家族；尚无家族的账号仍直接落到 `family-setup.html`。每账号可归属的家族数由平台配置 `MAX_FAMILY_PER_USER` 控制，默认 1（即一人一家族，与历史版本行为一致），调到 N 后已在册成员可再建 / 再加入。首个家族会把该账号的散记节点、关系、辈分、祭品数据迁入新家族，第二个及以后的家族不再执行该迁移，避免搬空原家族；当前家族统一记录在 `sys_user.current_family_id`，创建、加入、切换三处都会更新它，读到为空或已失效时回退到第一条归属记录。
 - **标记为我**：登录用户可标记自己在族谱中对应的节点，节点卡片显示金色边框与"我"徽章；绑定关系按家族隔离（`family_user_node`），同一用户在不同家族可各自标记，互不影响。
 - **账号与族谱联动**：族谱节点改名时自动同步已绑定用户的昵称；真人标记为本人的节点禁止删除（需先解除标记），仅自动账号绑定的节点删除时回收账号后放行；覆盖式 GEDCOM 导入会一并清空旧绑定。
 - **节点自动开通账号**：族谱新增在世节点时，`NodeAccountProvisioningEventListener` 监听 `NodeCreatedEvent`（事务提交后）自动创建登录账号并一并建立 `family_user_node` 绑定，用户名优先取节点姓名（重名/脱敏/空名兜底 `fp_{节点ID}`）、昵称为节点姓名、初始密码 `123456`；已故节点不开通。自动账号以 `sys_user.is_auto_account` 标记识别（不再依赖用户名形态），开通逻辑先查绑定再建号，事件重投也不会重复建号。V27 迁移按同一规则为存量在世节点补建账号，V29 再补建绑定关系，V30 新增 `is_auto_account` 标记列并把姓名干净且无重名者的 `username` 对换为真实姓名（脱敏/空名/重名者保留 `fp_{节点ID}` 兜底，`nickname` 与密码不变，`NOT EXISTS` 保护唯一键，均幂等）。真人「标记为我」某节点时回收该节点重复的自动账号（V28 思路，避免一人两号）；删除节点时区分自动绑定（回收放行）与真人标记（拦截）。这批账号初始密码相同，本人首次登录后应立即改密。
@@ -125,7 +125,7 @@ web → application → domain ← infrastructure
 - **平台配置**：`platform_setting` 与 `family_setting`、代码默认值构成「家族覆盖 → 平台覆盖 → 代码默认」三级生效链；
   标注「家族可覆盖」的项仅作为新建家族的默认值，家族单独设置后以家族值优先；`REGISTER_ENABLED`（开放注册）、
   `INVITE_JOIN_ENABLED`（邀请码加入）、`MAX_FAMILY_COUNT`（家族总数上限）、
-  `MAX_FAMILY_MEMBERS`（单家族成员上限）为平台专属开关，在对应入口即时生效。
+  `MAX_FAMILY_MEMBERS`（单家族成员上限）、`MAX_FAMILY_PER_USER`（每账号家族数上限，默认 1）为平台专属开关，在对应入口即时生效。
   取值改回代码默认即删除覆盖行（恢复默认）
 
 ## 快速开始
@@ -308,6 +308,7 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 - `index.html` — 族谱主页面（卷轴动画、工具栏、SVG 画布、右键菜单、留言轮播）
 - `login.html` — 登录/注册（支持 `?invite=XXX` 邀请链接自动跳转注册）
 - `family-setup.html` — 家族初始化（创建新家族，可选初始化初始节点 / 加入已有家族）
+- `portal.html` — 登录后过渡页（我的家族列表与进入 / 创建新家族 / 邀请码加入已有家族，达到上限时透出后端提示）
 - `admin.html` — 平台管理页（家族概况 / 用户账号 / 数据巡检 / 平台配置 / 操作日志五个页签，仅白名单账号可见）
 
 **JS 模块**（`js/ft/` 目录，IIFE 组件化，共享 `window.FT` 命名空间）
@@ -336,6 +337,7 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 | `context-menu.js`     | 右键菜单（10 个操作：添加子女/配偶/关联配偶/添加父母/过继/排次/标记为我/编辑/颜色/删除）                  |
 | `main.js`             | 应用入口：工具栏事件绑定、搜索（防抖 + 下拉）、布局方向切换、健在/外嫁过滤                             |
 | `admin.js`            | 平台管理页：五个页签的列表/分页/检索、家族治理操作、账号口令重置与解锁、平台配置与家族配置的差异提交与二次确认               |
+| `portal.js`           | 过渡页：我的家族列表与当前标记、进入（切换当前家族）、创建新家族（含初始节点）、邀请码加入，失败时透出后端业务提示                  |
 
 > 注意：应用从 `target/classes/static` 提供静态资源。修改前端后需执行
 > `./mvnw compile -pl family-tree-web` 复制到 target 并重启方可生效。
@@ -361,10 +363,10 @@ Family_Tree/
 │       ├── application*.yml            # 多环境配置
 │       ├── db/migration/               # Flyway 迁移（h2 / mysql 双轨）
 │       └── static/                     # 前端页面与资源
-│           ├── index.html / login.html / family-setup.html / admin.html
+│           ├── index.html / login.html / family-setup.html / portal.html / admin.html
 │           ├── css/style.css           # 古典族谱主题样式（CSS 变量）
 │           ├── img/longwen.png         # 龙纹水印背景图
-│           └── js/ft/                  # 31 个前端模块
+│           └── js/ft/                  # 32 个前端模块
 ├── deploy/                             # 部署配置
 │   ├── DEPLOY.md                       # 部署指南
 │   ├── nginx/family-tree.conf          # Nginx 反向代理模板

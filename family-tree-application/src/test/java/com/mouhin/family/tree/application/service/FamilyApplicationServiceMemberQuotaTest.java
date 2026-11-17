@@ -4,6 +4,7 @@ import com.mouhin.family.tree.common.dto.FamilyJoinDTO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.Family;
 import com.mouhin.family.tree.domain.entity.FamilyMember;
+import com.mouhin.family.tree.domain.entity.User;
 import com.mouhin.family.tree.domain.event.MemberJoinedEvent;
 import com.mouhin.family.tree.domain.repository.FamilyGenerationRepository;
 import com.mouhin.family.tree.domain.repository.FamilyMemberRepository;
@@ -11,6 +12,7 @@ import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyOfferingRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRepository;
+import com.mouhin.family.tree.domain.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -67,6 +69,9 @@ class FamilyApplicationServiceMemberQuotaTest {
     private FamilyOfferingRepository familyOfferingRepository;
 
     @Mock
+    private UserRepository userRepository;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
@@ -78,6 +83,7 @@ class FamilyApplicationServiceMemberQuotaTest {
     @Test
     void joinFamily_checksMemberQuotaFromPlatformSetting() {
         givenInvitedFamily();
+        givenCurrentUser();
 
         familyApplicationService.joinFamily(USER_ID, joinDTO());
 
@@ -104,6 +110,7 @@ class FamilyApplicationServiceMemberQuotaTest {
     @Test
     void joinFamily_migratesUserDataAfterQuotaPasses() {
         givenInvitedFamily();
+        givenCurrentUser();
 
         familyApplicationService.joinFamily(USER_ID, joinDTO());
 
@@ -120,6 +127,15 @@ class FamilyApplicationServiceMemberQuotaTest {
     private void givenInvitedFamily() {
         when(familyMemberRepository.findByUserId(USER_ID)).thenReturn(List.of());
         when(familyRepository.findByInviteCode(anyString())).thenReturn(family());
+    }
+
+    /**
+     * 加入成功后要把新家族标记为当前家族，因此需要账号行存在
+     */
+    private void givenCurrentUser() {
+        User user = new User();
+        user.setId(USER_ID);
+        when(userRepository.findById(USER_ID)).thenReturn(user);
     }
 
     private FamilyJoinDTO joinDTO() {
