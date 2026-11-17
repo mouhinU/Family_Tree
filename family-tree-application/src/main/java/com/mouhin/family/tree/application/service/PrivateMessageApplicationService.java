@@ -5,8 +5,10 @@ import com.mouhin.family.tree.common.dto.PrivateMessageDTO;
 import com.mouhin.family.tree.common.dto.PrivateMessageVO;
 import com.mouhin.family.tree.common.dto.UserContactVO;
 import com.mouhin.family.tree.common.exception.BusinessException;
+import com.mouhin.family.tree.domain.entity.FamilyMember;
 import com.mouhin.family.tree.domain.entity.PrivateMessage;
 import com.mouhin.family.tree.domain.entity.User;
+import com.mouhin.family.tree.domain.repository.FamilyMemberRepository;
 import com.mouhin.family.tree.domain.repository.PrivateMessageRepository;
 import com.mouhin.family.tree.domain.repository.UserRepository;
 import org.slf4j.Logger;
@@ -16,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,13 +43,16 @@ public class PrivateMessageApplicationService {
 
     private final PrivateMessageRepository privateMessageRepository;
     private final UserRepository userRepository;
+    private final FamilyMemberRepository familyMemberRepository;
     private final FamilyUserNodeApplicationService familyUserNodeApplicationService;
 
     public PrivateMessageApplicationService(PrivateMessageRepository privateMessageRepository,
                                             UserRepository userRepository,
+                                            FamilyMemberRepository familyMemberRepository,
                                             FamilyUserNodeApplicationService familyUserNodeApplicationService) {
         this.privateMessageRepository = privateMessageRepository;
         this.userRepository = userRepository;
+        this.familyMemberRepository = familyMemberRepository;
         this.familyUserNodeApplicationService = familyUserNodeApplicationService;
     }
 
@@ -68,7 +74,15 @@ public class PrivateMessageApplicationService {
             throw new BusinessException("用户不存在");
         }
         User receiver = userRepository.findById(dto.getReceiverId());
-        if (receiver == null || !Objects.equals(receiver.getCurrentFamilyId(), familyId)) {
+        if (receiver == null) {
+            throw new BusinessException("收信人不存在或不在同一家族");
+        }
+        // 同族以 family_member 成员关系为准：一个用户可属多个家族，
+        // sys_user.current_family_id 只是当前选中家族，不能用它判定家族归属
+        if (familyMemberRepository.findByFamilyIdAndUserId(familyId, senderId) == null) {
+            throw new BusinessException("您不在该家族中，无法发送私信");
+        }
+        if (familyMemberRepository.findByFamilyIdAndUserId(familyId, receiver.getId()) == null) {
             throw new BusinessException("收信人不存在或不在同一家族");
         }
 
@@ -146,15 +160,23 @@ public class PrivateMessageApplicationService {
     /**
      * 查询当前家族的私信联系人（排除自己）
      *
+     * <p>联系人以 family_member 成员关系为准，与发送时的同族校验同一口径。</p>
+     *
      * @param familyId      家族ID
      * @param currentUserId 当前用户ID
-     * @return 联系人列表
+     * @return 联系人列表（按用户名排序）
      */
     public List<UserContactVO> listContacts(Long familyId, Long currentUserId) {
-        List<User> users = userRepository.findByCurrentFamilyId(familyId);
+        List<Long> memberUserIds = familyMemberRepository.findByFamilyId(familyId).stream()
+                .map(FamilyMember::getUserId)
+                .filter(userId -> !Objects.equals(userId, currentUserId))
+                .collect(Collectors.toList());
+        if (memberUserIds.isEmpty()) {
+            return List.of();
+        }
         Map<Long, Long> bindingMap = familyUserNodeApplicationService.listBindingsByFamily(familyId);
-        return users.stream()
-                .filter(user -> !Objects.equals(user.getId(), currentUserId))
+        return userRepository.findByIds(memberUserIds).stream()
+                .sorted(Comparator.comparing(User::getUsername, Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(user -> toContactVO(user, bindingMap.get(user.getId())))
                 .collect(Collectors.toList());
     }

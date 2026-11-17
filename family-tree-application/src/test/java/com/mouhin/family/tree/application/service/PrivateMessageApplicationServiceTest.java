@@ -4,9 +4,12 @@ import com.mouhin.family.tree.common.dto.ConversationVO;
 import com.mouhin.family.tree.common.dto.PrivateMessageDTO;
 import com.mouhin.family.tree.common.dto.PrivateMessageVO;
 import com.mouhin.family.tree.common.dto.UserContactVO;
+import com.mouhin.family.tree.common.enums.FamilyMemberRoleEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
+import com.mouhin.family.tree.domain.entity.FamilyMember;
 import com.mouhin.family.tree.domain.entity.PrivateMessage;
 import com.mouhin.family.tree.domain.entity.User;
+import com.mouhin.family.tree.domain.repository.FamilyMemberRepository;
 import com.mouhin.family.tree.domain.repository.PrivateMessageRepository;
 import com.mouhin.family.tree.domain.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -22,12 +25,15 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.*;
 
 /**
  * 私信消息应用服务单元测试。
- * 覆盖：发送私信（正常/未选收信人/发送者不存在/收信人不存在/收信人跨家族/内容为空）、
+ * 覆盖：发送私信（正常/未选收信人/发送者不存在/收信人不存在/同族校验/内容为空）、
  * 会话列表（聚合/未读计数/对方名称解析）、会话详情（标记已读）、未读总数、联系人列表。
+ *
+ * <p>同族关系以 family_member 成员记录为准，与 sys_user.current_family_id 无关。</p>
  *
  * @author Family-Tree
  * @date 2026-08-31
@@ -38,12 +44,16 @@ class PrivateMessageApplicationServiceTest {
     private static final Long USER_ID = 1L;
     private static final Long PEER_ID = 2L;
     private static final Long FAMILY_ID = 100L;
+    private static final Long OTHER_FAMILY_ID = 999L;
 
     @Mock
     private PrivateMessageRepository privateMessageRepository;
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private FamilyMemberRepository familyMemberRepository;
 
     @Mock
     private FamilyUserNodeApplicationService familyUserNodeApplicationService;
@@ -57,6 +67,10 @@ class PrivateMessageApplicationServiceTest {
     void sendMessage_success() {
         when(userRepository.findById(USER_ID)).thenReturn(buildUser(USER_ID, "发送者"));
         when(userRepository.findById(PEER_ID)).thenReturn(buildUser(PEER_ID, "接收者"));
+        when(familyMemberRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID))
+                .thenReturn(buildMember(FAMILY_ID, USER_ID));
+        when(familyMemberRepository.findByFamilyIdAndUserId(FAMILY_ID, PEER_ID))
+                .thenReturn(buildMember(FAMILY_ID, PEER_ID));
 
         PrivateMessageDTO dto = new PrivateMessageDTO();
         dto.setReceiverId(PEER_ID);
@@ -112,11 +126,70 @@ class PrivateMessageApplicationServiceTest {
     }
 
     @Test
-    void sendMessage_receiverOtherFamily_throws() {
+    void sendMessage_senderNotMember_throws() {
         when(userRepository.findById(USER_ID)).thenReturn(buildUser(USER_ID, "发送者"));
+        when(userRepository.findById(PEER_ID)).thenReturn(buildUser(PEER_ID, "接收者"));
+        when(familyMemberRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID)).thenReturn(null);
+
+        PrivateMessageDTO dto = new PrivateMessageDTO();
+        dto.setReceiverId(PEER_ID);
+        dto.setContent("内容");
+
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                privateMessageApplicationService.sendMessage(FAMILY_ID, USER_ID, dto));
+        assertEquals("您不在该家族中，无法发送私信", ex.getMessage());
+        verify(privateMessageRepository, never()).save(any(PrivateMessage.class));
+    }
+
+    @Test
+    void sendMessage_receiverNotMember_throws() {
+        when(userRepository.findById(USER_ID)).thenReturn(buildUser(USER_ID, "发送者"));
+        when(userRepository.findById(PEER_ID)).thenReturn(buildUser(PEER_ID, "接收者"));
+        when(familyMemberRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID))
+                .thenReturn(buildMember(FAMILY_ID, USER_ID));
+        when(familyMemberRepository.findByFamilyIdAndUserId(FAMILY_ID, PEER_ID)).thenReturn(null);
+
+        PrivateMessageDTO dto = new PrivateMessageDTO();
+        dto.setReceiverId(PEER_ID);
+        dto.setContent("内容");
+
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                privateMessageApplicationService.sendMessage(FAMILY_ID, USER_ID, dto));
+        assertEquals("收信人不存在或不在同一家族", ex.getMessage());
+        verify(privateMessageRepository, never()).save(any(PrivateMessage.class));
+    }
+
+    @Test
+    void sendMessage_receiverCurrentFamilyDiffersButMember_throwsNothing() {
+        // 多家族用户：当前选中家族不是发消息的家族，但有成员记录，仍应可收信
         User receiver = buildUser(PEER_ID, "接收者");
-        receiver.setCurrentFamilyId(999L);
+        receiver.setCurrentFamilyId(OTHER_FAMILY_ID);
+        when(userRepository.findById(USER_ID)).thenReturn(buildUser(USER_ID, "发送者"));
         when(userRepository.findById(PEER_ID)).thenReturn(receiver);
+        when(familyMemberRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID))
+                .thenReturn(buildMember(FAMILY_ID, USER_ID));
+        when(familyMemberRepository.findByFamilyIdAndUserId(FAMILY_ID, PEER_ID))
+                .thenReturn(buildMember(FAMILY_ID, PEER_ID));
+
+        PrivateMessageDTO dto = new PrivateMessageDTO();
+        dto.setReceiverId(PEER_ID);
+        dto.setContent("内容");
+
+        privateMessageApplicationService.sendMessage(FAMILY_ID, USER_ID, dto);
+
+        verify(privateMessageRepository).save(any(PrivateMessage.class));
+    }
+
+    @Test
+    void sendMessage_receiverCurrentFamilyMatchesButNotMember_throws() {
+        // 当前家族恰好相同也不能放行，必须以成员记录为准，否则跨家族判定失效
+        User receiver = buildUser(PEER_ID, "接收者");
+        receiver.setCurrentFamilyId(FAMILY_ID);
+        when(userRepository.findById(USER_ID)).thenReturn(buildUser(USER_ID, "发送者"));
+        when(userRepository.findById(PEER_ID)).thenReturn(receiver);
+        when(familyMemberRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID))
+                .thenReturn(buildMember(FAMILY_ID, USER_ID));
+        when(familyMemberRepository.findByFamilyIdAndUserId(FAMILY_ID, PEER_ID)).thenReturn(null);
 
         PrivateMessageDTO dto = new PrivateMessageDTO();
         dto.setReceiverId(PEER_ID);
@@ -124,12 +197,17 @@ class PrivateMessageApplicationServiceTest {
 
         assertThrows(BusinessException.class, () ->
                 privateMessageApplicationService.sendMessage(FAMILY_ID, USER_ID, dto));
+        verify(privateMessageRepository, never()).save(any(PrivateMessage.class));
     }
 
     @Test
     void sendMessage_blankContent_throws() {
         when(userRepository.findById(USER_ID)).thenReturn(buildUser(USER_ID, "发送者"));
         when(userRepository.findById(PEER_ID)).thenReturn(buildUser(PEER_ID, "接收者"));
+        when(familyMemberRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID))
+                .thenReturn(buildMember(FAMILY_ID, USER_ID));
+        when(familyMemberRepository.findByFamilyIdAndUserId(FAMILY_ID, PEER_ID))
+                .thenReturn(buildMember(FAMILY_ID, PEER_ID));
 
         PrivateMessageDTO dto = new PrivateMessageDTO();
         dto.setReceiverId(PEER_ID);
@@ -205,9 +283,11 @@ class PrivateMessageApplicationServiceTest {
     // ========== 联系人列表 ==========
 
     @Test
-    void listContacts_excludesSelf() {
-        when(userRepository.findByCurrentFamilyId(FAMILY_ID))
-                .thenReturn(List.of(buildUser(USER_ID, "自己"), buildUser(PEER_ID, "族人")));
+    void listContacts_fromFamilyMembersExcludingSelf() {
+        when(familyMemberRepository.findByFamilyId(FAMILY_ID)).thenReturn(List.of(
+                buildMember(FAMILY_ID, USER_ID),
+                buildMember(FAMILY_ID, PEER_ID)));
+        when(userRepository.findByIds(List.of(PEER_ID))).thenReturn(List.of(buildUser(PEER_ID, "族人")));
         when(familyUserNodeApplicationService.listBindingsByFamily(FAMILY_ID))
                 .thenReturn(Map.of(PEER_ID, 9L));
 
@@ -220,6 +300,43 @@ class PrivateMessageApplicationServiceTest {
         assertEquals(Long.valueOf(9L), contacts.get(0).getNodeId());
     }
 
+    @Test
+    void listContacts_sortedByUsername() {
+        when(familyMemberRepository.findByFamilyId(FAMILY_ID)).thenReturn(List.of(
+                buildMember(FAMILY_ID, USER_ID),
+                buildMember(FAMILY_ID, 3L),
+                buildMember(FAMILY_ID, PEER_ID)));
+        when(userRepository.findByIds(List.of(3L, PEER_ID)))
+                .thenReturn(List.of(buildUser(3L, "阿明"), buildUser(PEER_ID, "Bob")));
+        when(familyUserNodeApplicationService.listBindingsByFamily(FAMILY_ID)).thenReturn(Map.of());
+
+        List<UserContactVO> contacts = privateMessageApplicationService.listContacts(FAMILY_ID, USER_ID);
+
+        // 仓储批量查询不保证顺序，展示顺序由应用层按用户名统一排定
+        assertEquals(List.of("Bob", "阿明"),
+                contacts.stream().map(UserContactVO::getUsername).toList());
+    }
+
+    @Test
+    void listContacts_onlySelf_returnsEmptyWithoutUserQuery() {
+        when(familyMemberRepository.findByFamilyId(FAMILY_ID))
+                .thenReturn(List.of(buildMember(FAMILY_ID, USER_ID)));
+
+        List<UserContactVO> contacts = privateMessageApplicationService.listContacts(FAMILY_ID, USER_ID);
+
+        assertTrue(contacts.isEmpty());
+        // 空 ID 列表会让 selectBatchIds 生成非法 IN 条件，必须提前返回
+        verify(userRepository, never()).findByIds(anyList());
+    }
+
+    @Test
+    void listContacts_familyWithoutMembers_returnsEmpty() {
+        when(familyMemberRepository.findByFamilyId(FAMILY_ID)).thenReturn(List.of());
+
+        assertTrue(privateMessageApplicationService.listContacts(FAMILY_ID, USER_ID).isEmpty());
+        verify(userRepository, never()).findByIds(anyList());
+    }
+
     // ========== 辅助方法 ==========
 
     private User buildUser(Long id, String username) {
@@ -228,6 +345,15 @@ class PrivateMessageApplicationServiceTest {
         user.setUsername(username);
         user.setCurrentFamilyId(FAMILY_ID);
         return user;
+    }
+
+    private FamilyMember buildMember(Long familyId, Long userId) {
+        FamilyMember member = new FamilyMember();
+        member.setId(userId);
+        member.setFamilyId(familyId);
+        member.setUserId(userId);
+        member.setRole(FamilyMemberRoleEnum.MEMBER.getCode());
+        return member;
     }
 
     private PrivateMessage buildMessage(Long id, Long senderId, Long receiverId,
