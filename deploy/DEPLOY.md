@@ -63,6 +63,10 @@ DB_PASSWORD=StrongAppP@ssw0rd
 # 平台管理员白名单：逗号分隔的登录用户名，与家族角色（OWNER/ADMIN/MEMBER）无关
 # 为空时 /admin.html 入口隐藏且 /api/admin/** 全部拒绝；修改后需重启应用容器
 PLATFORM_ADMIN_USERNAMES=admin
+
+# 家族相册根目录：必须落在 family-tree-data 卷内（默认 /app/data/photos 已满足），
+# 实际布局 {dir}/{familyId}/{userId}_{uuid}.{ext}，按家族分目录便于容量统计与归档清理
+FAMILY_TREE_PHOTO_DIR=/app/data/photos
 ```
 
 ### 2.3 启动服务

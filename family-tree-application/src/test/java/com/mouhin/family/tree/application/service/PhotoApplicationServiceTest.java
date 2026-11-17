@@ -121,11 +121,12 @@ class PhotoApplicationServiceTest {
 
     @Test
     void removePhoto_success() {
-        FamilyPhoto photo = buildPhoto(PHOTO_ID, USER_ID, "全家福", "/api/photos/1.jpg");
+        FamilyPhoto photo = buildPhoto(PHOTO_ID, USER_ID, "全家福", "/api/photo/1/100_uuid.jpg");
         when(familyPhotoRepository.findById(PHOTO_ID)).thenReturn(photo);
 
-        photoApplicationService.removePhoto(PHOTO_ID, USER_ID);
+        PhotoVO removed = photoApplicationService.removePhoto(PHOTO_ID, USER_ID);
 
+        assertEquals("/api/photo/1/100_uuid.jpg", removed.getPhotoUrl());
         verify(familyPhotoRepository).removeTagsByPhotoId(PHOTO_ID);
         verify(familyPhotoRepository).removeById(PHOTO_ID);
     }

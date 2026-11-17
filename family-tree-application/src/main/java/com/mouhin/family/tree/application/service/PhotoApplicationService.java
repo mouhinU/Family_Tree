@@ -87,9 +87,10 @@ public class PhotoApplicationService {
      *
      * @param photoId 照片ID
      * @param userId  当前用户ID
+     * @return 被删除的照片信息（含 photo_url，供调用方清理磁盘文件）
      */
     @Transactional(rollbackFor = Exception.class)
-    public void removePhoto(Long photoId, Long userId) {
+    public PhotoVO removePhoto(Long photoId, Long userId) {
         FamilyPhoto photo = familyPhotoRepository.findById(photoId);
         if (photo == null) {
             throw new BusinessException("照片不存在");
@@ -97,11 +98,13 @@ public class PhotoApplicationService {
         if (!photo.isUploader(userId)) {
             throw new BusinessException("只能删除自己上传的照片");
         }
+        PhotoVO removed = toPhotoVO(photo, userId);
         familyPhotoRepository.removeTagsByPhotoId(photoId);
         familyPhotoRepository.removeById(photoId);
         logger.info("用户 {} 删除照片: id={}", userId, photoId);
         operationLogPublish(userId, photo.getUsername(), "PHOTO_DELETE",
                 "删除家族照片: " + photo.getTitle(), "photo", photoId, photo.getFamilyId());
+        return removed;
     }
 
     /**

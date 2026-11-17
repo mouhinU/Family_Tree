@@ -5,12 +5,13 @@ import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.PhotoTagDTO;
 import com.mouhin.family.tree.common.dto.PhotoTagVO;
 import com.mouhin.family.tree.common.dto.PhotoVO;
+import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.common.result.Result;
 import com.mouhin.family.tree.domain.entity.FamilyPhoto;
+import com.mouhin.family.tree.web.storage.PhotoStorage;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,9 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * 家族相册控制器
@@ -35,11 +34,6 @@ public class PhotoController extends BaseController {
     private static final Logger logger = LoggerFactory.getLogger(PhotoController.class);
 
     /**
-     * 允许的图片类型
-     */
-    private static final String[] ALLOWED_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"};
-
-    /**
      * 单张图片最大 5MB
      */
     private static final long MAX_SIZE = 5L * 1024 * 1024;
@@ -51,11 +45,11 @@ public class PhotoController extends BaseController {
 
     private final PhotoApplicationService photoApplicationService;
 
-    @Value("${family-tree.photo.dir:./data/photos}")
-    private String photoDir;
+    private final PhotoStorage photoStorage;
 
-    public PhotoController(PhotoApplicationService photoApplicationService) {
+    public PhotoController(PhotoApplicationService photoApplicationService, PhotoStorage photoStorage) {
         this.photoApplicationService = photoApplicationService;
+        this.photoStorage = photoStorage;
     }
 
     /**
@@ -90,33 +84,18 @@ public class PhotoController extends BaseController {
         if (file.getSize() > MAX_SIZE) {
             return Result.fail(400, "图片大小不能超过5MB");
         }
-        String contentType = file.getContentType();
-        boolean typeOk = false;
-        for (String allowed : ALLOWED_TYPES) {
-            if (allowed.equals(contentType)) {
-                typeOk = true;
-                break;
-            }
-        }
-        if (!typeOk) {
-            return Result.fail(400, "仅支持 JPG/PNG/GIF/WebP 格式");
-        }
         if (title != null && title.length() > MAX_TITLE_LENGTH) {
             return Result.fail(400, "标题长度不能超过" + MAX_TITLE_LENGTH + "个字符");
         }
 
         try {
-            Path dirPath = Paths.get(photoDir);
-            Files.createDirectories(dirPath);
-            String ext = contentType.substring(contentType.lastIndexOf('/') + 1);
-            String fileName = userId + "_" + UUID.randomUUID() + "." + ext;
-            file.transferTo(dirPath.resolve(fileName).toFile());
-            String url = "/api/photo/" + fileName;
+            // 类型与魔数校验、家族子目录落盘都在 PhotoStorage 内完成，familyId 只取自会话
+            String fileName = photoStorage.store(familyId, userId, file);
 
             FamilyPhoto photo = new FamilyPhoto();
             photo.setTitle(title != null ? title.trim() : null);
             photo.setDescription(description != null ? description.trim() : null);
-            photo.setPhotoUrl(url);
+            photo.setPhotoUrl(photoStorage.urlOf(familyId, fileName));
             PhotoVO vo = photoApplicationService.savePhoto(familyId, userId, username, photo);
             return Result.success(vo);
         } catch (IOException e) {
@@ -126,11 +105,12 @@ public class PhotoController extends BaseController {
     }
 
     /**
-     * 删除照片（仅上传者）
+     * 删除照片（仅上传者）：先删记录，再清理家族目录下的文件
      */
     @DeleteMapping("/{id}")
     public Result<Void> removePhoto(@PathVariable Long id, HttpSession session) {
-        photoApplicationService.removePhoto(id, getCurrentUserId(session));
+        PhotoVO removed = photoApplicationService.removePhoto(id, getCurrentUserId(session));
+        photoStorage.deleteByUrl(removed.getPhotoUrl());
         return Result.success();
     }
 
@@ -158,25 +138,25 @@ public class PhotoController extends BaseController {
     }
 
     /**
-     * 获取照片文件
+     * 获取照片文件（按家族目录寻址）
      *
+     * @param familyId 家族ID（目录名）
      * @param fileName 文件名
      */
-    @GetMapping("/{fileName:.+}")
-    public ResponseEntity<?> getPhoto(@PathVariable String fileName) {
+    @GetMapping("/{familyId}/{fileName:.+}")
+    public ResponseEntity<?> getPhoto(@PathVariable Long familyId, @PathVariable String fileName) {
+        Path filePath;
         try {
-            Path dirPath = Paths.get(photoDir).normalize();
-            Path filePath = dirPath.resolve(fileName);
-            // 防止路径遍历
-            if (!filePath.normalize().startsWith(dirPath)) {
-                return ResponseEntity.badRequest().body("Invalid path");
-            }
-            if (!Files.exists(filePath)) {
-                return ResponseEntity.notFound().build();
-            }
-            byte[] bytes = Files.readAllBytes(filePath);
-            String ext = fileName.substring(fileName.lastIndexOf('.') + 1);
-            String contentType = switch (ext.toLowerCase()) {
+            filePath = photoStorage.resolve(familyId, fileName);
+        } catch (BusinessException e) {
+            return ResponseEntity.badRequest().build();
+        }
+        if (!Files.isRegularFile(filePath)) {
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            String ext = fileName.substring(fileName.lastIndexOf('.') + 1).toLowerCase();
+            String contentType = switch (ext) {
                 case "jpg", "jpeg" -> "image/jpeg";
                 case "png" -> "image/png";
                 case "gif" -> "image/gif";
@@ -186,7 +166,7 @@ public class PhotoController extends BaseController {
             return ResponseEntity.ok()
                     .header("Content-Type", contentType)
                     .header("Cache-Control", "max-age=86400")
-                    .body(bytes);
+                    .body(Files.readAllBytes(filePath));
         } catch (IOException e) {
             logger.error("Failed to read photo file={}: {}", fileName, e.getMessage(), e);
             return ResponseEntity.internalServerError().build();

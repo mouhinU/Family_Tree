@@ -166,11 +166,12 @@ cd family-tree-web
 
 Flyway 在启动时自动执行迁移（V1~V36），`baseline-on-migrate: true`。
 
-平台管理相关环境变量：
+平台管理与相册存储相关环境变量：
 
 | 变量                         | 默认值 | 说明                                                       |
 |----------------------------|-----|----------------------------------------------------------|
 | `PLATFORM_ADMIN_USERNAMES` | 空   | 平台管理员白名单，逗号分隔的登录用户名；与家族角色无关，修改后需重启生效。为空时 `/api/admin/**` 全部拒绝访问 |
+| `FAMILY_TREE_PHOTO_DIR`    | `./data/photos` | 家族相册根目录，实际布局 `{dir}/{familyId}/{userId}_{uuid}.{ext}`。容器部署必须指到挂载卷内（如 `/app/data/photos`），否则照片随容器重建丢失 |
 
 ### AI 功能配置
 

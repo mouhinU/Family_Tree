@@ -77,3 +77,8 @@ ai:
 family-tree:
   platform:
     admin-usernames: ${PLATFORM_ADMIN_USERNAMES:}
+  # 家族相册根目录，实际布局 {dir}/{familyId}/{userId}_{uuid}.{ext}（按家族分目录隔离）
+  # 生产容器必须用环境变量指到挂载卷内（/app/data 是 family-tree-data 卷），
+  # 否则相对路径会随工作目录漂移，重启即丢
+  photo:
+    dir: ${FAMILY_TREE_PHOTO_DIR:./data/photos}

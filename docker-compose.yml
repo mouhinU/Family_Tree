@@ -26,6 +26,8 @@ services:
       - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
       # 平台管理员白名单（逗号分隔的登录用户名，与家族角色无关；为空则 /api/admin 全部拒绝）
       - PLATFORM_ADMIN_USERNAMES=${PLATFORM_ADMIN_USERNAMES:-}
+      # 家族相册根目录：必须落在 /app/data 卷内，实际布局 {dir}/{familyId}/{userId}_{uuid}.{ext}
+      - FAMILY_TREE_PHOTO_DIR=${FAMILY_TREE_PHOTO_DIR:-/app/data/photos}
       - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
     # 运行时为 distroless 镜像（无 curl），健康检查由 sidecar 容器执行
     healthcheck:
@@ -93,6 +95,7 @@ services:
     ports:
       - "${APP_PORT:-8090}:8090"
     volumes:
+      - family-tree-data:/app/data
       - family-tree-logs:/app/logs
     environment:
       - SPRING_PROFILES_ACTIVE=mysql
@@ -101,6 +104,8 @@ services:
       - DB_PASSWORD=${DB_PASSWORD}
       # 平台管理员白名单（逗号分隔的登录用户名，与家族角色无关；为空则 /api/admin 全部拒绝）
       - PLATFORM_ADMIN_USERNAMES=${PLATFORM_ADMIN_USERNAMES:-}
+      # 家族相册根目录：必须落在 /app/data 卷内，实际布局 {dir}/{familyId}/{userId}_{uuid}.{ext}
+      - FAMILY_TREE_PHOTO_DIR=${FAMILY_TREE_PHOTO_DIR:-/app/data/photos}
       - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
     # 运行时为 distroless 镜像（无 curl），健康检查由 sidecar 容器执行
     healthcheck:
