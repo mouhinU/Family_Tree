@@ -14,6 +14,7 @@ import com.mouhin.family.tree.common.dto.UserAdminFamilyVO;
 import com.mouhin.family.tree.common.dto.UserAdminRowVO;
 import com.mouhin.family.tree.common.dto.UserPasswordResetVO;
 import com.mouhin.family.tree.common.enums.FamilySettingKeyEnum;
+import com.mouhin.family.tree.common.enums.PlatformSettingKeyEnum;
 import com.mouhin.family.tree.common.enums.UserAccountTypeEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.Family;
@@ -21,6 +22,7 @@ import com.mouhin.family.tree.domain.entity.FamilyMember;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyUserNode;
 import com.mouhin.family.tree.domain.entity.OperationLog;
+import com.mouhin.family.tree.domain.entity.PlatformSetting;
 import com.mouhin.family.tree.domain.entity.FamilySetting;
 import com.mouhin.family.tree.domain.entity.User;
 import com.mouhin.family.tree.domain.event.MemberRoleChangedEvent;
@@ -397,6 +399,81 @@ class PlatformAdminApplicationServiceTest {
         FamilySettingSaveDTO dto = new FamilySettingSaveDTO();
         dto.setSettings(new LinkedHashMap<>(settings));
         return dto;
+    }
+
+    @Test
+    void familySettingEqualToCodeDefaultRemovesOverride() {
+        PlatformAdminApplicationService service = newService("mouhin");
+        when(familyRepository.findById(FAMILY_ID)).thenReturn(family());
+        when(familySettingRepository.findByFamilyIdAndKey(FAMILY_ID,
+                FamilySettingKeyEnum.MAX_NODE_COUNT.getCode()))
+                .thenReturn(setting(FamilySettingKeyEnum.MAX_NODE_COUNT.getCode(), "8000"));
+
+        service.saveSettings(FAMILY_ID, saveDto(Map.of(FamilySettingKeyEnum.MAX_NODE_COUNT.getCode(),
+                FamilySettingKeyEnum.MAX_NODE_COUNT.getDefaultValue())), ADMIN_USER_ID, "蒙斌", "127.0.0.1");
+
+        verify(familySettingRepository).removeByKey(FAMILY_ID, FamilySettingKeyEnum.MAX_NODE_COUNT.getCode());
+        verify(familySettingRepository, never()).save(any());
+        verify(familySettingRepository, never()).update(any());
+        ArgumentCaptor<OperationPerformedEvent> event = ArgumentCaptor.forClass(OperationPerformedEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertTrue(event.getValue().operationDesc().contains("覆盖0项，恢复默认1项"));
+    }
+
+    @Test
+    void familySettingEqualToPlatformOverrideAlsoCountsAsReset() {
+        PlatformAdminApplicationService service = newService("mouhin");
+        when(familyRepository.findById(FAMILY_ID)).thenReturn(family());
+        when(platformSettingRepository.findAll()).thenReturn(List.of(
+                platformSetting(PlatformSettingKeyEnum.MAX_NODE_COUNT.getCode(), "30000")));
+        when(familySettingRepository.findByFamilyIdAndKey(FAMILY_ID,
+                FamilySettingKeyEnum.MAX_NODE_COUNT.getCode()))
+                .thenReturn(setting(FamilySettingKeyEnum.MAX_NODE_COUNT.getCode(), "8000"));
+
+        service.saveSettings(FAMILY_ID, saveDto(Map.of(
+                FamilySettingKeyEnum.MAX_NODE_COUNT.getCode(), "30000")), ADMIN_USER_ID, "蒙斌", "127.0.0.1");
+
+        verify(familySettingRepository).removeByKey(FAMILY_ID, FamilySettingKeyEnum.MAX_NODE_COUNT.getCode());
+        verify(familySettingRepository, never()).update(any());
+    }
+
+    @Test
+    void familySettingResetWithoutOverrideWritesNothing() {
+        PlatformAdminApplicationService service = newService("mouhin");
+        when(familyRepository.findById(FAMILY_ID)).thenReturn(family());
+        when(familySettingRepository.findByFamilyIdAndKey(FAMILY_ID,
+                FamilySettingKeyEnum.MAX_NODE_COUNT.getCode())).thenReturn(null);
+
+        service.saveSettings(FAMILY_ID, saveDto(Map.of(FamilySettingKeyEnum.MAX_NODE_COUNT.getCode(),
+                FamilySettingKeyEnum.MAX_NODE_COUNT.getDefaultValue())), ADMIN_USER_ID, "蒙斌", "127.0.0.1");
+
+        verify(familySettingRepository, never()).save(any());
+        verify(familySettingRepository, never()).update(any());
+        verify(familySettingRepository, never()).removeByKey(any(), any());
+        ArgumentCaptor<OperationPerformedEvent> event = ArgumentCaptor.forClass(OperationPerformedEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertTrue(event.getValue().operationDesc().contains("覆盖0项，恢复默认0项"));
+    }
+
+    @Test
+    void mixedFamilySettingSubmissionSplitsWriteAndReset() {
+        PlatformAdminApplicationService service = newService("mouhin");
+        when(familyRepository.findById(FAMILY_ID)).thenReturn(family());
+        when(familySettingRepository.findByFamilyIdAndKey(FAMILY_ID,
+                FamilySettingKeyEnum.AI_FEATURE_ENABLED.getCode()))
+                .thenReturn(setting(FamilySettingKeyEnum.AI_FEATURE_ENABLED.getCode(), "false"));
+        when(familySettingRepository.findByFamilyIdAndKey(FAMILY_ID,
+                FamilySettingKeyEnum.MAX_NODE_COUNT.getCode())).thenReturn(null);
+
+        service.saveSettings(FAMILY_ID, saveDto(Map.of(
+                FamilySettingKeyEnum.AI_FEATURE_ENABLED.getCode(),
+                FamilySettingKeyEnum.AI_FEATURE_ENABLED.getDefaultValue(),
+                FamilySettingKeyEnum.MAX_NODE_COUNT.getCode(), "8000")), ADMIN_USER_ID, "蒙斌", "127.0.0.1");
+
+        verify(familySettingRepository).removeByKey(FAMILY_ID, FamilySettingKeyEnum.AI_FEATURE_ENABLED.getCode());
+        ArgumentCaptor<FamilySetting> saved = ArgumentCaptor.forClass(FamilySetting.class);
+        verify(familySettingRepository).save(saved.capture());
+        assertEquals(FamilySettingKeyEnum.MAX_NODE_COUNT.getCode(), saved.getValue().getSettingKey());
     }
 
     @Test
@@ -971,6 +1048,14 @@ class PlatformAdminApplicationServiceTest {
         FamilySetting setting = new FamilySetting();
         setting.setId(1L);
         setting.setFamilyId(FAMILY_ID);
+        setting.setSettingKey(key);
+        setting.setSettingValue(value);
+        return setting;
+    }
+
+    private PlatformSetting platformSetting(String key, String value) {
+        PlatformSetting setting = new PlatformSetting();
+        setting.setId(1L);
         setting.setSettingKey(key);
         setting.setSettingValue(value);
         return setting;

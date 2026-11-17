@@ -108,6 +108,23 @@ public class FamilySettingDomainService {
     }
 
     /**
+     * 判断提交值是否等同于上层默认值：等同时家族层不必保留覆盖行，直接回落继承。
+     * <p>
+     * 家族层的「默认」是平台层生效值（平台覆盖 → 代码默认），而非配置键自带的代码默认值；
+     * 否则平台改过默认后，家族按平台值提交会被误判成自定义覆盖而永远删不掉。
+     *
+     * @param setting          校验后的配置实体
+     * @param platformDefaults 平台层生效值，可为 null
+     * @return 是否与上层默认值一致
+     */
+    public boolean isDefaultValue(FamilySetting setting, Map<String, String> platformDefaults) {
+        FamilySettingKeyEnum keyEnum = resolveKey(setting.getSettingKey());
+        String inherited = platformDefaults == null ? null : platformDefaults.get(keyEnum.getCode());
+        String parentDefault = firstNotBlank(inherited, keyEnum.getDefaultValue());
+        return parentDefault != null && parentDefault.equals(setting.getSettingValue());
+    }
+
+    /**
      * 按编码解析配置键，未登记时拒绝。
      *
      * @param code 配置键编码

@@ -57,4 +57,12 @@ public class FamilySettingRepositoryImpl implements FamilySettingRepository {
         FamilySettingDO doObj = FamilySettingConverter.toDO(setting);
         mapper.updateById(doObj);
     }
+
+    @Override
+    public void removeByKey(Long familyId, String key) {
+        LambdaQueryWrapper<FamilySettingDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(FamilySettingDO::getFamilyId, familyId)
+                .eq(FamilySettingDO::getSettingKey, key);
+        mapper.delete(wrapper);
+    }
 }

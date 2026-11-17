@@ -174,4 +174,33 @@ class FamilySettingDomainServiceTest {
         assertEquals("请至少提交一项配置",
                 assertThrows(BusinessException.class, () -> service.toValidatedEntities(FAMILY_ID, null)).getMessage());
     }
+
+    @Test
+    void isDefaultValueComparesWithCodeDefaultWhenPlatformLayerAbsent() {
+        FamilySetting setting = onlySetting(FamilySettingKeyEnum.MAX_NODE_COUNT.getCode(), "5000");
+
+        assertTrue(service.isDefaultValue(setting, null));
+    }
+
+    @Test
+    void isDefaultValueUsesPlatformValueInsteadOfCodeDefault() {
+        FamilySetting setting = onlySetting(FamilySettingKeyEnum.MAX_NODE_COUNT.getCode(), "30000");
+        Map<String, String> platformDefaults = Map.of(FamilySettingKeyEnum.MAX_NODE_COUNT.getCode(), "30000");
+
+        assertTrue(service.isDefaultValue(setting, platformDefaults));
+        assertFalse(service.isDefaultValue(onlySetting(FamilySettingKeyEnum.MAX_NODE_COUNT.getCode(), "5000"),
+                platformDefaults));
+    }
+
+    @Test
+    void isDefaultValueFallsBackToCodeDefaultOnBlankPlatformValue() {
+        FamilySetting setting = onlySetting(FamilySettingKeyEnum.MAX_NODE_COUNT.getCode(), "5000");
+        Map<String, String> platformDefaults = Map.of(FamilySettingKeyEnum.MAX_NODE_COUNT.getCode(), "  ");
+
+        assertTrue(service.isDefaultValue(setting, platformDefaults));
+    }
+
+    private FamilySetting onlySetting(String key, String value) {
+        return service.toValidatedEntities(FAMILY_ID, Map.of(key, value)).getFirst();
+    }
 }

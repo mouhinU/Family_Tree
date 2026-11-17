@@ -424,7 +424,9 @@ public class PlatformAdminApplicationService {
     }
 
     /**
-     * 保存家族级配置覆盖值，未提交的配置项保持原状
+     * 保存家族级配置覆盖值，未提交的配置项保持原状。
+     *
+     * <p>取值与上层（平台层）生效值一致时不写覆盖行，并删除已有覆盖行，等同于恢复默认。</p>
      *
      * @param familyId      家族ID
      * @param dto           配置提交对象
@@ -438,19 +440,32 @@ public class PlatformAdminApplicationService {
         requireFamily(familyId);
         List<FamilySetting> validated = settingDomainService.toValidatedEntities(
                 familyId, dto == null ? null : dto.getSettings());
+        Map<String, String> platformDefaults = platformSettingService.familyScopedDefaults();
+        int written = 0;
+        int resetToDefault = 0;
         for (FamilySetting setting : validated) {
             FamilySetting existing = familySettingRepository.findByFamilyIdAndKey(
                     familyId, setting.getSettingKey());
+            if (settingDomainService.isDefaultValue(setting, platformDefaults)) {
+                if (existing != null) {
+                    familySettingRepository.removeByKey(familyId, setting.getSettingKey());
+                    resetToDefault++;
+                }
+                continue;
+            }
             if (existing == null) {
                 familySettingRepository.save(setting);
             } else {
                 existing.setSettingValue(setting.getSettingValue());
                 familySettingRepository.update(existing);
             }
+            written++;
         }
-        logger.info("Platform settings saved for familyId: {}, items: {}", familyId, validated.size());
+        logger.info("Family settings saved for familyId: {}, written: {}, resetToDefault: {}",
+                familyId, written, resetToDefault);
         eventPublisher.publishEvent(OperationPerformedEvent.of(operatorId, operatorName,
-                OPERATION_TYPE_SETTING_UPDATE, "更新家族平台配置" + validated.size() + "项",
+                OPERATION_TYPE_SETTING_UPDATE,
+                "更新家族平台配置" + validated.size() + "项（覆盖" + written + "项，恢复默认" + resetToDefault + "项）",
                 TARGET_TYPE_FAMILY, familyId, familyId, ipAddress));
     }
 

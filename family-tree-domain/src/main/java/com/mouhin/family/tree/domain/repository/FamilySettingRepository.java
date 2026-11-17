@@ -43,4 +43,12 @@ public interface FamilySettingRepository {
      * @param setting 配置领域对象
      */
     void update(FamilySetting setting);
+
+    /**
+     * 删除配置覆盖行，使该配置键在该家族回落到上层默认值
+     *
+     * @param familyId 家族ID
+     * @param key      配置键
+     */
+    void removeByKey(Long familyId, String key);
 }

@@ -234,9 +234,7 @@ def main(b):
     b.check("R6", "OWNER", "PUT", "/api/admin/platform-settings", 400,
             {"settings": {"MAX_NODE_COUNT": ""}}, note="平台层空值被拒（须提交默认值）")
 
-    # D-05：家族层提交默认值应删除覆盖行、回到继承平台值
-    # D-05：家族层提交默认值会返回成功，但覆盖行并未删除，生效值仍停在家族覆盖上
-    # 因此写接口按正例断言，读回链保持 known="D-05"，修复后去掉 known 即为正例守护
+    # D-05 修复守护：家族层提交上层生效默认值应删除覆盖行、回到继承平台值
     fam_default = family_settings(b, "OWNER", fid_a)["MAX_NODE_COUNT"].get("defaultValue")
     b.check("R6", "OWNER", "PUT", "/api/admin/family/%s/settings" % fid_a, 200,
             {"settings": {"MAX_NODE_COUNT": fam_default}},
@@ -245,7 +243,7 @@ def main(b):
     b.raw_call("R6", "OWNER", "GET", "/api/admin/family/{fid}/settings",
                fam_reset["MAX_NODE_COUNT"].get("overridden") is False
                and fam_reset["MAX_NODE_COUNT"].get("value") == "30000",
-               "家族覆盖删除后继承平台覆盖", "row=%s" % fam_reset.get("MAX_NODE_COUNT"), known="D-05")
+               "家族覆盖删除后继承平台覆盖", "row=%s" % fam_reset.get("MAX_NODE_COUNT"))
 
     # 平台层提交默认值即删除覆盖行（现已实现，作为正例守护）
     plat_default = platform_settings(b)["MAX_NODE_COUNT"].get("defaultValue")
