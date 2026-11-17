@@ -17,7 +17,7 @@ scratch 环境 = Phase 1 修复后的镜像 + 独立库（示例：端口 8093�
 ```bash
 # 1. 构建含修复的镜像
 #    1a. 离线/网络差时：本地打包 jar 后只套一层 distroless 运行时（与 Dockerfile 运行阶段等价）
-/Users/mac/Tools/apache-maven-3.6.3/bin/mvn -B package            # 顺带跑全量单测（当前基线 460 用例）
+/Users/mac/Tools/apache-maven-3.6.3/bin/mvn -B package            # 顺带跑全量单测（当前基线 482 用例）
 mkdir -p /tmp/ft-v51-ctx && cp family-tree-web/target/family-tree-web-1.0.0-SNAPSHOT.jar /tmp/ft-v51-ctx/app.jar
 # /tmp/ft-v51-ctx/Dockerfile：FROM gcr.io/distroless/java21-debian12 + COPY app.jar + java -jar 入口
 docker build -t family-tree:v51-local /tmp/ft-v51-ctx
@@ -70,10 +70,11 @@ python3 r6_r10_platform.py # R6 三级配置生效链与平台开关、R7 家族
 
 退出码 0 表示没有 FAIL；命中「已知缺陷」的用例记为 KNOWN，不影响退出码。
 
-当前基线（D-05 修复后的 `family-tree:v52-local` + 全新 scratch 库
-`family_tree_v52reg`、端口 8094、Redis 库 8）：三只电池共 276 项，FAIL 0，KNOWN 3
-（r3 两项 D-08 未知路径与路径参数类型、r4 一项 D-01 回滚不落库）。
+当前基线（D-01 修复后的 `family-tree:v53-local` + 全新 scratch 库
+`family_tree_v53reg`、端口 8095、Redis 库 9）：三只电池共 278 项，FAIL 0，KNOWN 2
+（均为 r3 的 D-08 未知路径与路径参数类型）。
 D-05 家族层配置改回默认已修复，r6 的读回行已改为正例断言并全部通过（111 项无 KNOWN）。
+D-01 版本回滚已落地：r4 的回滚段改为「回滚生效 + 写入 ROLLBACK 历史行」两条正例断言（103 项无 KNOWN）。
 
 电池内新建的测试账号（`regv50a`、`regpwd1` 等）用户名固定，**同一库重复跑会被「用户名已存在」拦住**。
 要复跑得先复置 scratch 库：删库后按上面第 2 步重新导入 `/tmp/ft-v51reg-seed.sql`，再重启容器。
@@ -84,7 +85,6 @@ D-05 家族层配置改回默认已修复，r6 的读回行已改为正例断言
 
 | 编号 | 现状 |
 |---|---|
-| D-01 | 版本回滚只返回数据，不落库 |
 | D-08 | 未知路径返回 HTTP 200 + `code:500` |
 
 带 `known="D-xx"` 的用例**失败记 KNOWN、意外通过记 FIXED 并计入失败**，

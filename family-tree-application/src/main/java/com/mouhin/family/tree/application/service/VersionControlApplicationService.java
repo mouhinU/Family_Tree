@@ -6,6 +6,8 @@ import com.mouhin.family.tree.domain.entity.FamilyRelation;
 import com.mouhin.family.tree.domain.entity.FamilySnapshot;
 import com.mouhin.family.tree.domain.entity.NodeHistory;
 import com.mouhin.family.tree.domain.entity.RelationHistory;
+import com.mouhin.family.tree.domain.event.FamilyTreeUpdatedEvent;
+import com.mouhin.family.tree.domain.event.NodeUpdatedEvent;
 import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
@@ -18,6 +20,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 /**
@@ -33,11 +36,22 @@ public class VersionControlApplicationService {
 
     private static final Logger logger = LoggerFactory.getLogger(VersionControlApplicationService.class);
 
+    /**
+     * 操作日志类型：节点版本回滚
+     */
+    private static final String OP_VERSION_ROLLBACK = "VERSION_ROLLBACK";
+    /**
+     * 操作日志对象类型：族谱节点
+     */
+    private static final String TARGET_TYPE_NODE = "node";
+
     private final HistoryRepository historyRepository;
     private final SnapshotRepository snapshotRepository;
     private final FamilyNodeRepository familyNodeRepository;
     private final FamilyRelationRepository familyRelationRepository;
     private final VersionControlDomainService versionControlDomainService;
+    private final FamilyNodeApplicationService familyNodeApplicationService;
+    private final FamilyUserNodeApplicationService familyUserNodeApplicationService;
     private final ApplicationEventPublisher eventPublisher;
 
     public VersionControlApplicationService(HistoryRepository historyRepository,
@@ -45,12 +59,16 @@ public class VersionControlApplicationService {
                                             FamilyNodeRepository familyNodeRepository,
                                             FamilyRelationRepository familyRelationRepository,
                                             VersionControlDomainService versionControlDomainService,
+                                            FamilyNodeApplicationService familyNodeApplicationService,
+                                            FamilyUserNodeApplicationService familyUserNodeApplicationService,
                                             ApplicationEventPublisher eventPublisher) {
         this.historyRepository = historyRepository;
         this.snapshotRepository = snapshotRepository;
         this.familyNodeRepository = familyNodeRepository;
         this.familyRelationRepository = familyRelationRepository;
         this.versionControlDomainService = versionControlDomainService;
+        this.familyNodeApplicationService = familyNodeApplicationService;
+        this.familyUserNodeApplicationService = familyUserNodeApplicationService;
         this.eventPublisher = eventPublisher;
     }
 
@@ -185,7 +203,9 @@ public class VersionControlApplicationService {
     /**
      * 回滚节点到指定版本
      * <p>
-     * 注意：此方法仅返回目标版本的数据，实际更新操作需由调用方执行
+     * 以目标版本的人物内容覆盖当前节点并落库，同时按新版本写入一条 ROLLBACK 历史，
+     * 使回滚本身也留在历史时间线上、可再次回滚。主键、家族归属与账号绑定保持不变；
+     * 世代变化沿用节点编辑的配偶/后代联动，改名沿用绑定账号昵称同步。
      *
      * @param nodeId        节点ID
      * @param versionNumber 目标版本号
@@ -193,8 +213,9 @@ public class VersionControlApplicationService {
      * @param userId        操作用户ID
      * @param username      操作用户名
      * @param ipAddress     客户端IP
-     * @return 回滚后的节点数据（JSON字符串）
+     * @return 目标版本的节点数据（JSON字符串）
      */
+    @Transactional(rollbackFor = Exception.class)
     public String rollbackNodeToVersion(Long nodeId, Integer versionNumber, Long familyId,
                                         Long userId, String username, String ipAddress) {
         NodeHistory history = historyRepository.findNodeHistoryByVersion(nodeId, versionNumber);
@@ -204,21 +225,40 @@ public class VersionControlApplicationService {
         if (!Objects.equals(history.getFamilyId(), familyId)) {
             throw new BusinessException("无权回滚该节点版本");
         }
-
-        String nodeData;
-        // 返回该版本的afterData（如果是CREATE或UPDATE操作）
-        if (history.getAfterData() != null) {
-            nodeData = history.getAfterData();
-        } else if (history.getBeforeData() != null) {
-            // 如果是DELETE操作，返回beforeData
-            nodeData = history.getBeforeData();
-        } else {
-            throw new BusinessException("版本数据不完整，无法回滚");
+        if (history.getAfterData() == null) {
+            // 删除版本只留有删除前快照，回滚等价于重建节点，不在版本回滚的能力范围内
+            throw new BusinessException("该版本为删除记录，无法回滚");
         }
 
-        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "VERSION_ROLLBACK",
-                "回滚节点到版本" + versionNumber, "node", nodeId, familyId, ipAddress));
-        return nodeData;
+        FamilyNode versionNode = versionControlDomainService.parseNodeVersion(history.getAfterData());
+        FamilyNode existing = familyNodeRepository.findById(nodeId);
+        if (existing == null || !Objects.equals(existing.getFamilyId(), familyId)) {
+            throw new BusinessException("节点不存在，无法回滚");
+        }
+
+        FamilyNode beforeNode = existing.copy();
+        existing.restoreContentFrom(versionNode);
+        existing.validateForUpdate();
+        existing.setUpdateTime(LocalDateTime.now());
+        familyNodeRepository.update(existing);
+
+        if (!Objects.equals(beforeNode.getGeneration(), existing.getGeneration())) {
+            familyNodeApplicationService.syncGenerationCascade(familyId, nodeId, existing.getGeneration());
+        }
+
+        eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
+        eventPublisher.publishEvent(NodeUpdatedEvent.of(familyId, nodeId, existing.getName(),
+                userId, username, ipAddress));
+        versionControlDomainService.recordNodeRollback(beforeNode, existing, versionNumber,
+                userId, username, ipAddress);
+
+        if (!Objects.equals(beforeNode.getName(), existing.getName())) {
+            familyUserNodeApplicationService.syncNicknameFromNode(familyId, nodeId, existing.getName());
+        }
+
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, OP_VERSION_ROLLBACK,
+                "回滚节点到版本" + versionNumber, TARGET_TYPE_NODE, nodeId, familyId, ipAddress));
+        return history.getAfterData();
     }
 
     /**

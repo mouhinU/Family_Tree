@@ -4964,6 +4964,10 @@ body.toolbar-hidden .tree-container {
     background: #a63a2b;
 }
 
+.history-dot.op-rollback {
+    background: #8a6d3b;
+}
+
 .history-connector {
     width: 2px;
     flex: 1;
@@ -5002,6 +5006,10 @@ body.toolbar-hidden .tree-container {
 
 .history-op-type.op-delete {
     color: #a63a2b;
+}
+
+.history-op-type.op-rollback {
+    color: #8a6d3b;
 }
 
 .history-version {

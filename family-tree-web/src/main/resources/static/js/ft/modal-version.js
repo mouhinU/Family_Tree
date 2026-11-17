@@ -117,6 +117,7 @@
                         + '</div>'
                         + '<div class="history-actions">'
                         + (h.afterData || h.beforeData ? '<button class="btn-sm" onclick="FT.showVersionDetail(' + nodeId + ',' + h.versionNumber + ')">查看详情</button>' : '')
+                        + (h.afterData && FT.canOperateNode(nodeId) ? '<button class="btn-sm" onclick="FT.rollbackNodeVersion(' + nodeId + ',' + h.versionNumber + ')">恢复到此版本</button>' : '')
                         + '</div>'
                         + '</div>'
                         + '</div>';
@@ -191,6 +192,32 @@
         } catch (e) {
             FT.toast('加载版本详情失败', 'error');
         }
+    }
+
+    /**
+     * 恢复节点到指定版本
+     *
+     * @param {number} nodeId        节点ID
+     * @param {number} versionNumber 目标版本号
+     */
+    async function rollbackNodeVersion(nodeId, versionNumber) {
+        FT.confirm('确定将该节点恢复到 v' + versionNumber + '？当前填写的信息会被覆盖。',
+            async function () {
+                try {
+                    var res = await FT.api('/api/version/node/' + nodeId + '/rollback?versionId=' + versionNumber, {
+                        method: 'POST'
+                    });
+                    if (res.code === 200) {
+                        FT.toast('已恢复到 v' + versionNumber);
+                        FT.closeModal();
+                        await FT.loadTree();
+                    } else {
+                        FT.toast('恢复失败: ' + (res.message || ''), 'error');
+                    }
+                } catch (e) {
+                    FT.toast('恢复失败', 'error');
+                }
+            });
     }
 
     /* ================================================================
@@ -358,6 +385,7 @@
             case 'CREATE': return '&#10010;';
             case 'UPDATE': return '&#9998;';
             case 'DELETE': return '&#10006;';
+            case 'ROLLBACK': return '&#8634;';
             default: return '&#8226;';
         }
     }
@@ -367,6 +395,7 @@
             case 'CREATE': return '创建';
             case 'UPDATE': return '修改';
             case 'DELETE': return '删除';
+            case 'ROLLBACK': return '回滚';
             default: return type;
         }
     }
@@ -391,6 +420,7 @@
      * ================================================================ */
     FT.showVersionHistoryModal = showVersionHistoryModal;
     FT.showVersionDetail = showVersionDetail;
+    FT.rollbackNodeVersion = rollbackNodeVersion;
     FT.previewSnapshot = previewSnapshot;
     FT.deleteSnapshot = deleteSnapshot;
 })();

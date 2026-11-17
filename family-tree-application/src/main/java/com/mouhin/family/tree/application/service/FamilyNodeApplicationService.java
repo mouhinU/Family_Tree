@@ -253,7 +253,7 @@ public class FamilyNodeApplicationService {
         FamilyNode existing = checkNodeBelongsToFamily(familyId, dto.getId());
 
         // 保存修改前的快照用于版本记录
-        FamilyNode beforeNode = cloneNode(existing);
+        FamilyNode beforeNode = existing.copy();
 
         if (dto.getName() != null && !dto.getName().isBlank()) {
             if (dto.getName().trim().length() > FamilyTreeConsts.MAX_NAME_LENGTH) {
@@ -281,8 +281,7 @@ public class FamilyNodeApplicationService {
             boolean generationChanged = !dto.getGeneration().equals(existing.getGeneration());
             existing.setGeneration(dto.getGeneration());
             if (generationChanged) {
-                syncSpouseGeneration(familyId, existing.getId(), dto.getGeneration());
-                syncDescendantGenerations(familyId, existing.getId(), dto.getGeneration());
+                syncGenerationCascade(familyId, existing.getId(), dto.getGeneration());
             }
         }
         if (dto.getAvatar() != null) {
@@ -495,6 +494,21 @@ public class FamilyNodeApplicationService {
     }
 
     /**
+     * 世代变更后的联动同步：把配偶与全部后代的辈分对齐到目标世代
+     * <p>
+     * 供节点编辑与版本回滚共用，避免两处各写一份联动规则。
+     *
+     * @param familyId   家族ID
+     * @param nodeId     起始节点ID
+     * @param generation 目标世代
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void syncGenerationCascade(Long familyId, Long nodeId, Integer generation) {
+        syncSpouseGeneration(familyId, nodeId, generation);
+        syncDescendantGenerations(familyId, nodeId, generation);
+    }
+
+    /**
      * 同步后代节点世代层级
      *
      * @param familyId   家族ID
@@ -536,36 +550,6 @@ public class FamilyNodeApplicationService {
             logger.info("Synced generation={} to {} spouse(s) of node={} for family={}",
                     generation, spouseRelations.size(), nodeId, familyId);
         }
-    }
-
-    /**
-     * 浅拷贝节点（用于版本对比时保存修改前快照）
-     */
-    private FamilyNode cloneNode(FamilyNode source) {
-        FamilyNode clone = new FamilyNode();
-        clone.setId(source.getId());
-        clone.setUserId(source.getUserId());
-        clone.setFamilyId(source.getFamilyId());
-        clone.setName(source.getName());
-        clone.setGender(source.getGender());
-        clone.setBirthDate(source.getBirthDate());
-        clone.setDeathDate(source.getDeathDate());
-        clone.setGeneration(source.getGeneration());
-        clone.setBirthOrder(source.getBirthOrder());
-        clone.setColorLabel(source.getColorLabel());
-        clone.setAvatar(source.getAvatar());
-        clone.setRemark(source.getRemark());
-        clone.setLunarBirthDate(source.getLunarBirthDate());
-        clone.setLunarDeathDate(source.getLunarDeathDate());
-        clone.setZi(source.getZi());
-        clone.setHao(source.getHao());
-        clone.setHui(source.getHui());
-        clone.setGraveLocation(source.getGraveLocation());
-        clone.setSpouseName(source.getSpouseName());
-        clone.setSpouseOriginFamily(source.getSpouseOriginFamily());
-        clone.setCreateTime(source.getCreateTime());
-        clone.setUpdateTime(source.getUpdateTime());
-        return clone;
     }
 
     /**

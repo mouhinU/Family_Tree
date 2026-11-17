@@ -30,6 +30,23 @@ public class VersionControlDomainService {
     private static final Logger logger = LoggerFactory.getLogger(VersionControlDomainService.class);
     private static final JsonMapper objectMapper = JsonMapper.builder().build();
 
+    /**
+     * 历史操作类型：创建
+     */
+    private static final String OP_CREATE = "CREATE";
+    /**
+     * 历史操作类型：修改
+     */
+    private static final String OP_UPDATE = "UPDATE";
+    /**
+     * 历史操作类型：删除
+     */
+    private static final String OP_DELETE = "DELETE";
+    /**
+     * 历史操作类型：版本回滚（回滚自身也作为新版本入历史，因此可再次回滚）
+     */
+    private static final String OP_ROLLBACK = "ROLLBACK";
+
     private final HistoryRepository historyRepository;
     private final SnapshotRepository snapshotRepository;
 
@@ -51,7 +68,7 @@ public class VersionControlDomainService {
         NodeHistory history = buildNodeHistory(
                 node.getId(),
                 node.getFamilyId(),
-                "CREATE",
+                OP_CREATE,
                 operatorId,
                 operatorName,
                 null,
@@ -77,7 +94,7 @@ public class VersionControlDomainService {
         NodeHistory history = buildNodeHistory(
                 oldNode.getId(),
                 oldNode.getFamilyId(),
-                "UPDATE",
+                OP_UPDATE,
                 operatorId,
                 operatorName,
                 toJson(oldNode),
@@ -100,7 +117,7 @@ public class VersionControlDomainService {
         NodeHistory history = buildNodeHistory(
                 node.getId(),
                 node.getFamilyId(),
-                "DELETE",
+                OP_DELETE,
                 operatorId,
                 operatorName,
                 toJson(node),
@@ -109,6 +126,52 @@ public class VersionControlDomainService {
                 ipAddress
         );
         historyRepository.saveNodeHistory(history);
+    }
+
+    /**
+     * 记录节点版本回滚历史
+     * <p>
+     * 回滚后的状态按新版本入历史，因此历史时间线上回滚本身也可再次被回滚。
+     *
+     * @param beforeNode    回滚前的节点
+     * @param restoredNode  回滚后的节点
+     * @param targetVersion 回滚来源的版本号
+     * @param operatorId    操作人ID
+     * @param operatorName  操作人姓名
+     * @param ipAddress     IP地址
+     */
+    public void recordNodeRollback(FamilyNode beforeNode, FamilyNode restoredNode, int targetVersion,
+                                   Long operatorId, String operatorName, String ipAddress) {
+        NodeHistory history = buildNodeHistory(
+                restoredNode.getId(),
+                restoredNode.getFamilyId(),
+                OP_ROLLBACK,
+                operatorId,
+                operatorName,
+                toJson(beforeNode),
+                toJson(restoredNode),
+                "回滚到版本" + targetVersion + "：" + generateNodeChangeSummary(beforeNode, restoredNode),
+                ipAddress
+        );
+        historyRepository.saveNodeHistory(history);
+    }
+
+    /**
+     * 解析节点历史版本数据
+     *
+     * @param nodeData 版本快照JSON
+     * @return 版本内容对应的节点对象
+     */
+    public FamilyNode parseNodeVersion(String nodeData) {
+        if (nodeData == null || nodeData.isBlank()) {
+            throw new BusinessException("版本数据为空，无法回滚");
+        }
+        try {
+            return objectMapper.readValue(nodeData, FamilyNode.class);
+        } catch (Exception e) {
+            logger.error("节点版本数据解析失败", e);
+            throw new BusinessException("版本数据无法解析，无法回滚");
+        }
     }
 
     /**
@@ -123,7 +186,7 @@ public class VersionControlDomainService {
         RelationHistory history = buildRelationHistory(
                 relation.getId(),
                 relation.getFamilyId(),
-                "CREATE",
+                OP_CREATE,
                 operatorId,
                 operatorName,
                 null,
@@ -149,7 +212,7 @@ public class VersionControlDomainService {
         RelationHistory history = buildRelationHistory(
                 oldRelation.getId(),
                 oldRelation.getFamilyId(),
-                "UPDATE",
+                OP_UPDATE,
                 operatorId,
                 operatorName,
                 toJson(oldRelation),
@@ -172,7 +235,7 @@ public class VersionControlDomainService {
         RelationHistory history = buildRelationHistory(
                 relation.getId(),
                 relation.getFamilyId(),
-                "DELETE",
+                OP_DELETE,
                 operatorId,
                 operatorName,
                 toJson(relation),

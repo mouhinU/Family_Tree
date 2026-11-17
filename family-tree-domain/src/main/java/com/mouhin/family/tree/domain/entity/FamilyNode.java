@@ -74,6 +74,54 @@ public class FamilyNode {
     }
 
     /**
+     * 生成当前节点的浅拷贝
+     * <p>
+     * 用于记录修改前快照：版本历史需要在改动生效前留存一份独立对象，
+     * 避免与后续被就地修改的实例共享引用。
+     *
+     * @return 字段值相同的独立节点对象
+     */
+    public FamilyNode copy() {
+        FamilyNode copy = new FamilyNode();
+        copy.id = this.id;
+        copy.userId = this.userId;
+        copy.familyId = this.familyId;
+        copy.createTime = this.createTime;
+        copy.updateTime = this.updateTime;
+        copy.restoreContentFrom(this);
+        return copy;
+    }
+
+    /**
+     * 以历史版本的人物内容覆盖当前节点（版本回滚）
+     * <p>
+     * 主键、家族归属、绑定账号与创建/更新时间保留当前值：回滚只还原人物信息，不动身份关系。
+     * 覆盖为全量赋值而非跳过空值，否则历史上被清空的字段无法还原成空。
+     *
+     * @param version 历史版本解析出的节点内容
+     */
+    public void restoreContentFrom(FamilyNode version) {
+        this.name = version.name;
+        this.gender = version.gender;
+        this.birthDate = version.birthDate;
+        this.deathDate = version.deathDate;
+        this.generation = version.generation;
+        this.birthOrder = version.birthOrder;
+        this.colorLabel = version.colorLabel;
+        this.avatar = version.avatar;
+        this.remark = version.remark;
+        this.lunarBirthDate = version.lunarBirthDate;
+        this.lunarDeathDate = version.lunarDeathDate;
+        this.zi = version.zi;
+        this.hao = version.hao;
+        this.hui = version.hui;
+        this.graveLocation = version.graveLocation;
+        this.spouseName = version.spouseName;
+        this.spouseOriginFamily = version.spouseOriginFamily;
+        this.biography = version.biography;
+    }
+
+    /**
      * 判断节点是否已去世
      *
      * @return 是否有去世日期

@@ -83,7 +83,7 @@ def main(b):
     b.check("R4", "MEMBER", "POST", "/api/node", [400, 403],
             {"name": "非管理员建节点", "gender": 1}, note="非管理员建节点被拒")
 
-    # ---------- R4 版本：历史/对比可读，回滚落地为已知缺陷 D-01 ----------
+    # ---------- R4 版本：历史/对比可读，回滚落库并写入 ROLLBACK 历史 ----------
     hist = b.check("R4", "OWNER", "GET", "/api/version/node/%s/history?page=1&size=10" % nid, 200,
                    note="节点版本历史>=2",
                    assert_fn=lambda d, r: (d.get("total") or 0) >= 2 if isinstance(d, dict) else len(d or []) >= 2)
@@ -96,7 +96,13 @@ def main(b):
     b.check("R4", "OWNER", "POST", "/api/version/node/%s/rollback?versionId=%s" % (nid, v_first), 200,
             note="回滚到 v%s 接口返回成功" % v_first)
     b.check("R4", "OWNER", "GET", "/api/node/%s" % nid, 200, note="回滚生效：姓名回到 回归测试甲",
-            assert_fn=lambda d, r: d.get("name") == "回归测试甲", known="D-01")
+            assert_fn=lambda d, r: d.get("name") == "回归测试甲")
+    hist_after = b.check("R4", "OWNER", "GET", "/api/version/node/%s/history?page=1&size=10" % nid,
+                         200, note="回滚后重读历史")
+    rollback_rows = [x for x in ((hist_after or {}).get("data") or {}).get("list") or []
+                     if x.get("operationType") == "ROLLBACK"]
+    b.raw_call("R4", "OWNER", "GET", "/api/version/node/{id}/history", len(rollback_rows) == 1,
+               "回滚写入 ROLLBACK 历史行", "rows=%s" % len(rollback_rows))
     b.check("R4", "OWNER", "PUT", "/api/node", 200,
             {"id": nid, "name": "回归测试乙", "gender": 1, "birthDate": "1990-03-05", "generation": 1},
             note="回滚探针后还原改名")
