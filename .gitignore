@@ -37,3 +37,8 @@ Thumbs.db
 backup/
 # 本地 Docker 卷挂载数据目录
 docker-data/
+
+# 本地 Docker 构建/启动日志（每次部署重新生成，不入库）
+docker-logs/
+# Python 回归电池的字节码缓存
+__pycache__/
