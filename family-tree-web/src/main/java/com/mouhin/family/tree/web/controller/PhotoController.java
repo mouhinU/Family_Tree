@@ -12,6 +12,7 @@ import com.mouhin.family.tree.web.storage.PhotoStorage;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * 家族相册控制器
@@ -138,13 +140,24 @@ public class PhotoController extends BaseController {
     }
 
     /**
-     * 获取照片文件（按家族目录寻址）
+     * 获取照片文件（按家族目录寻址，仅本家族成员可读取）
      *
      * @param familyId 家族ID（目录名）
      * @param fileName 文件名
      */
     @GetMapping("/{familyId}/{fileName:.+}")
-    public ResponseEntity<?> getPhoto(@PathVariable Long familyId, @PathVariable String fileName) {
+    public ResponseEntity<?> getPhoto(@PathVariable Long familyId, @PathVariable String fileName,
+                                      HttpSession session) {
+        Long currentFamilyId;
+        try {
+            currentFamilyId = getCurrentFamilyId(session);
+        } catch (BusinessException e) {
+            currentFamilyId = null;
+        }
+        if (!Objects.equals(currentFamilyId, familyId)) {
+            logger.warn("Photo access denied: currentFamily={}, targetFamily={}", currentFamilyId, familyId);
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         Path filePath;
         try {
             filePath = photoStorage.resolve(familyId, fileName);
