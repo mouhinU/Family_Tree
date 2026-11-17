@@ -41,9 +41,11 @@ public class FamilyController extends BaseController {
      * 创建家族
      */
     @PostMapping
-    public Result<Map<String, Object>> create(@RequestBody FamilyCreateDTO dto, HttpSession session) {
+    public Result<Map<String, Object>> create(@Valid @RequestBody FamilyCreateDTO dto, HttpSession session,
+                                               HttpServletRequest request) {
         Long userId = getCurrentUserId(session);
-        Long familyId = familyService.createFamily(userId, dto);
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        Long familyId = familyService.createFamily(userId, dto, username, getClientIp(request));
         // 将家族ID写入会话
         session.setAttribute(SESSION_FAMILY_ID, familyId);
         Map<String, Object> data = new HashMap<>(4);

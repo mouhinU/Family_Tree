@@ -48,7 +48,7 @@
             font-size: 13px;
             color: #666;
         }
-        .setup-section input {
+        .setup-section input, .setup-section select {
             width: 100%;
             padding: 10px 12px;
             border: 1px solid #ddd;
@@ -56,6 +56,18 @@
             font-size: 14px;
             box-sizing: border-box;
             margin-bottom: 10px;
+            background: #fff;
+        }
+        .setup-section label {
+            display: block;
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .setup-section .section-tip {
+            margin: 12px 0 8px 0;
+            padding-top: 12px;
+            border-top: 1px dashed #e8e8e8;
         }
         .setup-section button {
             width: 100%;
@@ -106,6 +118,17 @@
         <h3>创建新家族</h3>
         <p>输入家族名称，创建一个新的家族并成为族长。</p>
         <input id="create-name" placeholder="例如：张氏家族" type="text">
+        <p class="section-tip">选填：创建时把您的信息写成家族第一个族谱节点，并标记为「我的位置」。辈分（世代名称）可稍后在族谱里补录。</p>
+        <label for="init-name">初始节点姓名</label>
+        <input id="init-name" maxlength="50" placeholder="您的姓名" type="text">
+        <label for="init-gender">性别</label>
+        <select id="init-gender">
+            <option value="">不设置</option>
+            <option value="1">男</option>
+            <option value="2">女</option>
+        </select>
+        <label for="init-birth">出生日期（阳历）</label>
+        <input id="init-birth" type="date">
         <button id="btn-create" type="button">创建家族</button>
     </div>
 

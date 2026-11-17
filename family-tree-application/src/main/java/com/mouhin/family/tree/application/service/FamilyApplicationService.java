@@ -5,6 +5,7 @@ import com.mouhin.family.tree.common.dto.FamilyCreateDTO;
 import com.mouhin.family.tree.common.dto.FamilyDTO;
 import com.mouhin.family.tree.common.dto.FamilyJoinDTO;
 import com.mouhin.family.tree.common.dto.FamilyMemberDTO;
+import com.mouhin.family.tree.common.dto.NodeCreateDTO;
 import com.mouhin.family.tree.common.dto.PageResult;
 import com.mouhin.family.tree.common.enums.FamilyMemberRoleEnum;
 import com.mouhin.family.tree.common.enums.PlatformSettingKeyEnum;
@@ -63,6 +64,8 @@ public class FamilyApplicationService {
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final PlatformSettingApplicationService platformSettingService;
+    private final FamilyNodeApplicationService familyNodeService;
+    private final FamilyUserNodeApplicationService familyUserNodeService;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public FamilyApplicationService(FamilyRepository familyRepository,
@@ -73,7 +76,9 @@ public class FamilyApplicationService {
                                     FamilyOfferingRepository familyOfferingRepository,
                                     UserRepository userRepository,
                                     ApplicationEventPublisher eventPublisher,
-                                    PlatformSettingApplicationService platformSettingService) {
+                                    PlatformSettingApplicationService platformSettingService,
+                                    FamilyNodeApplicationService familyNodeService,
+                                    FamilyUserNodeApplicationService familyUserNodeService) {
         this.familyRepository = familyRepository;
         this.familyMemberRepository = familyMemberRepository;
         this.familyNodeRepository = familyNodeRepository;
@@ -83,17 +88,21 @@ public class FamilyApplicationService {
         this.userRepository = userRepository;
         this.eventPublisher = eventPublisher;
         this.platformSettingService = platformSettingService;
+        this.familyNodeService = familyNodeService;
+        this.familyUserNodeService = familyUserNodeService;
     }
 
     /**
      * 创建家族
      *
-     * @param userId 操作者用户ID
-     * @param dto    创建请求
+     * @param userId    操作者用户ID
+     * @param dto       创建请求（含选填的初始节点信息）
+     * @param username  操作者姓名，用于节点操作日志
+     * @param ipAddress 操作者IP，用于节点操作日志
      * @return 新家族ID
      */
     @Transactional(rollbackFor = Exception.class)
-    public Long createFamily(Long userId, FamilyCreateDTO dto) {
+    public Long createFamily(Long userId, FamilyCreateDTO dto, String username, String ipAddress) {
         platformSettingService.assertFamilyQuotaAvailable();
         if (dto.getName() == null || dto.getName().isBlank()) {
             throw new BusinessException("家族名称不能为空");
@@ -130,9 +139,40 @@ public class FamilyApplicationService {
         // 将该用户已有的领域数据迁移到新家族
         migrateUserDataToFamily(userId, family.getId());
 
+        // 按填写的个人信息生成家族第一个族谱节点，并把创建者本人绑定到该节点
+        createInitialNode(userId, username, ipAddress, family.getId(), dto);
+
         logger.info("Created family id={} name={} by user={}", family.getId(), familyName, userId);
         eventPublisher.publishEvent(FamilyCreatedEvent.of(family.getId(), userId, familyName));
         return family.getId();
+    }
+
+    /**
+     * 按创建请求中的选填信息生成家族初始节点，并把创建者绑定到该节点。
+     *
+     * <p>初始节点不带始祖语义，只是本家族建成的第一个族谱节点，后续可自由挂父节点或子节点；
+     * 未填写姓名时直接跳过，保持原有的空树行为。绑定在同一事务内完成，节点账号开通监听器
+     * （事务提交后触发）检测到节点已绑定真人会跳过自动开号，避免族长一人两号。</p>
+     *
+     * @param userId    创建者用户ID
+     * @param username  创建者姓名
+     * @param ipAddress 创建者IP
+     * @param familyId  新家族ID
+     * @param dto       创建请求
+     */
+    private void createInitialNode(Long userId, String username, String ipAddress, Long familyId,
+                                   FamilyCreateDTO dto) {
+        String nodeName = dto.getInitialNodeName() == null ? null : dto.getInitialNodeName().trim();
+        if (nodeName == null || nodeName.isEmpty()) {
+            return;
+        }
+        NodeCreateDTO nodeDTO = new NodeCreateDTO();
+        nodeDTO.setName(nodeName);
+        nodeDTO.setGender(dto.getInitialNodeGender());
+        nodeDTO.setBirthDate(dto.getInitialNodeBirthDate());
+        Long nodeId = familyNodeService.createNode(familyId, userId, username, ipAddress, nodeDTO);
+        familyUserNodeService.bindMyNode(familyId, userId, nodeId);
+        logger.info("Created initial node id={} for family={} and bound to user={}", nodeId, familyId, userId);
     }
 
     /**
