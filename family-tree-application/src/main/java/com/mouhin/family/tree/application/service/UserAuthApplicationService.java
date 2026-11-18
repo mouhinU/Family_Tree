@@ -244,6 +244,7 @@ public class UserAuthApplicationService {
         UserProfileDTO dto = new UserProfileDTO();
         dto.setNickname(user.getNickname());
         dto.setGeneration(user.getGeneration());
+        dto.setGender(user.getGender());
         dto.setBirthDate(user.getBirthDate());
         dto.setLunarBirthDate(user.getLunarBirthDate());
         // 联系方式仅用于本人查看与编辑，不进入成员列表等他人视图
@@ -281,6 +282,12 @@ public class UserAuthApplicationService {
             if (!Objects.equals(birthDate, user.getBirthDate())) {
                 user.setBirthDate(birthDate);
                 user.setLunarBirthDate(LunarSolarUtil.solarTextToLunarOrNull(birthDate));
+                changed = true;
+            }
+        }
+        if (dto.getGender() != null) {
+            if (!Objects.equals(dto.getGender(), user.getGender())) {
+                user.setGender(dto.getGender());
                 changed = true;
             }
         }

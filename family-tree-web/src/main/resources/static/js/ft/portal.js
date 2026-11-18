@@ -48,7 +48,7 @@
         if (!families.length) {
             var empty = document.createElement('li');
             empty.className = 'family-empty';
-            empty.textContent = '您还没有归属任何家族，可在下方创建或加入一个';
+            empty.textContent = '您还没有归属任何家族，可在「创建新家族」或「加入已有家族」中开始';
             listEl.appendChild(empty);
             return;
         }
@@ -87,7 +87,9 @@
      * 切换家族的 PUT 必须使用刷新后的 Token，否则被安全校验拒绝。</p>
      */
     async function loadMyFamilies() {
-        await profileReady;
+        if (await profileReady === 'expired') {
+            return;
+        }
         try {
             var res = await fetch('/api/family/my-list');
             if (!res.ok) {
@@ -106,13 +108,14 @@
     async function onEnterFamily(event) {
         clearMessage();
         var familyId = event.currentTarget.dataset.familyId;
-        await profileReady;
+        if (await profileReady === 'expired') {
+            return;
+        }
         try {
-            var res = await fetch('/api/family/switch/' + familyId, {
+            var data = await writeJson('/api/family/switch/' + familyId, {
                 method: 'PUT',
                 headers: jsonHeaders()
             });
-            var data = await res.json();
             if (data.code === 200) {
                 currentFamilyId = familyId;
                 showMessage('已进入该家族，正在跳转...', 'success');
@@ -134,7 +137,9 @@
             showMessage('请输入家族名称', 'error');
             return;
         }
-        await profileReady;
+        if (await profileReady === 'expired') {
+            return;
+        }
         var payload = {name: name};
         var nodeName = document.getElementById('init-name').value.trim();
         if (nodeName) {
@@ -149,12 +154,11 @@
             }
         }
         try {
-            var res = await fetch('/api/family', {
+            var data = await writeJson('/api/family', {
                 method: 'POST',
                 headers: jsonHeaders(),
                 body: JSON.stringify(payload)
             });
-            var data = await res.json();
             if (data.code === 200) {
                 showMessage(nodeName ? '家族与初始节点创建成功，正在进入...' : '家族创建成功，正在进入...',
                     'success');
@@ -176,14 +180,15 @@
             showMessage('请输入邀请码', 'error');
             return;
         }
-        await profileReady;
+        if (await profileReady === 'expired') {
+            return;
+        }
         try {
-            var res = await fetch('/api/family/join', {
+            var data = await writeJson('/api/family/join', {
                 method: 'POST',
                 headers: jsonHeaders(),
                 body: JSON.stringify({inviteCode: code})
             });
-            var data = await res.json();
             if (data.code === 200) {
                 showMessage('加入成功，正在进入...', 'success');
                 setTimeout(function () {
@@ -198,21 +203,55 @@
     }
 
     /**
+     * 带会话自愈的写请求：CSRF 被拒（403）时先经 /api/auth/me 刷新令牌再重试一次。
+     *
+     * <p>会话为容器内存存储，发版重启或闲置超时后会话即失效，此时旧令牌会被 CSRF 过滤器
+     * 以 403 拒绝；这里区分「令牌过期」与「会话过期」，后者提示并返回登录页，避免把
+     * 登录态问题误报成 CSRF 校验失败。</p>
+     *
+     * @param url 请求地址
+     * @param options fetch 配置（headers 会在重试时替换为刷新后的令牌）
+     * @return 响应体 Result 对象
+     */
+    async function writeJson(url, options) {
+        var res = await fetch(url, options);
+        var data = await res.json();
+        if (res.status === 403 || data.code === 403) {
+            var state = await loadProfile();
+            if (state === 'expired') {
+                return {code: 401, message: '登录已过期，正在返回登录页...'};
+            }
+            if (state === 'ok') {
+                options.headers = jsonHeaders();
+                res = await fetch(url, options);
+                data = await res.json();
+            }
+        }
+        return data;
+    }
+
+    /**
      * 读取账号资料，刷新 CSRF Token 并确定当前家族。
      *
      * <p>/api/auth/me 每次调用都会重新生成 CSRF Token，因此必须把返回值写回 sessionStorage，
      * 否则后续 PUT/POST 会因安全校验失败被拒。其 familyId 即当前家族，用于列表标记「当前」。
-     * 读取失败不阻塞页面其他操作。</p>
+     * 会话过期时提示并返回登录页；其它读取失败不阻塞页面其他操作。</p>
+     *
+     * @return 'ok' 读取成功；'expired' 会话过期（已安排跳转登录页）；'error' 其它失败
      */
     async function loadProfile() {
         try {
             var res = await fetch('/api/auth/me');
-            if (!res.ok) {
-                return;
-            }
             var body = await res.json();
-            if (body.code !== 200 || !body.data) {
-                return;
+            if (res.status === 401 || body.code === 401) {
+                showMessage('登录已过期，正在返回登录页...', 'error');
+                setTimeout(function () {
+                    window.location.href = '/login.html';
+                }, REDIRECT_DELAY);
+                return 'expired';
+            }
+            if (!res.ok || body.code !== 200 || !body.data) {
+                return 'error';
             }
             if (body.data.csrfToken) {
                 sessionStorage.setItem('csrfToken', body.data.csrfToken);
@@ -227,8 +266,10 @@
             if (birthEl && !birthEl.value && birthDate && DATE_PATTERN.test(birthDate)) {
                 birthEl.value = birthDate;
             }
+            return 'ok';
         } catch (err) {
-            // 未登录或接口异常时保持表单为空
+            // 网络异常时保持表单为空，不阻塞创建与加入
+            return 'error';
         }
     }
 

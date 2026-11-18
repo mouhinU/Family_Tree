@@ -18,6 +18,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -32,7 +33,7 @@ import static org.mockito.Mockito.when;
 
 /**
  * 用户-家族-族谱节点绑定应用服务单元测试。
- * 覆盖：标记/取消标记、跨家族节点校验、改名同步昵称、被绑定节点删除拦截。
+ * 覆盖：标记/取消标记、跨家族节点校验、改名同步昵称、被绑定节点删除拦截、绑定后账号资料回填。
  *
  * @author Family-Tree
  * @date 2026-11-05
@@ -430,6 +431,70 @@ class FamilyUserNodeApplicationServiceTest {
         verify(familyUserNodeRepository).save(captor.capture());
         assertEquals(USER_ID, captor.getValue().getUserId());
         assertEquals(NODE_ID, captor.getValue().getNodeId());
+    }
+
+    // ========== 绑定后账号资料回填 ==========
+
+    @Test
+    void bindMyNode_emptyProfile_backfillsFromNode() {
+        FamilyNode node = node(NODE_ID, FAMILY_ID);
+        node.setGender(2);
+        node.setBirthDate(LocalDate.of(1991, 11, 5));
+        node.setLunarBirthDate("一九九一年十月初十");
+        node.setGeneration(14);
+        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID)).thenReturn(null);
+        when(familyNodeRepository.findById(NODE_ID)).thenReturn(node);
+        when(userRepository.findById(USER_ID)).thenReturn(user(USER_ID, "胡兰"));
+
+        familyUserNodeApplicationService.bindMyNode(FAMILY_ID, USER_ID, NODE_ID);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).update(captor.capture());
+        assertEquals(Integer.valueOf(2), captor.getValue().getGender());
+        assertEquals("1991-11-05", captor.getValue().getBirthDate());
+        assertEquals("一九九一年十月初十", captor.getValue().getLunarBirthDate());
+        assertEquals(Integer.valueOf(14), captor.getValue().getGeneration());
+    }
+
+    @Test
+    void bindMyNode_profileAlreadyFilled_keepsUserValues() {
+        FamilyNode node = node(NODE_ID, FAMILY_ID);
+        node.setBirthDate(LocalDate.of(1991, 11, 5));
+        node.setGeneration(14);
+        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID)).thenReturn(null);
+        when(familyNodeRepository.findById(NODE_ID)).thenReturn(node);
+        User filled = user(USER_ID, "胡兰");
+        filled.setBirthDate("1991-09-29");
+        filled.setGeneration(1);
+        when(userRepository.findById(USER_ID)).thenReturn(filled);
+
+        familyUserNodeApplicationService.bindMyNode(FAMILY_ID, USER_ID, NODE_ID);
+
+        verify(userRepository, never()).update(any());
+    }
+
+    @Test
+    void provisionAndBindNodeAccount_newAutoAccount_backfillsProfileFromNode() {
+        Long autoUserId = 90L;
+        FamilyNode node = node(NODE_ID, FAMILY_ID);
+        node.setName("张大爷");
+        node.setGender(1);
+        node.setBirthDate(LocalDate.of(1960, 3, 1));
+        node.setGeneration(12);
+        when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID)).thenReturn(null);
+        when(userRepository.findByUsername("张大爷")).thenReturn(null);
+        when(userAuthApplicationService.provisionAccount(
+                "张大爷", "张大爷", AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD)).thenReturn(autoUserId);
+        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId)).thenReturn(null);
+        when(userRepository.findById(autoUserId)).thenReturn(autoUser(autoUserId, "张大爷"));
+
+        familyUserNodeApplicationService.provisionAndBindNodeAccount(node);
+
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).update(captor.capture());
+        assertEquals(Integer.valueOf(1), captor.getValue().getGender());
+        assertEquals("1960-03-01", captor.getValue().getBirthDate());
+        assertEquals(Integer.valueOf(12), captor.getValue().getGeneration());
     }
 
     // ========== 辅助方法 ==========

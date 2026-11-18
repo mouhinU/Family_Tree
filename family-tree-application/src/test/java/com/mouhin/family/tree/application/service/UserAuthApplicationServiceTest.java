@@ -457,6 +457,25 @@ class UserAuthApplicationServiceTest {
         assertEquals("新昵称", user.getNickname());
     }
 
+    @Test
+    void updateProfileSetsGenderAndOmittedGenderKeepsExisting() {
+        User user = userWithHash("x");
+        when(userRepository.findById(1L)).thenReturn(user);
+
+        ProfileUpdateDTO dto = new ProfileUpdateDTO();
+        dto.setGender(1);
+        UserAuthApplicationService service = createService(createLoginAttemptService());
+        service.updateProfile(1L, dto);
+        assertEquals(Integer.valueOf(1), user.getGender());
+        verify(userRepository).update(user);
+
+        // 不携带性别字段时保持原值（与邮箱/手机号留空口径一致）
+        ProfileUpdateDTO second = new ProfileUpdateDTO();
+        second.setNickname("改名");
+        service.updateProfile(1L, second);
+        assertEquals(Integer.valueOf(1), user.getGender());
+    }
+
     private RegisterDTO registerDto(String username) {
         RegisterDTO dto = new RegisterDTO();
         dto.setUsername(username);

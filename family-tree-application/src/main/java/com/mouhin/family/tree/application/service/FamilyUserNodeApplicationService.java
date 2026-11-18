@@ -94,6 +94,7 @@ public class FamilyUserNodeApplicationService {
                 : userAuthApplicationService.provisionAccount(
                         username, node.getName(), AccountConsts.NODE_ACCOUNT_INITIAL_PASSWORD);
         bindProvisionedAccount(familyId, userId, nodeId);
+        backfillProfileFromNode(userRepository.findById(userId), node);
         return userId;
     }
 
@@ -175,6 +176,7 @@ public class FamilyUserNodeApplicationService {
             existing.setUpdateTime(now);
             familyUserNodeRepository.update(existing);
         }
+        backfillProfileFromNode(userRepository.findById(userId), node);
         logger.info("User bound to node: familyId={} userId={} nodeId={}", familyId, userId, nodeId);
     }
 
@@ -297,6 +299,41 @@ public class FamilyUserNodeApplicationService {
         member.setUpdateTime(now);
         familyMemberRepository.save(member);
         logger.info("Ensured family membership for provisioned node account: familyId={} userId={}", familyId, userId);
+    }
+
+    /**
+     * 绑定节点后把节点档案回填到账号资料（性别/出生日期/农历/世代），仅在账号字段为空时补，不覆盖已有值
+     *
+     * <p>自动开通的账号建档时只写了昵称，本人激活或建族初始化绑定后若资料仍为空，
+     * 个人信息页会显示一片空白，与其在族谱中的节点信息不一致。</p>
+     */
+    private void backfillProfileFromNode(User user, FamilyNode node) {
+        if (user == null || node == null) {
+            return;
+        }
+        boolean changed = false;
+        if (user.getGender() == null && node.getGender() != null) {
+            user.setGender(node.getGender());
+            changed = true;
+        }
+        if (user.getBirthDate() == null && node.getBirthDate() != null) {
+            user.setBirthDate(node.getBirthDate().toString());
+            changed = true;
+        }
+        if (user.getLunarBirthDate() == null && node.getLunarBirthDate() != null) {
+            user.setLunarBirthDate(node.getLunarBirthDate());
+            changed = true;
+        }
+        if (user.getGeneration() == null && node.getGeneration() != null) {
+            user.setGeneration(node.getGeneration());
+            changed = true;
+        }
+        if (!changed) {
+            return;
+        }
+        user.setUpdateTime(LocalDateTime.now());
+        userRepository.update(user);
+        logger.info("Backfilled user profile from bound node: userId={} nodeId={}", user.getId(), node.getId());
     }
 
     /**

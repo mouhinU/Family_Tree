@@ -112,7 +112,7 @@ public class FamilyApplicationService {
             throw new BusinessException("家族名称不能超过100个字符");
         }
 
-        // 检查该账号归属的家族数是否已达平台上限（默认 1，即保持原有的一人一家族口径）
+        // 检查该账号归属的家族数是否已达平台上限（默认 2，即本家 + 配偶家族）
         List<FamilyMember> memberships = familyMemberRepository.findByUserId(userId);
         platformSettingService.assertUserFamilyQuotaAvailable(memberships.size());
         boolean firstFamily = memberships.isEmpty();
@@ -206,7 +206,7 @@ public class FamilyApplicationService {
             throw new BusinessException("您已在该家族中");
         }
 
-        // 该账号归属的家族数已达平台上限时不能再加入（默认 1，即保持一人一家族口径）
+        // 该账号归属的家族数已达平台上限时不能再加入（默认 2，即本家 + 配偶家族）
         platformSettingService.assertUserFamilyQuotaAvailable(memberships.size());
         boolean firstFamily = memberships.isEmpty();
 

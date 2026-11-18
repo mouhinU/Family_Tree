@@ -2,6 +2,8 @@ package com.mouhin.family.tree.common.dto;
 
 import com.mouhin.family.tree.common.constant.AccountConsts;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -31,6 +33,13 @@ public class ProfileUpdateDTO {
      * 所属辈分（第几世）
      */
     private Integer generation;
+
+    /**
+     * 性别（0未知 1男 2女；留空表示不修改）
+     */
+    @Min(value = 0, message = "性别取值须为0未知/1男/2女")
+    @Max(value = 2, message = "性别取值须为0未知/1男/2女")
+    private Integer gender;
 
     /**
      * 邮箱（选填，非空时全局唯一，可用于登录；留空表示不修改）

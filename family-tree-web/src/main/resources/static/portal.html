@@ -4,170 +4,334 @@
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>族谱管理系统 - 我的家族</title>
-    <link href="/css/style.css?v=20261117a" rel="stylesheet">
+    <link href="/css/style.css?v=20261118a" rel="stylesheet">
     <style>
-        .portal-body {
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
+        .portal-shell {
             min-height: 100vh;
-            background: #f5f5f5;
-            padding: 32px 0;
+            padding: 36px 24px 56px;
+            background:
+                radial-gradient(circle at 12% 18%, rgba(166, 58, 43, 0.09) 0%, transparent 46%),
+                radial-gradient(circle at 88% 82%, rgba(138, 109, 59, 0.11) 0%, transparent 46%),
+                var(--paper);
         }
-        .portal-card {
-            background: #fff;
-            border-radius: 12px;
-            padding: 40px;
-            max-width: 520px;
-            width: 90%;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+
+        .portal-wrap {
+            max-width: 1180px;
+            margin: 0 auto;
         }
-        .portal-card h1 {
+
+        .portal-head {
             text-align: center;
-            margin-bottom: 8px;
-            color: #333;
+            margin-bottom: 22px;
         }
-        .portal-card .subtitle {
-            text-align: center;
-            color: #888;
-            margin-bottom: 28px;
+
+        .portal-head h1 {
+            font-size: 28px;
+            letter-spacing: 8px;
+            color: var(--ink);
+        }
+
+        .portal-head .subtitle {
+            margin-top: 6px;
             font-size: 14px;
+            letter-spacing: 2px;
+            color: var(--ink-faint);
         }
-        .portal-section {
-            margin-bottom: 24px;
-            padding: 20px;
-            border: 1px solid #e8e8e8;
+
+        /* 三块区域左右并排：我的家族 / 创建新家族 / 加入已有家族 */
+        .portal-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 20px;
+            align-items: stretch;
+        }
+
+        .portal-panel {
+            display: flex;
+            flex-direction: column;
+            padding: 22px 22px 24px;
+            background: var(--paper-card);
+            border: 1px solid var(--border);
             border-radius: 8px;
+            box-shadow: 0 12px 28px rgba(43, 38, 34, 0.10);
         }
-        .portal-section h3 {
-            margin-bottom: 6px;
-            color: #333;
+
+        .portal-panel-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding-bottom: 12px;
+            margin-bottom: 14px;
+            border-bottom: 1px dashed var(--border);
         }
-        .portal-section > p {
-            color: #666;
+
+        .panel-seal {
+            flex: none;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            background: var(--cinnabar);
+            color: #f7f1e0;
+            font-size: 16px;
+        }
+
+        .portal-panel-head h2 {
+            font-size: 18px;
+            letter-spacing: 3px;
+            color: var(--ink);
+        }
+
+        .portal-panel > p {
             font-size: 13px;
+            line-height: 1.7;
+            color: var(--ink-light);
             margin-bottom: 12px;
         }
-        .portal-section label {
+
+        .portal-panel label {
             display: block;
-            margin: 10px 0 4px;
+            margin: 12px 0 5px;
             font-size: 13px;
-            color: #555;
+            letter-spacing: 1px;
+            color: var(--ink-light);
         }
-        .portal-section input,
-        .portal-section select {
+
+        .portal-panel input,
+        .portal-panel select {
             width: 100%;
-            padding: 8px 10px;
-            border: 1px solid #d9d9d9;
-            border-radius: 6px;
+            padding: 9px 12px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: #fffdf6;
             font-size: 14px;
+            font-family: var(--font-kai);
+            color: var(--ink);
+            transition: border-color 0.25s, box-shadow 0.25s;
         }
-        .portal-section button {
-            margin-top: 12px;
-            width: 100%;
+
+        .portal-panel input:focus,
+        .portal-panel select:focus {
+            outline: none;
+            border-color: var(--cinnabar);
+            box-shadow: 0 0 0 3px rgba(166, 58, 43, 0.12);
         }
+
+        .portal-panel button {
+            margin-top: auto;
+            padding: 11px 12px;
+            border: none;
+            border-radius: 4px;
+            background: var(--cinnabar);
+            color: #f7f1e0;
+            font-size: 16px;
+            font-family: var(--font-kai);
+            letter-spacing: 4px;
+            cursor: pointer;
+            transition: background 0.25s, color 0.25s, border-color 0.25s;
+        }
+
+        .portal-panel button:hover {
+            background: var(--cinnabar-dark);
+        }
+
+        .portal-panel button.btn-ghost {
+            margin-top: auto;
+            background: transparent;
+            border: 1px solid var(--cinnabar);
+            color: var(--cinnabar);
+        }
+
+        .portal-panel button.btn-ghost:hover {
+            background: var(--cinnabar);
+            color: #f7f1e0;
+        }
+
         .section-tip {
-            color: #999;
+            margin: 14px 0 0;
+            padding: 8px 10px;
+            border-left: 3px solid var(--gold);
+            border-radius: 0 4px 4px 0;
+            background: rgba(216, 203, 168, 0.28);
             font-size: 12px;
-            margin-top: 8px;
+            line-height: 1.7;
+            color: var(--ink-faint);
         }
+
+        /* 说明条沉到面板底部，让三栏的留白集中在中部而不是堆在结尾 */
+        .section-tip.panel-foot {
+            margin-top: auto;
+        }
+
+        .portal-panel .panel-foot + button {
+            margin-top: 14px;
+        }
+
         .family-list {
             list-style: none;
             margin: 0;
             padding: 0;
+            flex: 1 1 auto;
         }
+
         .family-list li {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            padding: 10px 0;
-            border-bottom: 1px solid #f0f0f0;
-            font-size: 14px;
+            gap: 6px;
+            padding: 11px 0;
+            border-bottom: 1px solid rgba(216, 203, 168, 0.6);
+            font-size: 15px;
+            color: var(--ink);
         }
+
         .family-list li:last-child {
             border-bottom: none;
         }
+
+        .family-list li > span:first-child {
+            flex: 1 1 auto;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
         .family-list .family-role {
-            color: #999;
+            flex: none;
+            color: var(--ink-faint);
             font-size: 12px;
-            margin-left: 6px;
         }
+
         .family-list .family-empty {
-            color: #999;
+            display: block;
+            padding: 18px 0;
+            border-bottom: none;
             font-size: 13px;
+            line-height: 1.7;
+            color: var(--ink-faint);
         }
+
         .family-list button {
-            width: auto;
+            flex: none;
             margin: 0;
-            padding: 4px 14px;
+            padding: 5px 14px;
+            border: 1px solid var(--cinnabar);
+            border-radius: 4px;
+            background: transparent;
+            color: var(--cinnabar);
             font-size: 13px;
+            letter-spacing: 2px;
         }
+
+        .family-list button:hover {
+            background: var(--cinnabar);
+            color: #f7f1e0;
+        }
+
         .family-current {
-            color: #1890ff;
-            font-size: 12px;
-            margin-left: 6px;
+            flex: none;
+            padding: 1px 7px;
+            border: 1px solid var(--gold);
+            border-radius: 10px;
+            color: var(--gold);
+            font-size: 11px;
+            letter-spacing: 1px;
         }
+
         #portal-message {
             display: none;
-            padding: 10px 12px;
-            border-radius: 6px;
-            font-size: 13px;
+            margin: 0 auto 20px;
+            padding: 11px 14px;
+            border-radius: 4px;
+            font-size: 14px;
+            text-align: center;
         }
+
         #portal-message.error {
             display: block;
-            background: #fff2f0;
-            border: 1px solid #ffccc7;
-            color: #cf1322;
+            background: rgba(166, 58, 43, 0.10);
+            border: 1px solid rgba(166, 58, 43, 0.35);
+            color: var(--cinnabar-dark);
         }
+
         #portal-message.success {
             display: block;
-            background: #f6ffed;
-            border: 1px solid #b7eb8f;
-            color: #389e0d;
+            background: rgba(58, 107, 79, 0.10);
+            border: 1px solid rgba(58, 107, 79, 0.32);
+            color: #3a6b4f;
+        }
+
+        @media (max-width: 960px) {
+            .portal-shell {
+                padding: 24px 16px 40px;
+            }
+
+            .portal-grid {
+                grid-template-columns: minmax(0, 1fr);
+            }
         }
     </style>
 </head>
-<body class="portal-body">
-<div class="portal-card">
-    <h1>族谱管理系统</h1>
-    <p class="subtitle">选择要进入的家族，或再创建、加入一个家族</p>
-
-    <div class="portal-section">
-        <h3>我的家族</h3>
-        <p>点「进入」把该家族设为当前家族，之后所有族谱操作都在这个家族内进行。</p>
-        <ul class="family-list" id="my-family-list">
-            <li class="family-empty">加载中...</li>
-        </ul>
-    </div>
-
-    <div class="portal-section">
-        <h3>创建新家族</h3>
-        <p>输入家族名称，创建一个新的家族并成为族长。</p>
-        <input id="create-name" placeholder="例如：张氏家族" type="text">
-        <p class="section-tip">选填：创建时把您的信息写成该家族第一个族谱节点，并标记为「我的位置」。辈分（世代名称）可稍后在族谱里补录。</p>
-        <label for="init-name">初始节点姓名</label>
-        <input id="init-name" maxlength="50" placeholder="您的姓名" type="text">
-        <label for="init-gender">性别</label>
-        <select id="init-gender">
-            <option value="">不设置</option>
-            <option value="1">男</option>
-            <option value="2">女</option>
-        </select>
-        <label for="init-birth">出生日期（阳历）</label>
-        <input id="init-birth" type="date">
-        <button id="btn-create" type="button">创建家族</button>
-    </div>
-
-    <div class="portal-section">
-        <h3>加入已有家族</h3>
-        <p>输入族长分享给您的邀请码，加入该家族。</p>
-        <input id="join-code" placeholder="请输入邀请码" style="text-transform: uppercase;" type="text">
-        <button class="btn-secondary" id="btn-join" type="button">加入家族</button>
+<body class="portal-shell">
+<div class="portal-wrap">
+    <div class="portal-head">
+        <h1>族谱管理系统</h1>
+        <p class="subtitle">选择要进入的家族，或再创建、加入一个家族</p>
     </div>
 
     <div id="portal-message"></div>
+
+    <main class="portal-grid">
+        <section class="portal-panel">
+            <div class="portal-panel-head">
+                <span class="panel-seal">家</span>
+                <h2>我的家族</h2>
+            </div>
+            <p>点「进入」把该家族设为当前家族，之后所有族谱操作都在这个家族内进行。</p>
+            <ul class="family-list" id="my-family-list">
+                <li class="family-empty">加载中...</li>
+            </ul>
+            <p class="section-tip panel-foot">「当前」即您正在操作的家族。切换家族只改变操作范围，各家族的节点、相册与留言互不影响。</p>
+        </section>
+
+        <section class="portal-panel">
+            <div class="portal-panel-head">
+                <span class="panel-seal">建</span>
+                <h2>创建新家族</h2>
+            </div>
+            <p>输入家族名称，创建一个新的家族并成为族长。</p>
+            <label for="create-name">家族名称</label>
+            <input id="create-name" placeholder="例如：张氏家族" type="text">
+            <p class="section-tip">选填：创建时把您的信息写成该家族第一个族谱节点，并标记为「我的位置」。辈分（世代名称）可稍后在族谱里补录。</p>
+            <label for="init-name">初始节点姓名</label>
+            <input id="init-name" maxlength="50" placeholder="您的姓名" type="text">
+            <label for="init-gender">性别</label>
+            <select id="init-gender">
+                <option value="">不设置</option>
+                <option value="1">男</option>
+                <option value="2">女</option>
+            </select>
+            <label for="init-birth">出生日期（阳历）</label>
+            <input id="init-birth" type="date">
+            <button id="btn-create" type="button">创建家族</button>
+        </section>
+
+        <section class="portal-panel">
+            <div class="portal-panel-head">
+                <span class="panel-seal">邀</span>
+                <h2>加入已有家族</h2>
+            </div>
+            <p>输入族长分享给您的邀请码，加入该家族。</p>
+            <label for="join-code">邀请码</label>
+            <input id="join-code" placeholder="请输入邀请码" style="text-transform: uppercase;" type="text">
+            <p class="section-tip panel-foot">加入成功后会自动进入该家族；之后仍可回到本页切换回原来的家族。</p>
+            <button class="btn-ghost" id="btn-join" type="button">加入家族</button>
+        </section>
+    </main>
 </div>
 
-<script src="/js/ft/portal.js?v=20261117b"></script>
+<script src="/js/ft/portal.js?v=20261118b"></script>
 </body>
 </html>

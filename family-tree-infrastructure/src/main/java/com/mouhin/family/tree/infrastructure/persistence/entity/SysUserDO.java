@@ -45,6 +45,11 @@ public class SysUserDO {
     private Integer generation;
 
     /**
+     * 性别（0未知 1男 2女，与 family_node.gender 同口径）
+     */
+    private Integer gender;
+
+    /**
      * 出生日期
      */
     private String birthDate;

@@ -17,7 +17,7 @@ scratch 环境 = Phase 1 修复后的镜像 + 独立库（示例：端口 8093�
 ```bash
 # 1. 构建含修复的镜像
 #    1a. 离线/网络差时：本地打包 jar 后只套一层 distroless 运行时（与 Dockerfile 运行阶段等价）
-/Users/mac/Tools/apache-maven-3.6.3/bin/mvn -B package            # 顺带跑全量单测（当前基线 499 用例）
+/Users/mac/Tools/apache-maven-3.6.3/bin/mvn -B package            # 顺带跑全量单测（当前基线 500 用例）
 mkdir -p /tmp/ft-v51-ctx && cp family-tree-web/target/family-tree-web-1.0.0-SNAPSHOT.jar /tmp/ft-v51-ctx/app.jar
 # /tmp/ft-v51-ctx/Dockerfile：FROM gcr.io/distroless/java21-debian12 + COPY app.jar + java -jar 入口
 docker build -t family-tree:v51-local /tmp/ft-v51-ctx
@@ -70,22 +70,34 @@ python3 r6_r10_platform.py # R6 三级配置生效链与平台开关、R7 家族
 
 退出码 0 表示没有 FAIL；命中「已知缺陷」的用例记为 KNOWN，不影响退出码。
 
-当前基线（D-01/D-05/D-07 修复后的 `family-tree:v55-local` + 全新 scratch 库
-`family_tree_v55reg`、端口 8097、Redis 库 11）：三只电池共 282 项，FAIL 0，KNOWN 2
+当前基线（`family-tree:v57-local` + 由 v56 生产备份导入的全新 scratch 库
+`family_tree_v57reg`、端口 8098、Redis 库 12）：三只 test battery 共 306 项，FAIL 0，KNOWN 2
 （均为 r3 的 D-08 未知路径与路径参数类型）。
 D-05 家族层配置改回默认已修复，r6 的读回行已改为正例断言并全部通过。
 D-01 版本回滚已落地：r4 的回滚段改为「回滚生效 + 写入 ROLLBACK 历史行」两条正例断言（103 项无 KNOWN）。
-D-07 家族成员上限改由平台配置 `MAX_FAMILY_MEMBERS` 承担，r6 新增「收紧上限→加入被拒→提交默认值→放行
-→回到代码默认」共 5 行，与既有总量上限、节点上限两行一并全部通过。
+D-07 家族成员上限改由平台配置 `MAX_FAMILY_MEMBERS` 承担，r6 的「收紧上限→加入被拒→提交默认值→放行
+→回到代码默认」5 行与既有总量上限、节点上限两行一并全部通过。
 
-多家族支持（平台配置 `MAX_FAMILY_PER_USER`，默认 1）在 r6 追加 12 行：放开上限=2 后已在族内账号可再建第二个
-家族、`my-list` 返回 2、新建家族即当前家族、第二个家族不会搬走原家族数据（空树）、切回原家族后节点仍在、
-达到上限时第三个家族被拒、提交默认值删覆盖行并回到代码默认、恢复默认后已在族内账号不能再建家族。
-**这 12 行尚未在 v55 scratch 环境复跑**，上述 282 项基线只覆盖到 D-07；断言本身已在本地 H2 实例逐条验证通过，
-复跑时按下一节复置 scratch 库即可（电池账号固定，同库重复跑会被「用户名已存在」拦住）。
+多家族支持（平台配置 `MAX_FAMILY_PER_USER`，代码默认 2 = 本家 + 配偶家族）在 r6 分成两段，本轮已在
+v57 scratch 环境实测通过：收紧段 4 行（覆盖为 1 后已属家族再建族被拒、切换到不属的家族被拒、列表仍为 1）；
+默认与覆盖段 23 行（提交代码默认值 2 即删除收紧的覆盖行、第二个家族放行、`my-list` 返回 2、新建家族即当前家族、
+第二个家族不搬走原家族数据（空树）、切回原家族后节点仍在、代码默认 2 时第三个家族被拒、覆盖到 3 后第三个放行
+且第四个被拒、回到默认后归属已超上限的账号不能再建新家族但既有家族仍可切换、独立新账号在默认 2 下可建两个
+第三个被拒）。
 
-三只电池分段为 r3 64 项（PASS 62 / KNOWN 2）、r4 103 项、r6 115 项（FAIL 0 / KNOWN 0），退出码均为 0；
-全量单测基线 499 例（多家族链路 9 例 + 每账号家族数上限 3 例为本次新增）。
+三段分别为 r3 64 项（PASS 62 / KNOWN 2）、r4 103 项（PASS 103 / KNOWN 0）、r6 139 项（PASS 139 / KNOWN 0），
+退出码均为 0；全量单测基线 500 例（多家族链路 9 例 + 每账号家族数上限 4 例，其中「默认 2 放行第二个家族」为默认值调整新增）。
+
+scratch 库是从生产备份复制的，备份里的 `admin` 与 `蒙子羽` 存的是 BCrypt 散列而非默认口令，
+直接按 `123456` 登录会失败并累计登录失败次数。复跑前先在 scratch 实例注册一个临时账号拿到可用散列，
+把它回填给这两个账号（只写 scratch 库，切勿动生产库），再用环境变量覆盖口令：
+
+```bash
+docker exec knowledge-mysql mysql -uroot -p123456 -e " \
+  UPDATE family_tree_v57reg.sys_user SET password_hash='<临时账号的散列>', must_change_password=0 \
+  WHERE username IN ('admin','蒙子羽');"
+export FT_REG_BASE=http://127.0.0.1:8098 FT_REG_OWNER_PWD='Reg@2026reg' FT_REG_MEMBER_PWD='Reg@2026reg'
+```
 
 电池内新建的测试账号（`regv50a`、`regpwd1` 等）用户名固定，**同一库重复跑会被「用户名已存在」拦住**。
 要复跑得先复置 scratch 库：删库后按上面第 2 步重新导入 `/tmp/ft-v51reg-seed.sql`，再重启容器。

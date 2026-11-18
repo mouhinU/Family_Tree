@@ -54,6 +54,8 @@ class FamilyApplicationServiceMultiFamilyTest {
 
     private static final Long OLD_FAMILY_ID = 1L;
 
+    private static final Long SECOND_FAMILY_ID = 2L;
+
     private static final String OPERATOR_NAME = "mengbin";
 
     private static final String OPERATOR_IP = "127.0.0.1";
@@ -112,14 +114,15 @@ class FamilyApplicationServiceMultiFamilyTest {
 
     @Test
     void createFamily_rejectsWhenUserFamilyQuotaExceeded() {
-        givenMemberships(member(OLD_FAMILY_ID, FamilyMemberRoleEnum.OWNER.getCode()));
-        doThrow(new BusinessException("账号可归属的家族数已达上限（1个），请联系平台管理员调整"))
-                .when(platformSettingService).assertUserFamilyQuotaAvailable(1);
+        givenMemberships(member(OLD_FAMILY_ID, FamilyMemberRoleEnum.OWNER.getCode()),
+                member(SECOND_FAMILY_ID, FamilyMemberRoleEnum.MEMBER.getCode()));
+        doThrow(new BusinessException("账号可归属的家族数已达上限（2个），请联系平台管理员调整"))
+                .when(platformSettingService).assertUserFamilyQuotaAvailable(2);
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> familyApplicationService.createFamily(USER_ID, familyDTO(), OPERATOR_NAME, OPERATOR_IP));
 
-        assertEquals("账号可归属的家族数已达上限（1个），请联系平台管理员调整", ex.getMessage());
+        assertEquals("账号可归属的家族数已达上限（2个），请联系平台管理员调整", ex.getMessage());
         verify(familyRepository, never()).save(any());
         verify(familyMemberRepository, never()).save(any());
         verify(userRepository, never()).update(any());

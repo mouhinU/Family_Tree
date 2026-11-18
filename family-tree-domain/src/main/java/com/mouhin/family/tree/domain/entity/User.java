@@ -29,6 +29,10 @@ public class User {
     private String email;
     private String phone;
     private Integer generation;
+    /**
+     * 性别（0未知 1男 2女，与 family_node.gender 同口径；null 表示尚未填写）
+     */
+    private Integer gender;
     private String birthDate;
     /**
      * 农历出生日期（由阳历推导，个人信息记录两个日期）

@@ -567,6 +567,13 @@
             spouseHtml += '</div>';
         }
 
+        // 「标记为我」入口前置到详情弹窗：与右键菜单同一操作门（可见集合内才可标记），
+        // 已标记在本节点时按钮变为「取消标记为我」
+        var markSelfHtml = (currentUser && FT.canOperateNode && FT.canOperateNode(node.id))
+            ? '<button class="btn-sm js-mark-self-btn" data-node-id="' + FT.escapeAttr(node.id) + '">' +
+              (currentUser.nodeId === node.id ? '取消标记为我' : '标记为我') + '</button>'
+            : '';
+
         FT.showModal(
             '<h3 style="display:flex;align-items:center;gap:10px;">' +
             '<span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:' + color + ';"></span>' +
@@ -589,6 +596,7 @@
             '</div>' +
             spouseHtml +
             '<div style="margin-top:16px;padding-top:14px;border-top:1px solid #eee;display:flex;gap:10px;">' +
+            markSelfHtml +
             '<button class="btn-sm js-death-btn" data-node-id="' + FT.escapeAttr(node.id) +
             '" data-death="' + FT.escapeAttr(node.deathDate || '') +
             '" data-name="' + FT.escapeAttr(node.name) + '">设置去世日期</button>' +
@@ -609,6 +617,15 @@
             deathBtn.addEventListener('click', function () {
                 window._showDeathModal(parseInt(deathBtn.dataset.nodeId, 10),
                     deathBtn.dataset.death, deathBtn.dataset.name);
+            });
+        }
+        var markSelfBtn = document.querySelector('.js-mark-self-btn');
+        if (markSelfBtn) {
+            markSelfBtn.addEventListener('click', async function () {
+                var ok = await FT.markAsSelf(parseInt(markSelfBtn.dataset.nodeId, 10));
+                if (ok) {
+                    FT.closeModal();
+                }
             });
         }
 

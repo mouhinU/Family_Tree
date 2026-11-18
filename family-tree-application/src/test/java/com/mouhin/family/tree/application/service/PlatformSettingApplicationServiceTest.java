@@ -57,9 +57,9 @@ class PlatformSettingApplicationServiceTest {
 
     /**
      * 每账号家族数上限的代码默认值，与 PlatformSettingKeyEnum.MAX_FAMILY_PER_USER 默认口径一致；
-     * 默认 1 即保持原有的「一人只能属于一个家族」行为
+     * 默认 2 即「本家 + 配偶家族」这一常规情形
      */
-    private static final int DEFAULT_FAMILY_LIMIT_PER_USER = 1;
+    private static final int DEFAULT_FAMILY_LIMIT_PER_USER = 2;
 
     @Mock
     private PlatformSettingRepository platformSettingRepository;
@@ -251,11 +251,18 @@ class PlatformSettingApplicationServiceTest {
     }
 
     @Test
-    void userFamilyQuotaRejectsAtCodeDefaultOfOne() {
+    void userFamilyQuotaAllowsSecondFamilyAtCodeDefault() {
+        when(platformSettingRepository.findAll()).thenReturn(List.of());
+
+        service().assertUserFamilyQuotaAvailable(1);
+    }
+
+    @Test
+    void userFamilyQuotaRejectsAtCodeDefault() {
         when(platformSettingRepository.findAll()).thenReturn(List.of());
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service().assertUserFamilyQuotaAvailable(1));
+                () -> service().assertUserFamilyQuotaAvailable(DEFAULT_FAMILY_LIMIT_PER_USER));
 
         assertTrue(ex.getMessage().contains("上限（" + DEFAULT_FAMILY_LIMIT_PER_USER + "个）"));
     }
@@ -269,14 +276,14 @@ class PlatformSettingApplicationServiceTest {
     }
 
     @Test
-    void userFamilyQuotaRejectsAtPlatformOverride() {
+    void userFamilyQuotaRejectsAtTightenedPlatformOverride() {
         when(platformSettingRepository.findAll()).thenReturn(
-                List.of(existing(PlatformSettingKeyEnum.MAX_FAMILY_PER_USER.getCode(), "2")));
+                List.of(existing(PlatformSettingKeyEnum.MAX_FAMILY_PER_USER.getCode(), "1")));
 
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> service().assertUserFamilyQuotaAvailable(2));
+                () -> service().assertUserFamilyQuotaAvailable(1));
 
-        assertTrue(ex.getMessage().contains("上限（2个）"));
+        assertTrue(ex.getMessage().contains("上限（1个）"));
     }
 
     @Test
