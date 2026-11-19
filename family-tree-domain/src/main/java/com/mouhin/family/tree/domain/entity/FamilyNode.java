@@ -32,6 +32,11 @@ public class FamilyNode {
     private String avatar;
     private String remark;
     private String lunarBirthDate;
+
+    /**
+     * 出生日期录入历法（1阳历 2阴历，见 BirthCalendarEnum；null 表示未记录）
+     */
+    private Integer birthCalendar;
     private String lunarDeathDate;
     private String zi;
     private String hao;
@@ -111,6 +116,7 @@ public class FamilyNode {
         this.avatar = version.avatar;
         this.remark = version.remark;
         this.lunarBirthDate = version.lunarBirthDate;
+        this.birthCalendar = version.birthCalendar;
         this.lunarDeathDate = version.lunarDeathDate;
         this.zi = version.zi;
         this.hao = version.hao;

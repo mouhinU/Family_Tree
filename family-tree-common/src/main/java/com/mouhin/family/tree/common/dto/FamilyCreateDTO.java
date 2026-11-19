@@ -37,4 +37,9 @@ public class FamilyCreateDTO {
      * 初始节点出生日期（阳历 yyyy-MM-dd）
      */
     private String initialNodeBirthDate;
+
+    /**
+     * 初始节点出生日期录入历法（1阳历 2阴历，见 BirthCalendarEnum；空表示未记录）
+     */
+    private Integer initialNodeBirthCalendar;
 }

@@ -38,6 +38,11 @@ public class NodeCreateDTO {
     private String lunarBirthDate;
 
     /**
+     * 出生日期录入历法（1阳历 2阴历，见 BirthCalendarEnum；空表示未记录）
+     */
+    private Integer birthCalendar;
+
+    /**
      * 农历逝世日期
      */
     @Size(max = 50, message = "农历逝世日期长度不能超过50个字符")

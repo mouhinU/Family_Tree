@@ -35,6 +35,11 @@ public class FamilyNodeDTO {
     private String lunarBirthDate;
 
     /**
+     * 出生日期录入历法（1阳历 2阴历，见 BirthCalendarEnum；随出生日期提交）
+     */
+    private Integer birthCalendar;
+
+    /**
      * 农历去世日期
      */
     private String lunarDeathDate;

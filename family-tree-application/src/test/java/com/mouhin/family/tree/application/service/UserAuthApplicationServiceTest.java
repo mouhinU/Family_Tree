@@ -476,6 +476,69 @@ class UserAuthApplicationServiceTest {
         assertEquals(Integer.valueOf(1), user.getGender());
     }
 
+    @Test
+    void updateProfileRecordsBirthCalendarAndClearsItWithDate() {
+        User user = userWithHash("x");
+        when(userRepository.findById(1L)).thenReturn(user);
+
+        ProfileUpdateDTO dto = new ProfileUpdateDTO();
+        dto.setBirthDate("1990-05-20");
+        dto.setBirthCalendar(2);
+        UserAuthApplicationService service = createService(createLoginAttemptService());
+        service.updateProfile(1L, dto);
+        assertEquals("1990-05-20", user.getBirthDate());
+        assertEquals(Integer.valueOf(2), user.getBirthCalendar());
+
+        // 清空出生日期时录入历法同步清除
+        ProfileUpdateDTO clear = new ProfileUpdateDTO();
+        clear.setBirthDate("");
+        service.updateProfile(1L, clear);
+        assertNull(user.getBirthDate());
+        assertNull(user.getBirthCalendar());
+    }
+
+    @Test
+    void updateProfileCalendarOnlyTogglePersists() {
+        User user = userWithHash("x");
+        user.setBirthDate("1990-05-20");
+        user.setBirthCalendar(1);
+        when(userRepository.findById(1L)).thenReturn(user);
+
+        // 日期未变、仅切换录入历法（阳历↔阴历）也应落库
+        ProfileUpdateDTO dto = new ProfileUpdateDTO();
+        dto.setBirthCalendar(2);
+        createService(createLoginAttemptService()).updateProfile(1L, dto);
+
+        assertEquals(Integer.valueOf(2), user.getBirthCalendar());
+        verify(userRepository).update(user);
+    }
+
+    @Test
+    void updateProfileIllegalBirthCalendarThrowsBeforeUpdate() {
+        User user = userWithHash("x");
+        when(userRepository.findById(1L)).thenReturn(user);
+
+        ProfileUpdateDTO dto = new ProfileUpdateDTO();
+        dto.setBirthCalendar(3);
+        UserAuthApplicationService service = createService(createLoginAttemptService());
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.updateProfile(1L, dto));
+        assertTrue(ex.getMessage().contains("历法"));
+        verify(userRepository, never()).update(any(User.class));
+    }
+
+    @Test
+    void getUserProfileReturnsBirthCalendar() {
+        User user = userWithHash("x");
+        user.setBirthDate("1990-05-20");
+        user.setBirthCalendar(2);
+        when(userRepository.findById(1L)).thenReturn(user);
+
+        var profile = createService(createLoginAttemptService()).getUserProfile(1L);
+
+        assertEquals(Integer.valueOf(2), profile.getBirthCalendar());
+    }
+
     private RegisterDTO registerDto(String username) {
         RegisterDTO dto = new RegisterDTO();
         dto.setUsername(username);

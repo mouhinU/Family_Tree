@@ -60,8 +60,8 @@
         const totalGenerations = 50;
         const perColumn = 5;
         const numCols = Math.ceil(totalGenerations / perColumn);
-        const currentUser = FT.state.currentUser;
-        const myGeneration = currentUser && currentUser.generation ? currentUser.generation : null;
+        // 登录人辈分以当前家族「我的节点」为准，避免多家族账号被全局字段串辈分
+        const myGeneration = FT.getMyGeneration();
         const colW = width / numCols;
         const charSize = Math.max(36, Math.min(72, Math.round(height / perColumn * 0.35)));
         const dragonSize = charSize * 8 / 3;

@@ -41,7 +41,7 @@
     // ========== 辈分（字辈）水印层 ==========
     // 辈分水印层：行列布局与辈分管理弹框保持一致
     // 列从右到左（传统阅读方向），列内从上到下（第 1 世在顶部）。
-    // 登录人所属辈分（currentUser.generation）对应字符高亮（传统圈点）。
+    // 登录人在当前家族的辈分（getMyGeneration：以「我的节点」世代为准）对应字符高亮（传统圈点）。
     function buildGenerationWatermark() {
         const wrap = document.getElementById('generation-watermark');
         if (!wrap) {
@@ -63,8 +63,7 @@
         // 水印列数 = 弹框行数(modalRows)，每列世代数 = 弹框列数(modalCols)
         const wmCols = modalRows;
         const perWmCol = modalCols;
-        const currentUser = FT.state.currentUser;
-        const myGeneration = currentUser && currentUser.generation ? currentUser.generation : null;
+        const myGeneration = FT.getMyGeneration();
 
         // CSS flex-direction: row-reverse 使 DOM 第1列显示在最右侧
         for (let c = 0; c < wmCols; c++) {
@@ -688,8 +687,9 @@
                 group.on('contextmenu', function (event) {
                     event.preventDefault();
                     event.stopPropagation();
-                    // 非管理员：仅对可见集合内的节点弹出操作菜单，范围外右键无操作列表
-                    if (!FT.canOperateNode(n.data.id)) return;
+                    // 非管理员：仅对可见集合内的节点弹出操作菜单，范围外右键无操作列表；
+                    // 未绑定成员例外放行（canOpenMenu），菜单收纳为仅「标记为我」以解开自愈死锁
+                    if (!FT.canOpenMenu(n.data.id)) return;
                     FT.state.contextNodeId = n.data.id;
                     FT.showContextMenu(event.clientX, event.clientY);
                 });

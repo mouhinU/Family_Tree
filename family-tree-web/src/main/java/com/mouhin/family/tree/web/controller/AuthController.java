@@ -166,6 +166,7 @@ public class AuthController extends BaseController {
         data.put("gender", profile != null ? profile.getGender() : null);
         data.put("birthDate", profile != null ? profile.getBirthDate() : null);
         data.put("lunarBirthDate", profile != null ? profile.getLunarBirthDate() : null);
+        data.put("birthCalendar", profile != null ? profile.getBirthCalendar() : null);
         // 联系方式仅返回给本人会话，用于资料页展示与编辑
         data.put("email", profile != null ? profile.getEmail() : null);
         data.put("phone", profile != null ? profile.getPhone() : null);

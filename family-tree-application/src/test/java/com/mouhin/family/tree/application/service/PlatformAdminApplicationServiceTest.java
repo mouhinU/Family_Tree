@@ -5,6 +5,7 @@ import com.mouhin.family.tree.common.dto.FamilyAdminDetailVO;
 import com.mouhin.family.tree.common.dto.FamilyAdminRowVO;
 import com.mouhin.family.tree.common.dto.FamilySettingSaveDTO;
 import com.mouhin.family.tree.common.dto.FamilySettingVO;
+import com.mouhin.family.tree.common.dto.GenerationRepairSummaryVO;
 import com.mouhin.family.tree.common.dto.OperationLogDTO;
 import com.mouhin.family.tree.common.dto.PageResult;
 import com.mouhin.family.tree.common.dto.PlatformOperationLogVO;
@@ -131,6 +132,9 @@ class PlatformAdminApplicationServiceTest {
     private LoginAttemptService loginAttemptService;
 
     @Mock
+    private GenerationRepairApplicationService generationRepairService;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     private PlatformAdminApplicationService newService(String adminUsernames) {
@@ -143,7 +147,7 @@ class PlatformAdminApplicationServiceTest {
                 familySettingRepository, snapshotRepository, userRepository, operationLogRepository,
                 platformSettingService,
                 new FamilySettingDomainService(), operationLogService, userAuthApplicationService,
-                loginAttemptService, eventPublisher, adminUsernames);
+                loginAttemptService, generationRepairService, eventPublisher, adminUsernames);
     }
 
     private Family family() {
@@ -975,6 +979,58 @@ class PlatformAdminApplicationServiceTest {
         when(operationLogRepository.listDistinctOperationTypes()).thenReturn(List.of("LOGIN", "NODE_CREATE"));
 
         assertEquals(List.of("LOGIN", "NODE_CREATE"), service.listOperationTypes());
+    }
+
+    // ========== 全平台世代修复 ==========
+
+    @Test
+    void repairAllFamiliesTalliesManagedSkipAndRepairs() {
+        PlatformAdminApplicationService service = newService("mouhin");
+        Family managed = family();
+        Family broken = family();
+        broken.setId(SECOND_FAMILY_ID);
+        when(familyRepository.listPaged(null, 0, 200)).thenReturn(List.of(managed, broken));
+        when(generationRepairService.repairIfUnmanaged(FAMILY_ID))
+                .thenReturn(new GenerationRepairApplicationService.RepairResult(true, 0));
+        when(generationRepairService.repairIfUnmanaged(SECOND_FAMILY_ID))
+                .thenReturn(new GenerationRepairApplicationService.RepairResult(false, 3));
+
+        GenerationRepairSummaryVO summary = service.repairAllFamilies(ADMIN_USER_ID, "mouhin", "127.0.0.1");
+
+        assertEquals(2, summary.getScannedFamilies().intValue());
+        assertEquals(1, summary.getRepairedFamilies().intValue());
+        assertEquals(3, summary.getUpdatedNodes().intValue());
+        assertEquals(1, summary.getSkippedManagedFamilies().intValue());
+        assertEquals(0, summary.getUnchangedFamilies().intValue());
+        assertEquals(0, summary.getFailedFamilies().intValue());
+        assertTrue(summary.getFailures().isEmpty());
+
+        ArgumentCaptor<OperationPerformedEvent> event = ArgumentCaptor.forClass(OperationPerformedEvent.class);
+        verify(eventPublisher).publishEvent(event.capture());
+        assertEquals("PLATFORM_GEN_REPAIR", event.getValue().operationType());
+        assertTrue(event.getValue().operationDesc().contains("修复 1 个家族"), "审计摘要应点名修复家族数");
+    }
+
+    @Test
+    void repairAllFamiliesIsolatesPerFamilyFailure() {
+        PlatformAdminApplicationService service = newService("mouhin");
+        Family boom = family();
+        Family fine = family();
+        fine.setId(SECOND_FAMILY_ID);
+        when(familyRepository.listPaged(null, 0, 200)).thenReturn(List.of(boom, fine));
+        when(generationRepairService.repairIfUnmanaged(FAMILY_ID))
+                .thenThrow(new BusinessException("世代修复失败样例"));
+        when(generationRepairService.repairIfUnmanaged(SECOND_FAMILY_ID))
+                .thenReturn(new GenerationRepairApplicationService.RepairResult(false, 0));
+
+        GenerationRepairSummaryVO summary = service.repairAllFamilies(ADMIN_USER_ID, "mouhin", "127.0.0.1");
+
+        assertEquals(2, summary.getScannedFamilies().intValue());
+        assertEquals(1, summary.getFailedFamilies().intValue());
+        assertEquals(1, summary.getUnchangedFamilies().intValue());
+        assertEquals(1, summary.getFailures().size());
+        assertTrue(summary.getFailures().get(0).contains("世代修复失败样例"));
+        verify(generationRepairService).repairIfUnmanaged(SECOND_FAMILY_ID);
     }
 
     private User platformUser() {

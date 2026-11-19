@@ -30,6 +30,13 @@ public class ProfileUpdateDTO {
     private String birthDate;
 
     /**
+     * 出生日期录入历法（1阳历 2阴历，见 BirthCalendarEnum；随出生日期一并记录，空表示不修改）
+     */
+    @Min(value = 1, message = "出生日期历法须为1阳历/2阴历")
+    @Max(value = 2, message = "出生日期历法须为1阳历/2阴历")
+    private Integer birthCalendar;
+
+    /**
      * 所属辈分（第几世）
      */
     private Integer generation;

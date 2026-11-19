@@ -3,6 +3,7 @@ package com.mouhin.family.tree.application.service;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.FamilyNodeDTO;
 import com.mouhin.family.tree.common.dto.NodeCreateDTO;
+import com.mouhin.family.tree.common.enums.BirthCalendarEnum;
 import com.mouhin.family.tree.common.enums.ColorLabelEnum;
 import com.mouhin.family.tree.common.enums.RelationTypeEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
@@ -54,6 +55,7 @@ public class FamilyNodeApplicationService {
     private final FamilyUserNodeApplicationService familyUserNodeApplicationService;
     private final FamilyNodeVisibilityApplicationService visibilityService;
     private final FamilySettingApplicationService settingService;
+    private final GenerationRepairApplicationService generationRepairService;
 
     public FamilyNodeApplicationService(FamilyNodeRepository familyNodeRepository,
                                         FamilyRelationRepository familyRelationRepository,
@@ -65,7 +67,8 @@ public class FamilyNodeApplicationService {
                                         TimelineApplicationService timelineApplicationService,
                                         FamilyUserNodeApplicationService familyUserNodeApplicationService,
                                         FamilyNodeVisibilityApplicationService visibilityService,
-                                        FamilySettingApplicationService settingService) {
+                                        FamilySettingApplicationService settingService,
+                                        GenerationRepairApplicationService generationRepairService) {
         this.familyNodeRepository = familyNodeRepository;
         this.familyRelationRepository = familyRelationRepository;
         this.relationValidationDomainService = relationValidationDomainService;
@@ -77,6 +80,7 @@ public class FamilyNodeApplicationService {
         this.familyUserNodeApplicationService = familyUserNodeApplicationService;
         this.visibilityService = visibilityService;
         this.settingService = settingService;
+        this.generationRepairService = generationRepairService;
     }
 
     /**
@@ -130,6 +134,9 @@ public class FamilyNodeApplicationService {
         node.setLunarBirthDate(node.getBirthDate() != null
                 ? LunarSolarUtil.solarToLunar(node.getBirthDate())
                 : dto.getLunarBirthDate());
+        // 录入历法（1阳历 2阴历）仅在登记了阳历出生日期时记录，供详情弹窗决定出生两行先后
+        BirthCalendarEnum.validateCode(dto.getBirthCalendar());
+        node.setBirthCalendar(node.getBirthDate() != null ? dto.getBirthCalendar() : null);
         node.setLunarDeathDate(dto.getLunarDeathDate());
         node.setZi(dto.getZi());
         node.setHao(dto.getHao());
@@ -220,6 +227,9 @@ public class FamilyNodeApplicationService {
             relation.setUpdateTime(LocalDateTime.now());
             familyRelationRepository.save(relation);
         }
+
+        // 树结构已变更：未维护辈分的家族按树深度从根逐级重算世代，纠正锚点存量错误值
+        generationRepairService.repairIfUnmanaged(familyId);
 
         // 树结构已变更，失效该家族的族谱树缓存（事务提交后生效）
         eventPublisher.publishEvent(NodeCreatedEvent.of(familyId, node.getId(), node.getName(),
@@ -328,6 +338,13 @@ public class FamilyNodeApplicationService {
             existing.setBirthDate(newBirth);
             // 阳历为唯一真值：提交阳历时农历一律重算（清空阳历则清空农历）
             existing.setLunarBirthDate(LunarSolarUtil.solarToLunar(newBirth));
+            // 录入历法随出生日期记录：清空出生日期同步清除；未提交历法字段时保留原值
+            BirthCalendarEnum.validateCode(dto.getBirthCalendar());
+            if (newBirth == null) {
+                existing.setBirthCalendar(null);
+            } else if (dto.getBirthCalendar() != null) {
+                existing.setBirthCalendar(dto.getBirthCalendar());
+            }
         }
         if (dto.getDeathDate() != null) {
             existing.setDeathDate(
@@ -387,6 +404,9 @@ public class FamilyNodeApplicationService {
         familyRelationRepository.removeByNodeId(familyId, nodeId);
         familyNodeRepository.removeById(nodeId);
         logger.info("Deleted family node id={} for family={}", nodeId, familyId);
+
+        // 结构变化可能使子树上提为新根：未维护辈分的家族重算世代（孤儿子树无父辈边，保留原世代作锚点）
+        generationRepairService.repairIfUnmanaged(familyId);
 
         eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
         eventPublisher.publishEvent(NodeDeletedEvent.of(familyId, nodeId, node.getName(),
@@ -580,6 +600,7 @@ public class FamilyNodeApplicationService {
         dto.setAvatar(entity.getAvatar());
         dto.setRemark(entity.getRemark());
         dto.setLunarBirthDate(entity.getLunarBirthDate());
+        dto.setBirthCalendar(entity.getBirthCalendar());
         dto.setLunarDeathDate(entity.getLunarDeathDate());
         dto.setZi(entity.getZi());
         dto.setHao(entity.getHao());

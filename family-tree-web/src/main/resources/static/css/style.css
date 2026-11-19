@@ -10,6 +10,15 @@
     --gold: #8a6d3b;           /* 赭金 */
     --border: #d8cba8;         /* 纸边 */
     --font-kai: "Kaiti SC", "STKaiti", "KaiTi", "BiauKai", "Noto Serif SC", "Songti SC", "SimSun", serif;
+    --font-zhuan: "FTSeal", var(--font-kai);
+}
+
+/* 辈分水印篆体：BBYZ Seal Script 子集（仅收录库内现有辈分字 + 数字 + ·，38KB），缺字自动回落楷体 */
+@font-face {
+    font-family: "FTSeal";
+    src: url('/fonts/seal-subset.woff2') format('woff2');
+    font-weight: normal;
+    font-display: swap;
 }
 
 * {
@@ -672,6 +681,11 @@ body.toolbar-hidden .tree-container {
 
 .context-menu .menu-item.danger {
     color: var(--cinnabar);
+}
+
+/* 未绑定成员菜单收纳：范围外节点仅露出「标记为我」自愈入口，绑定成功刷新可见集合后恢复完整菜单 */
+.context-menu.mark-self-only .menu-item:not([data-action="mark-self"]) {
+    display: none;
 }
 
 /* "更多"展开按钮：桌面端隐藏，移动端显示 */
@@ -2123,7 +2137,7 @@ body.toolbar-hidden .tree-container {
 }
 
 #generation-watermark .wm-char {
-    font-family: var(--font-kai);
+    font-family: var(--font-zhuan);
     font-size: clamp(32px, 6vh, 72px);
     line-height: 1;
     color: var(--ink);

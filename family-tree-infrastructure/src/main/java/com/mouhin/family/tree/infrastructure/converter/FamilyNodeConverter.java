@@ -42,6 +42,7 @@ public final class FamilyNodeConverter {
         entity.setAvatar(doObj.getAvatar());
         entity.setRemark(doObj.getRemark());
         entity.setLunarBirthDate(doObj.getLunarBirthDate());
+        entity.setBirthCalendar(doObj.getBirthCalendar());
         entity.setLunarDeathDate(doObj.getLunarDeathDate());
         entity.setZi(doObj.getZi());
         entity.setHao(doObj.getHao());
@@ -79,6 +80,7 @@ public final class FamilyNodeConverter {
         doObj.setAvatar(entity.getAvatar());
         doObj.setRemark(entity.getRemark());
         doObj.setLunarBirthDate(entity.getLunarBirthDate());
+        doObj.setBirthCalendar(entity.getBirthCalendar());
         doObj.setLunarDeathDate(entity.getLunarDeathDate());
         doObj.setZi(entity.getZi());
         doObj.setHao(entity.getHao());

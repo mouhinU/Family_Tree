@@ -165,6 +165,7 @@ public class FamilyTreeDomainService {
         detail.setColorLabel(node.getColorLabel());
         detail.setRemark(node.getRemark());
         detail.setLunarBirthDate(node.getLunarBirthDate());
+        detail.setBirthCalendar(node.getBirthCalendar());
         detail.setLunarDeathDate(node.getLunarDeathDate());
         detail.setZi(node.getZi());
         detail.setHao(node.getHao());

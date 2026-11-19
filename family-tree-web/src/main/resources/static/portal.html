@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>族谱管理系统 - 我的家族</title>
-    <link href="/css/style.css?v=20261118a" rel="stylesheet">
+    <link href="/css/style.css?v=20261119b" rel="stylesheet">
     <style>
         .portal-shell {
             min-height: 100vh;
@@ -313,8 +313,8 @@
                 <option value="1">男</option>
                 <option value="2">女</option>
             </select>
-            <label for="init-birth">出生日期（阳历）</label>
-            <input id="init-birth" type="date">
+            <label for="init-birth">出生日期</label>
+            <div id="init-birth-field"></div>
             <button id="btn-create" type="button">创建家族</button>
         </section>
 
@@ -332,6 +332,9 @@
     </main>
 </div>
 
-<script src="/js/ft/portal.js?v=20261118b"></script>
+<script src="/js/ft/core.js?v=20261120a"></script>
+<script src="/js/lib/lunar.js?v=20261114a"></script>
+<script src="/js/ft/birth-calendar.js?v=20261119a"></script>
+<script src="/js/ft/portal.js?v=20261119a"></script>
 </body>
 </html>

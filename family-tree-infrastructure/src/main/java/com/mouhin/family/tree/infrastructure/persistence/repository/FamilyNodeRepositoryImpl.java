@@ -11,6 +11,7 @@ import com.mouhin.family.tree.infrastructure.persistence.entity.FamilyNodeDO;
 import com.mouhin.family.tree.infrastructure.persistence.mapper.FamilyNodeMapper;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -93,7 +94,9 @@ public class FamilyNodeRepositoryImpl implements FamilyNodeRepository {
         for (FamilyNode node : nodes) {
             LambdaUpdateWrapper<FamilyNodeDO> wrapper = new LambdaUpdateWrapper<>();
             wrapper.eq(FamilyNodeDO::getId, node.getId())
-                    .set(FamilyNodeDO::getGeneration, node.getGeneration());
+                    .set(FamilyNodeDO::getGeneration, node.getGeneration())
+                    .set(FamilyNodeDO::getUpdateTime, node.getUpdateTime() != null
+                            ? node.getUpdateTime() : LocalDateTime.now());
             mapper.update(null, wrapper);
         }
     }

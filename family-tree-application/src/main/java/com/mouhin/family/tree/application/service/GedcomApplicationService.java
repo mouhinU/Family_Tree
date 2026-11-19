@@ -29,15 +29,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
 
 /**
  * GEDCOM 导入导出应用服务
@@ -66,6 +60,7 @@ public class GedcomApplicationService {
     private final FamilyUserNodeRepository familyUserNodeRepository;
     private final FamilyRepository familyRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final GenerationRepairApplicationService generationRepairService;
 
     public GedcomApplicationService(GedcomParserDomainService gedcomParserDomainService,
                                     GedcomGeneratorDomainService gedcomGeneratorDomainService,
@@ -73,7 +68,8 @@ public class GedcomApplicationService {
                                     FamilyRelationRepository familyRelationRepository,
                                     FamilyUserNodeRepository familyUserNodeRepository,
                                     FamilyRepository familyRepository,
-                                    ApplicationEventPublisher eventPublisher) {
+                                    ApplicationEventPublisher eventPublisher,
+                                    GenerationRepairApplicationService generationRepairService) {
         this.gedcomParserDomainService = gedcomParserDomainService;
         this.gedcomGeneratorDomainService = gedcomGeneratorDomainService;
         this.familyNodeRepository = familyNodeRepository;
@@ -81,6 +77,7 @@ public class GedcomApplicationService {
         this.familyUserNodeRepository = familyUserNodeRepository;
         this.familyRepository = familyRepository;
         this.eventPublisher = eventPublisher;
+        this.generationRepairService = generationRepairService;
     }
 
     /**
@@ -189,8 +186,8 @@ public class GedcomApplicationService {
         // 创建关系
         int relationCount = createRelationsFromGedcom(data, familyId, userId, xrefToNodeId);
 
-        // 计算世代层级
-        calculateAndSetGenerations(familyId);
+        // 计算世代层级：整树重建按结构即世代口径无条件重算（辈分表不参与）
+        generationRepairService.repairFamily(familyId);
 
         // 发布事件（树结构变更 + 导入操作日志）
         eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
@@ -285,115 +282,6 @@ public class GedcomApplicationService {
             }
         }
         return count;
-    }
-
-    /**
-     * 计算并设置家族中所有节点的世代层级
-     * <p>
-     * 算法：
-     * 1. 找到所有根节点（无父节点）
-     * 2. BFS 向下传播世代
-     * 3. 配偶同步世代
-     * 4. 未连接节点默认为第 1 世
-     * </p>
-     */
-    private void calculateAndSetGenerations(Long familyId) {
-        List<FamilyNode> allNodes = familyNodeRepository.findByFamilyId(familyId);
-        List<FamilyRelation> allRelations = familyRelationRepository.findByFamilyId(familyId);
-
-        if (allNodes.isEmpty()) {
-            return;
-        }
-
-        // 构建邻接结构
-        Map<Long, List<Long>> parentToChildren = new HashMap<>();
-        Map<Long, Set<Long>> childToParents = new HashMap<>();
-        Map<Long, Set<Long>> spouseMap = new HashMap<>();
-
-        for (FamilyRelation relation : allRelations) {
-            if (relation.isParentChild()) {
-                parentToChildren.computeIfAbsent(relation.getFromNodeId(), k -> new ArrayList<>())
-                        .add(relation.getToNodeId());
-                childToParents.computeIfAbsent(relation.getToNodeId(), k -> new HashSet<>())
-                        .add(relation.getFromNodeId());
-            } else if (relation.isSpouse()) {
-                spouseMap.computeIfAbsent(relation.getFromNodeId(), k -> new HashSet<>())
-                        .add(relation.getToNodeId());
-                spouseMap.computeIfAbsent(relation.getToNodeId(), k -> new HashSet<>())
-                        .add(relation.getFromNodeId());
-            }
-        }
-
-        // 节点映射
-        Map<Long, FamilyNode> nodeMap = new HashMap<>(allNodes.size());
-        for (FamilyNode node : allNodes) {
-            nodeMap.put(node.getId(), node);
-        }
-
-        // 找到根节点（没有父节点的节点）
-        Set<Long> roots = new HashSet<>();
-        for (FamilyNode node : allNodes) {
-            if (!childToParents.containsKey(node.getId())) {
-                roots.add(node.getId());
-            }
-        }
-
-        // BFS 分配世代
-        Map<Long, Integer> generationMap = new HashMap<>();
-        Deque<Long> queue = new ArrayDeque<>();
-        for (Long root : roots) {
-            generationMap.put(root, FamilyTreeConsts.DEFAULT_GENERATION);
-            queue.add(root);
-        }
-
-        while (!queue.isEmpty()) {
-            Long currentId = queue.poll();
-            int currentGen = generationMap.get(currentId);
-
-            // 传播到子女
-            List<Long> children = parentToChildren.getOrDefault(currentId, List.of());
-            for (Long childId : children) {
-                if (!generationMap.containsKey(childId)) {
-                    generationMap.put(childId, currentGen + 1);
-                    queue.add(childId);
-                }
-            }
-
-            // 同步配偶
-            Set<Long> spouses = spouseMap.getOrDefault(currentId, Set.of());
-            for (Long spouseId : spouses) {
-                if (!generationMap.containsKey(spouseId)) {
-                    generationMap.put(spouseId, currentGen);
-                    queue.add(spouseId);
-                }
-            }
-        }
-
-        // 未连接的节点默认第 1 世
-        for (FamilyNode node : allNodes) {
-            if (!generationMap.containsKey(node.getId())) {
-                generationMap.put(node.getId(), FamilyTreeConsts.DEFAULT_GENERATION);
-            }
-        }
-
-        // 持久化世代
-        List<FamilyNode> toUpdate = new ArrayList<>();
-        for (FamilyNode node : allNodes) {
-            int newGen = generationMap.getOrDefault(node.getId(), FamilyTreeConsts.DEFAULT_GENERATION);
-            if (!Objects.equals(node.getGeneration(), newGen)) {
-                node.setGeneration(newGen);
-                node.setUpdateTime(LocalDateTime.now());
-                toUpdate.add(node);
-            }
-        }
-
-        for (FamilyNode node : toUpdate) {
-            familyNodeRepository.update(node);
-        }
-
-        if (!toUpdate.isEmpty()) {
-            logger.info("Updated generations for {} nodes in family={}", toUpdate.size(), familyId);
-        }
     }
 
     /**

@@ -123,6 +123,7 @@ class FamilyApplicationServiceInitialNodeTest {
         FamilyCreateDTO dto = buildDTO("mengbin");
         dto.setInitialNodeGender(1);
         dto.setInitialNodeBirthDate("1990-03-05");
+        dto.setInitialNodeBirthCalendar(2);
 
         Long familyId = familyApplicationService.createFamily(USER_ID, dto, OPERATOR_NAME, OPERATOR_IP);
 
@@ -134,6 +135,7 @@ class FamilyApplicationServiceInitialNodeTest {
         assertEquals("mengbin", nodeDTO.getName());
         assertEquals(Integer.valueOf(1), nodeDTO.getGender());
         assertEquals("1990-03-05", nodeDTO.getBirthDate());
+        assertEquals(Integer.valueOf(2), nodeDTO.getBirthCalendar());
         verify(familyUserNodeService).bindMyNode(NEW_FAMILY_ID, USER_ID, NEW_NODE_ID);
     }
 

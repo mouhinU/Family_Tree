@@ -54,6 +54,11 @@ public class FamilyNodeDO {
     private String lunarBirthDate;
 
     /**
+     * 出生日期录入历法（1阳历 2阴历，null 未记录）
+     */
+    private Integer birthCalendar;
+
+    /**
      * 农历去世日期
      */
     private String lunarDeathDate;

@@ -5,7 +5,7 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <meta name="theme-color" content="#a63a2b">
     <title>平台管理 - 族谱管理系统</title>
-    <link href="/css/style.css?v=20261117a" rel="stylesheet">
+    <link href="/css/style.css?v=20261119b" rel="stylesheet">
     <style>
         .admin-body {
             margin: 0;
@@ -644,7 +644,8 @@
                     <h2>数据巡检</h2>
                     <div class="admin-toolbar">
                         <button class="ghost-btn" id="btn-inspection" type="button">重新巡检</button>
-                        <span class="admin-hint" id="insp-hint">巡检只读取数据，不修改任何记录；发现问题需人工核对后处理</span>
+                        <button class="ghost-btn" id="btn-gen-repair" type="button">一键修复全平台世代</button>
+                        <span class="admin-hint" id="insp-hint">巡检只读取数据，不修改任何记录；发现问题需人工核对后处理。世代修复仅重算未维护辈分的家族，已登记辈分的家族以辈分为准不受影响</span>
                     </div>
                     <div id="insp-body">
                         <div class="detail-empty">点击「数据巡检」页签后自动开始体检</div>
@@ -708,9 +709,9 @@
     </div>
 </div>
 
-<script src="/js/ft/core.js?v=20261112a"></script>
-<script src="/js/ft/api.js?v=20261111a"></script>
+<script src="/js/ft/core.js?v=20261120a"></script>
+<script src="/js/ft/api.js?v=20261119b"></script>
 <script src="/js/ft/modals.js?v=20260828b"></script>
-<script src="/js/ft/admin.js?v=20261116i"></script>
+<script src="/js/ft/admin.js?v=20261119a"></script>
 </body>
 </html>

@@ -191,6 +191,12 @@
         $('btn-inspection').addEventListener('click', function () {
             loadInspection(true);
         });
+        $('btn-gen-repair').addEventListener('click', function () {
+            FT.confirm('将扫描全平台所有家族：未维护辈分的家族按树结构从根节点逐级重算「第几世」并直接落库，'
+                + '已登记辈分的家族以现有辈分为准不受影响。修复结果会写入平台操作日志，确定执行？', function () {
+                runGenerationRepair();
+            });
+        });
         $('btn-search').addEventListener('click', function () {
             searchNow();
         });
@@ -867,6 +873,31 @@
         }
         state.inspection = res.data;
         renderInspection();
+    }
+
+    // 一键修复全平台世代：仅重算未维护辈分的家族，单家族失败不影响其余家族
+    async function runGenerationRepair() {
+        var btn = $('btn-gen-repair');
+        btn.disabled = true;
+        try {
+            var res = await FT.api('/api/admin/generation/repair-all', {method: 'POST'});
+            if (res.code !== 200 || !res.data) {
+                FT.toast('世代修复未完成，请稍后重试', 'error');
+                return;
+            }
+            var d = res.data;
+            var msg = '世代修复完成：扫描 ' + num(d.scannedFamilies) + ' 个家族，修复 '
+                + num(d.repairedFamilies) + ' 个 / ' + num(d.updatedNodes) + ' 个节点，跳过已维护辈分 '
+                + num(d.skippedManagedFamilies) + ' 个';
+            if (num(d.failedFamilies) > 0) {
+                FT.toast(msg + '，失败 ' + num(d.failedFamilies) + ' 个（详情见平台操作日志）', 'warning');
+            } else {
+                FT.toast(msg, 'success');
+            }
+            loadInspection(true);
+        } finally {
+            btn.disabled = false;
+        }
     }
 
     function renderInspection() {

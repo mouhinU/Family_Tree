@@ -42,6 +42,11 @@ public class NodeDetailVO {
     private String remark;
 
     private String lunarBirthDate;
+
+    /**
+     * 出生日期录入历法（1阳历 2阴历，null 未记录；详情弹窗据此决定出生两行先后）
+     */
+    private Integer birthCalendar;
     private String lunarDeathDate;
     private String zi;
     private String hao;

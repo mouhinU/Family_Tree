@@ -229,6 +229,7 @@ public class FamilyUserNodeApplicationService {
             throw new BusinessException("该节点已被族人标记为本人，请先解除标记后再删除");
         }
         familyUserNodeRepository.removeByFamilyIdAndUserId(familyId, binding.getUserId());
+        removeMemberIfPresent(familyId, binding.getUserId());
         userRepository.deleteById(binding.getUserId());
         logger.info("Reclaimed auto-provisioned account on node deletion: familyId={} nodeId={} userId={}",
                 familyId, nodeId, binding.getUserId());
@@ -302,6 +303,19 @@ public class FamilyUserNodeApplicationService {
     }
 
     /**
+     * 回收自动账号时同步移除其在本家族的成员记录。
+     *
+     * <p>自动账号由 {@link #ensureFamilyMember} 补建 MEMBER 行，若只删 {@code sys_user} 而遗留
+     * {@code family_member}，成员列表会出现查无此人的幽灵行、成员上限统计也会虚高。</p>
+     */
+    private void removeMemberIfPresent(Long familyId, Long userId) {
+        FamilyMember member = familyMemberRepository.findByFamilyIdAndUserId(familyId, userId);
+        if (member != null) {
+            familyMemberRepository.removeById(member.getId());
+        }
+    }
+
+    /**
      * 绑定节点后把节点档案回填到账号资料（性别/出生日期/农历/世代），仅在账号字段为空时补，不覆盖已有值
      *
      * <p>自动开通的账号建档时只写了昵称，本人激活或建族初始化绑定后若资料仍为空，
@@ -322,6 +336,10 @@ public class FamilyUserNodeApplicationService {
         }
         if (user.getLunarBirthDate() == null && node.getLunarBirthDate() != null) {
             user.setLunarBirthDate(node.getLunarBirthDate());
+            changed = true;
+        }
+        if (user.getBirthCalendar() == null && node.getBirthCalendar() != null) {
+            user.setBirthCalendar(node.getBirthCalendar());
             changed = true;
         }
         if (user.getGeneration() == null && node.getGeneration() != null) {
@@ -350,6 +368,7 @@ public class FamilyUserNodeApplicationService {
             return;
         }
         familyUserNodeRepository.removeByFamilyIdAndUserId(familyId, binding.getUserId());
+        removeMemberIfPresent(familyId, binding.getUserId());
         userRepository.deleteById(binding.getUserId());
         logger.info("Reclaimed auto-provisioned account on real-user binding: familyId={} nodeId={} userId={}",
                 familyId, nodeId, binding.getUserId());

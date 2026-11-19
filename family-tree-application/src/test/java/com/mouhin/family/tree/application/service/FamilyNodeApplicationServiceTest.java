@@ -22,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -76,6 +77,9 @@ class FamilyNodeApplicationServiceTest {
 
     @Mock
     private FamilySettingApplicationService settingService;
+
+    @Mock
+    private GenerationRepairApplicationService generationRepairService;
 
     @InjectMocks
     private FamilyNodeApplicationService familyNodeApplicationService;
@@ -302,6 +306,117 @@ class FamilyNodeApplicationServiceTest {
         familyNodeApplicationService.updateNode(FAMILY_ID, USER_ID, "testUser", "127.0.0.1", dto);
 
         verify(familyUserNodeApplicationService, never()).syncNicknameFromNode(any(), any(), any());
+    }
+
+    // ========== 出生日期录入历法（birthCalendar） ==========
+
+    @Test
+    void createNode_withBirthDate_recordsLunarCalendarCode() {
+        doAnswer(invocation -> {
+            ((FamilyNode) invocation.getArgument(0)).setId(98L);
+            return invocation.getArgument(0);
+        }).when(familyNodeRepository).save(any(FamilyNode.class));
+
+        NodeCreateDTO dto = createDTO("蒙四", null);
+        dto.setBirthDate("2001-02-14");
+        dto.setBirthCalendar(2);
+        familyNodeApplicationService.createNode(FAMILY_ID, USER_ID, "testUser", "127.0.0.1", dto);
+
+        ArgumentCaptor<FamilyNode> captor = ArgumentCaptor.forClass(FamilyNode.class);
+        verify(familyNodeRepository).save(captor.capture());
+        assertEquals(Integer.valueOf(2), captor.getValue().getBirthCalendar());
+    }
+
+    @Test
+    void createNode_withoutBirthDate_dropsCalendarCode() {
+        doAnswer(invocation -> {
+            ((FamilyNode) invocation.getArgument(0)).setId(97L);
+            return invocation.getArgument(0);
+        }).when(familyNodeRepository).save(any(FamilyNode.class));
+
+        NodeCreateDTO dto = createDTO("蒙五", null);
+        dto.setBirthCalendar(2);
+        familyNodeApplicationService.createNode(FAMILY_ID, USER_ID, "testUser", "127.0.0.1", dto);
+
+        ArgumentCaptor<FamilyNode> captor = ArgumentCaptor.forClass(FamilyNode.class);
+        verify(familyNodeRepository).save(captor.capture());
+        assertNull(captor.getValue().getBirthCalendar(), "未登记阳历出生日期时不记录录入历法");
+    }
+
+    @Test
+    void createNode_illegalBirthCalendar_throwsBeforeSaving() {
+        NodeCreateDTO dto = createDTO("蒙六", null);
+        dto.setBirthDate("2001-02-14");
+        dto.setBirthCalendar(3);
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> familyNodeApplicationService.createNode(FAMILY_ID, USER_ID, "testUser", "127.0.0.1", dto));
+        assertTrue(exception.getMessage().contains("历法"));
+        verify(familyNodeRepository, never()).save(any(FamilyNode.class));
+    }
+
+    @Test
+    void updateNode_dateResavedWithoutCalendarField_keepsExistingCalendar() {
+        FamilyNode existingNode = node(7L, "蒙一", 3);
+        existingNode.setBirthDate(LocalDate.of(1999, 1, 1));
+        existingNode.setBirthCalendar(2);
+        when(familyNodeRepository.findById(7L)).thenReturn(existingNode);
+
+        // 回归电池等旧调用方只提交出生日期、不带历法字段：已记录的历法不能被抹掉
+        FamilyNodeDTO dto = new FamilyNodeDTO();
+        dto.setId(7L);
+        dto.setBirthDate("1999-06-01");
+        familyNodeApplicationService.updateNode(FAMILY_ID, USER_ID, "testUser", "127.0.0.1", dto);
+
+        assertEquals(Integer.valueOf(2), existingNode.getBirthCalendar());
+        verify(familyNodeRepository).update(existingNode);
+    }
+
+    @Test
+    void updateNode_calendarSwitchWithDate_recordsNewCode() {
+        FamilyNode existingNode = node(7L, "蒙一", 3);
+        existingNode.setBirthDate(LocalDate.of(1999, 1, 1));
+        existingNode.setBirthCalendar(1);
+        when(familyNodeRepository.findById(7L)).thenReturn(existingNode);
+
+        FamilyNodeDTO dto = new FamilyNodeDTO();
+        dto.setId(7L);
+        dto.setBirthDate("1999-01-01");
+        dto.setBirthCalendar(2);
+        familyNodeApplicationService.updateNode(FAMILY_ID, USER_ID, "testUser", "127.0.0.1", dto);
+
+        assertEquals(Integer.valueOf(2), existingNode.getBirthCalendar());
+    }
+
+    @Test
+    void updateNode_clearBirthDate_clearsCalendar() {
+        FamilyNode existingNode = node(7L, "蒙一", 3);
+        existingNode.setBirthDate(LocalDate.of(1999, 1, 1));
+        existingNode.setBirthCalendar(2);
+        when(familyNodeRepository.findById(7L)).thenReturn(existingNode);
+
+        FamilyNodeDTO dto = new FamilyNodeDTO();
+        dto.setId(7L);
+        dto.setBirthDate("");
+        familyNodeApplicationService.updateNode(FAMILY_ID, USER_ID, "testUser", "127.0.0.1", dto);
+
+        assertNull(existingNode.getBirthDate());
+        assertNull(existingNode.getBirthCalendar());
+    }
+
+    @Test
+    void updateNode_illegalBirthCalendar_throwsBeforeUpdate() {
+        FamilyNode existingNode = node(7L, "蒙一", 3);
+        when(familyNodeRepository.findById(7L)).thenReturn(existingNode);
+
+        FamilyNodeDTO dto = new FamilyNodeDTO();
+        dto.setId(7L);
+        dto.setBirthDate("1999-01-01");
+        dto.setBirthCalendar(5);
+
+        assertThrows(BusinessException.class,
+                () -> familyNodeApplicationService.updateNode(FAMILY_ID, USER_ID, "testUser", "127.0.0.1", dto));
+        verify(familyNodeRepository, never()).update(any(FamilyNode.class));
     }
 
     @Test

@@ -19,8 +19,19 @@
         return !scope || scope.has(nodeId);
     }
 
+    // 未绑定成员自愈通道：本家族无绑定节点的非管理员，可见集合为空导致操作门全闭，
+    // 需放行右键入口以触达「标记为我」；后端 bindMyNode 仅校验节点属于当前家族，其余操作接口仍独立拦截。
+    function canOpenMenu(nodeId) {
+        if (canOperateNode(nodeId)) {
+            return true;
+        }
+        return !!FT.state.detailVisibleIds && FT.state.currentUser && !FT.state.currentUser.nodeId;
+    }
+
     function showContextMenu(x, y) {
         var MARGIN = 8;
+        // 未绑定成员对范围外节点仅露出「标记为我」，绑定成功刷新可见集合后恢复完整菜单
+        contextMenu.classList.toggle('mark-self-only', !canOperateNode(FT.state.contextNodeId));
         contextMenu.style.display = 'block';
         contextMenu.style.left = '0px';
         contextMenu.style.top = '0px';
@@ -92,7 +103,7 @@
             longPressTimer = null;
 
             var nodeId = nodeGroup.__data__ && nodeGroup.__data__.id;
-            if (nodeId && canOperateNode(nodeId)) {
+            if (nodeId && FT.canOpenMenu(nodeId)) {
                 FT.state.contextNodeId = nodeId;
                 FT.showContextMenu(touch.clientX, touch.clientY);
             }
@@ -152,6 +163,7 @@
     FT.showContextMenu = showContextMenu;
     FT.hideContextMenu = hideContextMenu;
     FT.canOperateNode = canOperateNode;
+    FT.canOpenMenu = canOpenMenu;
 
     /* ===== "更多"展开/收起（移动端） ===== */
     var moreToggleBtn = document.getElementById('menu-more-toggle');

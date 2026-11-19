@@ -7,6 +7,7 @@ import com.mouhin.family.tree.common.dto.FamilyAdminRowVO;
 import com.mouhin.family.tree.common.dto.FamilyGovernDTO;
 import com.mouhin.family.tree.common.dto.FamilySettingSaveDTO;
 import com.mouhin.family.tree.common.dto.FamilySettingVO;
+import com.mouhin.family.tree.common.dto.GenerationRepairSummaryVO;
 import com.mouhin.family.tree.common.dto.PageResult;
 import com.mouhin.family.tree.common.dto.PlatformOverviewVO;
 import com.mouhin.family.tree.common.result.Result;
@@ -15,6 +16,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -167,5 +169,20 @@ public class AdminFamilyController extends BaseController {
         String operatorName = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
         return Result.success(platformAdminService.transferOwner(familyId,
                 dto == null ? null : dto.getUserId(), operatorId, operatorName, getClientIp(request)));
+    }
+
+    /**
+     * 全平台世代一键修复：未维护辈分的家族按树深度从根节点逐级重算
+     *
+     * @param session HTTP 会话
+     * @param request HTTP 请求
+     * @return 修复结果摘要
+     */
+    @PostMapping("/generation/repair-all")
+    @RequireSystemAdmin
+    public Result<GenerationRepairSummaryVO> repairAllGenerations(HttpSession session, HttpServletRequest request) {
+        Long operatorId = getCurrentUserId(session);
+        String operatorName = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        return Result.success(platformAdminService.repairAllFamilies(operatorId, operatorName, getClientIp(request)));
     }
 }

@@ -158,5 +158,6 @@
     FT.api = api;
     FT.uploadFile = uploadFile;
     FT.loadTree = loadTree;
+    FT.loadDetailScope = loadDetailScope;
     FT.loadGenerationNames = loadGenerationNames;
 })();

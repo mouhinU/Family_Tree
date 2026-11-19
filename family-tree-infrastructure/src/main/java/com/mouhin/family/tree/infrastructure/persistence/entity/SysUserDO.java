@@ -60,6 +60,11 @@ public class SysUserDO {
     private String lunarBirthDate;
 
     /**
+     * 出生日期录入历法（1阳历 2阴历，null 未记录）
+     */
+    private Integer birthCalendar;
+
+    /**
      * 当前激活的家族ID（多家族管理）
      */
     private Long currentFamilyId;

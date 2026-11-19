@@ -321,6 +321,10 @@
                 birthDate: birthDate,
                 generation: genRaw ? parseInt(genRaw) : null
             };
+            // 出生日期录入历法随日期一并提交；日期为空时不提交（后端按缺省处理）
+            if (birthDate) {
+                body.birthCalendar = FT.birthCalendar.getCalendarCode('profile-birth');
+            }
             // 性别留空表示不修改，不提交该字段
             if (genderRaw !== '') { body.gender = parseInt(genderRaw); }
             // 联系方式留空表示不修改，不提交该字段
@@ -361,6 +365,8 @@
         if (res.code === 200) {
             user.nodeId = newNodeId;
             FT.toast(newNodeId ? '已将该族人标记为您本人' : '已取消标记', 'success');
+            // 绑定变更后立即刷新可见集合，否则未绑定成员标记成功后操作门仍全闭（死锁残留）
+            await FT.loadDetailScope();
             FT.renderTree();
             return true;
         }

@@ -265,11 +265,14 @@ class FamilyUserNodeApplicationServiceTest {
         when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID))
                 .thenReturn(userBinding(autoUserId, NODE_ID));
         when(userRepository.findById(autoUserId)).thenReturn(autoUser(autoUserId, "张大爷"));
+        when(familyMemberRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId))
+                .thenReturn(member(8L, autoUserId));
 
         familyUserNodeApplicationService.prepareForNodeDeletion(FAMILY_ID, NODE_ID);
 
         verify(familyUserNodeRepository).removeByFamilyIdAndUserId(FAMILY_ID, autoUserId);
         verify(userRepository).deleteById(autoUserId);
+        verify(familyMemberRepository).removeById(8L);
     }
 
     // ========== 开通账号即绑定 ==========
@@ -422,15 +425,34 @@ class FamilyUserNodeApplicationServiceTest {
         when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID))
                 .thenReturn(userBinding(autoUserId, NODE_ID));
         when(userRepository.findById(autoUserId)).thenReturn(autoUser(autoUserId, "张大爷"));
+        when(familyMemberRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId))
+                .thenReturn(member(8L, autoUserId));
 
         familyUserNodeApplicationService.bindMyNode(FAMILY_ID, USER_ID, NODE_ID);
 
         verify(familyUserNodeRepository).removeByFamilyIdAndUserId(FAMILY_ID, autoUserId);
         verify(userRepository).deleteById(autoUserId);
+        verify(familyMemberRepository).removeById(8L);
         ArgumentCaptor<FamilyUserNode> captor = ArgumentCaptor.forClass(FamilyUserNode.class);
         verify(familyUserNodeRepository).save(captor.capture());
         assertEquals(USER_ID, captor.getValue().getUserId());
         assertEquals(NODE_ID, captor.getValue().getNodeId());
+    }
+
+    @Test
+    void bindMyNode_realUserMarksNode_autoAccountWithoutMembership_keepsMemberWrites() {
+        Long autoUserId = 90L;
+        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID)).thenReturn(null);
+        when(familyNodeRepository.findById(NODE_ID)).thenReturn(node(NODE_ID, FAMILY_ID));
+        when(familyUserNodeRepository.findByFamilyIdAndNodeId(FAMILY_ID, NODE_ID))
+                .thenReturn(userBinding(autoUserId, NODE_ID));
+        when(userRepository.findById(autoUserId)).thenReturn(autoUser(autoUserId, "张大爷"));
+        when(familyMemberRepository.findByFamilyIdAndUserId(FAMILY_ID, autoUserId)).thenReturn(null);
+
+        familyUserNodeApplicationService.bindMyNode(FAMILY_ID, USER_ID, NODE_ID);
+
+        verify(userRepository).deleteById(autoUserId);
+        verify(familyMemberRepository, never()).removeById(any());
     }
 
     // ========== 绑定后账号资料回填 ==========
@@ -441,6 +463,7 @@ class FamilyUserNodeApplicationServiceTest {
         node.setGender(2);
         node.setBirthDate(LocalDate.of(1991, 11, 5));
         node.setLunarBirthDate("一九九一年十月初十");
+        node.setBirthCalendar(2);
         node.setGeneration(14);
         when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID)).thenReturn(null);
         when(familyNodeRepository.findById(NODE_ID)).thenReturn(node);
@@ -453,6 +476,7 @@ class FamilyUserNodeApplicationServiceTest {
         assertEquals(Integer.valueOf(2), captor.getValue().getGender());
         assertEquals("1991-11-05", captor.getValue().getBirthDate());
         assertEquals("一九九一年十月初十", captor.getValue().getLunarBirthDate());
+        assertEquals(Integer.valueOf(2), captor.getValue().getBirthCalendar());
         assertEquals(Integer.valueOf(14), captor.getValue().getGeneration());
     }
 
@@ -465,6 +489,7 @@ class FamilyUserNodeApplicationServiceTest {
         when(familyNodeRepository.findById(NODE_ID)).thenReturn(node);
         User filled = user(USER_ID, "胡兰");
         filled.setBirthDate("1991-09-29");
+        filled.setBirthCalendar(1);
         filled.setGeneration(1);
         when(userRepository.findById(USER_ID)).thenReturn(filled);
 
@@ -538,5 +563,14 @@ class FamilyUserNodeApplicationServiceTest {
         binding.setUserId(userId);
         binding.setNodeId(nodeId);
         return binding;
+    }
+
+    private FamilyMember member(Long id, Long userId) {
+        FamilyMember member = new FamilyMember();
+        member.setId(id);
+        member.setFamilyId(FAMILY_ID);
+        member.setUserId(userId);
+        member.setRole(FamilyMemberRoleEnum.MEMBER.getCode());
+        return member;
     }
 }

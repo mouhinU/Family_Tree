@@ -11,6 +11,12 @@
 
     var FT = window.FT;
 
+    // 2000 年之前出生者的生日多按阴历登记，详情弹窗将农历生日行优先于阳历行展示
+    var LUNAR_BIRTH_PRIORITY_YEAR = 2000;
+
+    /** 录入历法编码：2 阴历 —— 该节点详情弹窗农历出生行在前 */
+    var BIRTH_CALENDAR_LUNAR = 2;
+
     // ========== 节点新增 ==========
     // 新增节点表单（不含去世日期）
     function showNodeModal(title, relationOpts) {
@@ -61,6 +67,7 @@
                 name: name,
                 gender: parseInt(document.getElementById('modal-gender').value),
                 birthDate: bc.solar,
+                birthCalendar: FT.birthCalendar.getCalendarCode('modal-birth'),
                 birthOrder: orderEl && orderEl.value ? parseInt(orderEl.value) : null,
                 colorLabel: document.getElementById('modal-color').value,
                 remark: document.getElementById('modal-remark').value || null,
@@ -220,6 +227,7 @@
                 name: document.getElementById('modal-name').value.trim(),
                 gender: parseInt(document.getElementById('modal-gender').value),
                 birthDate: bc.solar,
+                birthCalendar: FT.birthCalendar.getCalendarCode('modal-birth'),
                 birthOrder: orderRaw ? parseInt(orderRaw) : null,
                 generation: genRaw ? parseInt(genRaw) : null,
                 colorLabel: document.getElementById('modal-color').value,
@@ -499,7 +507,12 @@
         // 非管理员详情白名单收口：不在可见集合内则拒绝打开（后端详情接口仍独立校验）
         var scope = FT.state.detailVisibleIds;
         if (scope && !scope.has(node.id)) {
-            FT.toast('无权查看该族人详情', 'error');
+            // 未绑定成员给出自愈指引：其可见集合恒为空，须先通过右键菜单「标记为我」完成首绑
+            if (FT.state.currentUser && !FT.state.currentUser.nodeId) {
+                FT.toast('无权查看该族人详情；若这是您本人，请右键该族人选择「标记为我」', 'error');
+            } else {
+                FT.toast('无权查看该族人详情', 'error');
+            }
             return;
         }
         if (node.id == null) {
@@ -515,9 +528,8 @@
         var genderText = node.gender === 1 ? '男' : node.gender === 2 ? '女' : '未知';
         var deceased = node.deathDate != null && node.deathDate !== '';
         // 香烛拜台仅敬献给「长辈」：节点已故且辈分高于登录人（世代数更小，更靠近始祖）。
-        // 登录人或节点辈分缺失时无法论资排辈，不予展示。
-        var currentUser = FT.state.currentUser;
-        var myGeneration = currentUser && currentUser.generation;
+        // 登录人或节点辈分缺失时无法论资排辈，不予展示；登录人辈分以当前家族「我的节点」为准。
+        var myGeneration = FT.getMyGeneration();
         var isSenior = deceased && myGeneration != null && node.generation != null && node.generation < myGeneration;
         var color = deceased ? FT.DECEASED_COLOR : (FT.COLOR_MAP[node.colorLabel] || FT.COLOR_MAP['default']);
         var genName = generationNames[node.generation] ? '（' + generationNames[node.generation] + '）' : '';
@@ -569,10 +581,21 @@
 
         // 「标记为我」入口前置到详情弹窗：与右键菜单同一操作门（可见集合内才可标记），
         // 已标记在本节点时按钮变为「取消标记为我」
+        var currentUser = FT.state.currentUser;
         var markSelfHtml = (currentUser && FT.canOperateNode && FT.canOperateNode(node.id))
             ? '<button class="btn-sm js-mark-self-btn" data-node-id="' + FT.escapeAttr(node.id) + '">' +
               (currentUser.nodeId === node.id ? '取消标记为我' : '标记为我') + '</button>'
             : '';
+
+        // 出生两行先后：优先按录入历法（2 阴历在前 / 1 阳历在前）；未记录时按 [LUNAR_BIRTH_PRIORITY_YEAR] 启发式，2000 年前出生且已登记农历则农历在前
+        var birthYear = parseInt((node.birthDate || '').substring(0, 4), 10);
+        var lunarBirthFirst = node.birthCalendar != null
+            ? node.birthCalendar === BIRTH_CALENDAR_LUNAR
+            : (!!node.lunarBirthDate && (isNaN(birthYear) || birthYear < LUNAR_BIRTH_PRIORITY_YEAR));
+        var solarBirthLine = '<p style="margin:4px 0;color:#666;font-size:14px;">出生：' + FT.escapeHtml(node.birthDate || '未知') + '</p>';
+        var lunarBirthLine = node.lunarBirthDate
+            ? '<p style="margin:4px 0;color:#666;font-size:14px;">农历出生：' + FT.escapeHtml(node.lunarBirthDate) + '</p>' : '';
+        var birthLinesHtml = lunarBirthFirst ? lunarBirthLine + solarBirthLine : solarBirthLine + lunarBirthLine;
 
         FT.showModal(
             '<h3 style="display:flex;align-items:center;gap:10px;">' +
@@ -581,9 +604,8 @@
             (isSenior ? FT.buildOfferingHtml() + FT.offeringPanelShell() : '') +
             '<div style="margin:12px 0;">' +
             '<p style="margin:4px 0;color:#666;font-size:14px;">性别：' + genderText + '</p>' +
-            '<p style="margin:4px 0;color:#666;font-size:14px;">出生：' + FT.escapeHtml(node.birthDate || '未知') + '</p>' +
+            birthLinesHtml +
             (deceased ? '<p style="margin:4px 0;color:#666;font-size:14px;">去世：' + FT.escapeHtml(node.deathDate) + '</p>' : '') +
-            (node.lunarBirthDate ? '<p style="margin:4px 0;color:#666;font-size:14px;">农历出生：' + FT.escapeHtml(node.lunarBirthDate) + '</p>' : '') +
             (node.lunarDeathDate ? '<p style="margin:4px 0;color:#666;font-size:14px;">农历忌日：' + FT.escapeHtml(node.lunarDeathDate) + '</p>' : '') +
             (node.zi ? '<p style="margin:4px 0;color:#666;font-size:14px;">字：' + FT.escapeHtml(node.zi) + '</p>' : '') +
             (node.hao ? '<p style="margin:4px 0;color:#666;font-size:14px;">号：' + FT.escapeHtml(node.hao) + '</p>' : '') +

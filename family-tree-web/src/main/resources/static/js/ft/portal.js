@@ -148,9 +148,14 @@
             if (gender) {
                 payload.initialNodeGender = Number(gender);
             }
-            var birthDate = document.getElementById('init-birth').value;
-            if (birthDate) {
-                payload.initialNodeBirthDate = birthDate;
+            var bc = FT.birthCalendar.getSolar('init-birth');
+            if (!bc.ok) {
+                showMessage(bc.message, 'error');
+                return;
+            }
+            if (bc.solar) {
+                payload.initialNodeBirthDate = bc.solar;
+                payload.initialNodeBirthCalendar = FT.birthCalendar.getCalendarCode('init-birth');
             }
         }
         try {
@@ -265,6 +270,8 @@
             var birthDate = body.data.birthDate;
             if (birthEl && !birthEl.value && birthDate && DATE_PATTERN.test(birthDate)) {
                 birthEl.value = birthDate;
+                // 触发组件的历法换算与预览刷新（录入组件 id 仍为 init-birth）
+                birthEl.dispatchEvent(new Event('change'));
             }
             return 'ok';
         } catch (err) {
@@ -275,6 +282,13 @@
 
     document.getElementById('btn-create').addEventListener('click', onCreateFamily);
     document.getElementById('btn-join').addEventListener('click', onJoinFamily);
+
+    // 出生日期接入阳历/阴历录入组件，真值输入框 id 保持 init-birth
+    var birthField = document.getElementById('init-birth-field');
+    if (birthField && window.FT && FT.birthCalendar) {
+        birthField.innerHTML = FT.birthCalendar.buildField('init-birth', null);
+        FT.birthCalendar.init('init-birth', {});
+    }
 
     var profileReady = loadProfile();
     loadMyFamilies();

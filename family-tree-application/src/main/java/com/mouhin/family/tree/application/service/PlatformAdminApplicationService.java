@@ -4,6 +4,7 @@ import com.mouhin.family.tree.common.dto.FamilyAdminDetailVO;
 import com.mouhin.family.tree.common.dto.FamilyAdminRowVO;
 import com.mouhin.family.tree.common.dto.FamilySettingSaveDTO;
 import com.mouhin.family.tree.common.dto.FamilySettingVO;
+import com.mouhin.family.tree.common.dto.GenerationRepairSummaryVO;
 import com.mouhin.family.tree.common.dto.OperationLogDTO;
 import com.mouhin.family.tree.common.dto.PageResult;
 import com.mouhin.family.tree.common.dto.PlatformOperationLogVO;
@@ -127,6 +128,21 @@ public class PlatformAdminApplicationService {
     private static final String OPERATION_TYPE_FAMILY_OWNER_TRANSFER = "PLATFORM_FAMILY_OWNER_TRANSFER";
 
     /**
+     * 平台操作日志类型：全平台世代修复
+     */
+    private static final String OPERATION_TYPE_GENERATION_REPAIR = "PLATFORM_GEN_REPAIR";
+
+    /**
+     * 全平台世代修复遍历家族时的分页大小
+     */
+    private static final int REPAIR_SCAN_PAGE_SIZE = 200;
+
+    /**
+     * 全平台世代修复摘要中保留的失败样例上限
+     */
+    private static final int REPAIR_FAILURE_SAMPLE_LIMIT = 10;
+
+    /**
      * 平台操作日志的对象类型：账号
      */
     private static final String TARGET_TYPE_USER = "user";
@@ -151,6 +167,7 @@ public class PlatformAdminApplicationService {
     private final OperationLogApplicationService operationLogService;
     private final UserAuthApplicationService userAuthApplicationService;
     private final LoginAttemptService loginAttemptService;
+    private final GenerationRepairApplicationService generationRepairService;
     private final ApplicationEventPublisher eventPublisher;
     private final Set<String> platformAdminUsernames;
 
@@ -169,6 +186,7 @@ public class PlatformAdminApplicationService {
                                            OperationLogApplicationService operationLogService,
                                            UserAuthApplicationService userAuthApplicationService,
                                            LoginAttemptService loginAttemptService,
+                                           GenerationRepairApplicationService generationRepairService,
                                            ApplicationEventPublisher eventPublisher,
                                            @Value("${family-tree.platform.admin-usernames:}")
                                            String adminUsernames) {
@@ -187,6 +205,7 @@ public class PlatformAdminApplicationService {
         this.operationLogService = operationLogService;
         this.userAuthApplicationService = userAuthApplicationService;
         this.loginAttemptService = loginAttemptService;
+        this.generationRepairService = generationRepairService;
         this.eventPublisher = eventPublisher;
         this.platformAdminUsernames = parseAdminUsernames(adminUsernames);
         logger.info("Platform admin whitelist loaded, configured size: {}", platformAdminUsernames.size());
@@ -581,6 +600,73 @@ public class PlatformAdminApplicationService {
         publishFamilyOperation(operatorId, operatorName, OPERATION_TYPE_FAMILY_OWNER_TRANSFER,
                 "转让族长给 " + targetUser.getUsername(), familyId, ipAddress);
         return toRow(family);
+    }
+
+    /**
+     * 平台侧一键全量修复世代：未维护辈分表的家族按树深度从根节点逐级重算并落库
+     *
+     * <p>已维护辈分表的家族以现有辈分为准，直接跳过不覆盖。方法自身不开启事务，
+     * 每个家族在修复服务内各起一个独立事务：单家族失败只计入失败清单，不回滚、不阻断其余家族。</p>
+     *
+     * @param operatorId   操作人用户ID
+     * @param operatorName 操作人名称
+     * @param ipAddress    操作来源IP
+     * @return 修复结果摘要
+     */
+    public GenerationRepairSummaryVO repairAllFamilies(Long operatorId, String operatorName, String ipAddress) {
+        int scanned = 0;
+        int repaired = 0;
+        int skippedManaged = 0;
+        int unchanged = 0;
+        int failed = 0;
+        int updatedNodes = 0;
+        List<String> failures = new ArrayList<>();
+        int offset = 0;
+        while (true) {
+            List<Family> page = familyRepository.listPaged(null, offset, REPAIR_SCAN_PAGE_SIZE);
+            for (Family family : page) {
+                scanned++;
+                try {
+                    GenerationRepairApplicationService.RepairResult result =
+                            generationRepairService.repairIfUnmanaged(family.getId());
+                    if (result.generationManaged()) {
+                        skippedManaged++;
+                    } else if (result.updatedNodes() > 0) {
+                        repaired++;
+                        updatedNodes += result.updatedNodes();
+                    } else {
+                        unchanged++;
+                    }
+                } catch (Exception ex) {
+                    failed++;
+                    if (failures.size() < REPAIR_FAILURE_SAMPLE_LIMIT) {
+                        failures.add("家族 " + family.getId() + "(" + family.getName() + ")：" + ex.getMessage());
+                    }
+                    logger.error("Generation repair failed for familyId: " + family.getId(), ex);
+                }
+            }
+            if (page.size() < REPAIR_SCAN_PAGE_SIZE) {
+                break;
+            }
+            offset += REPAIR_SCAN_PAGE_SIZE;
+        }
+
+        GenerationRepairSummaryVO summary = new GenerationRepairSummaryVO();
+        summary.setScannedFamilies(scanned);
+        summary.setRepairedFamilies(repaired);
+        summary.setSkippedManagedFamilies(skippedManaged);
+        summary.setUnchangedFamilies(unchanged);
+        summary.setFailedFamilies(failed);
+        summary.setUpdatedNodes(updatedNodes);
+        summary.setFailures(failures);
+
+        String detail = "全平台世代修复：扫描 " + scanned + " 个家族，修复 " + repaired
+                + " 个家族 / " + updatedNodes + " 个节点，跳过已维护辈分 " + skippedManaged
+                + " 个，无变化 " + unchanged + " 个，失败 " + failed + " 个";
+        logger.info(detail);
+        eventPublisher.publishEvent(OperationPerformedEvent.of(operatorId, operatorName,
+                OPERATION_TYPE_GENERATION_REPAIR, detail, TARGET_TYPE_FAMILY, null, null, ipAddress));
+        return summary;
     }
 
     /**

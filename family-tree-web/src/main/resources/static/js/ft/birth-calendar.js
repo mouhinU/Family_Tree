@@ -13,6 +13,10 @@
 
     var FT = window.FT;
 
+    /** 录入历法编码，与后端 BirthCalendarEnum 对齐：1 阳历、2 阴历 */
+    var CALENDAR_CODE_SOLAR = 1;
+    var CALENDAR_CODE_LUNAR = 2;
+
     /**
      * 出生日期字段 HTML：阳历/阴历两种录入模式共用一个"阳历真值"。
      * 面板内控件 id 由 solarId 派生，故同一时刻仅一个字段实例存在（弹窗互斥）。
@@ -271,8 +275,7 @@
      *
      * @param solarId 隐藏真值输入框 id
      * @return {ok:boolean, solar:string|null, message?:string}
-     */
-    function getSolar(solarId) {
+     */    function getSolar(solarId) {
         var el = q(solarId);
         if (!el || !el.value) { return { ok: true, solar: null }; }
         var mode = q(solarId + '-mode').value;
@@ -284,9 +287,22 @@
         return { ok: true, solar: el.value };
     }
 
+    /**
+     * 读取当前录入历法编码，随出生日期一并提交落库，供详情页决定阴历/阳历行先后。
+     *
+     * @param solarId 隐藏真值输入框 id
+     * @return 真值为空返回 null；阴历模式返回 2；否则返回 1
+     */
+    function getCalendarCode(solarId) {
+        var el = q(solarId);
+        if (!el || !el.value) { return null; }
+        return q(solarId + '-mode').value === 'lunar' ? CALENDAR_CODE_LUNAR : CALENDAR_CODE_SOLAR;
+    }
+
     FT.birthCalendar = {
         buildField: buildField,
         init: init,
-        getSolar: getSolar
+        getSolar: getSolar,
+        getCalendarCode: getCalendarCode
     };
 })();

@@ -63,6 +63,9 @@ class GedcomApplicationServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private GenerationRepairApplicationService generationRepairService;
+
     @InjectMocks
     private GedcomApplicationService gedcomApplicationService;
 
@@ -124,14 +127,13 @@ class GedcomApplicationServiceTest {
             return node;
         }).when(familyNodeRepository).save(any(FamilyNode.class));
 
-        when(familyNodeRepository.findByFamilyId(FAMILY_ID)).thenReturn(new ArrayList<>());
-
         // 执行
         GedcomImportResultVO result = gedcomApplicationService.importGedcom(
                 FAMILY_ID, USER_ID, "测试用户", "127.0.0.1", SAMPLE_GEDCOM);
 
         // 验证：清除了现有数据
         verify(familyNodeRepository).removeByFamilyId(FAMILY_ID);
+        verify(generationRepairService).repairFamily(FAMILY_ID);
 
         // 验证：导入了 3 个节点
         assertEquals(3, result.getImportedNodeCount());
@@ -172,7 +174,6 @@ class GedcomApplicationServiceTest {
             return node;
         }).when(familyNodeRepository).save(any(FamilyNode.class));
 
-        when(familyNodeRepository.findByFamilyId(FAMILY_ID)).thenReturn(new ArrayList<>());
         when(familyRelationRepository.findByFamilyId(FAMILY_ID)).thenReturn(new ArrayList<>());
 
         // 执行

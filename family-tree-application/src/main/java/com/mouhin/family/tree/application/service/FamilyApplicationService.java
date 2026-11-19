@@ -175,6 +175,7 @@ public class FamilyApplicationService {
         nodeDTO.setName(nodeName);
         nodeDTO.setGender(dto.getInitialNodeGender());
         nodeDTO.setBirthDate(dto.getInitialNodeBirthDate());
+        nodeDTO.setBirthCalendar(dto.getInitialNodeBirthCalendar());
         Long nodeId = familyNodeService.createNode(familyId, userId, username, ipAddress, nodeDTO);
         familyUserNodeService.bindMyNode(familyId, userId, nodeId);
         logger.info("Created initial node id={} for family={} and bound to user={}", nodeId, familyId, userId);

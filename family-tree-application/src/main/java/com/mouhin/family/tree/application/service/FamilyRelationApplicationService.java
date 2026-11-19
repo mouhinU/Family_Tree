@@ -45,6 +45,7 @@ public class FamilyRelationApplicationService {
     private final VersionControlDomainService versionControlDomainService;
     private final TimelineApplicationService timelineApplicationService;
     private final FamilyNodeVisibilityApplicationService visibilityService;
+    private final GenerationRepairApplicationService generationRepairService;
 
     public FamilyRelationApplicationService(FamilyRelationRepository familyRelationRepository,
                                             FamilyNodeRepository familyNodeRepository,
@@ -54,7 +55,8 @@ public class FamilyRelationApplicationService {
                                             ApplicationEventPublisher eventPublisher,
                                             VersionControlDomainService versionControlDomainService,
                                             TimelineApplicationService timelineApplicationService,
-                                            FamilyNodeVisibilityApplicationService visibilityService) {
+                                            FamilyNodeVisibilityApplicationService visibilityService,
+                                            GenerationRepairApplicationService generationRepairService) {
         this.familyRelationRepository = familyRelationRepository;
         this.familyNodeRepository = familyNodeRepository;
         this.relationValidationDomainService = relationValidationDomainService;
@@ -64,6 +66,7 @@ public class FamilyRelationApplicationService {
         this.versionControlDomainService = versionControlDomainService;
         this.timelineApplicationService = timelineApplicationService;
         this.visibilityService = visibilityService;
+        this.generationRepairService = generationRepairService;
     }
 
     /**
@@ -145,6 +148,9 @@ public class FamilyRelationApplicationService {
         relation.setUpdateTime(LocalDateTime.now());
         familyRelationRepository.save(relation);
 
+        // 关系写入即结构变更：未维护辈分的家族按树深度从根逐级重算世代
+        generationRepairService.repairIfUnmanaged(familyId);
+
         logger.info("Created relation id={} type={} from={} to={} for family={} by user={}",
                 relation.getId(), dto.getRelationType(),
                 dto.getFromNodeId(), dto.getToNodeId(), familyId, userId);
@@ -191,6 +197,9 @@ public class FamilyRelationApplicationService {
 
         familyRelationRepository.removeById(relationId);
         logger.info("Deleted relation id={} for family={}", relationId, familyId);
+
+        // 断边即结构变更：未维护辈分的家族按新结构重算世代（受影响子树成为新种子，保留原世代作锚点）
+        generationRepairService.repairIfUnmanaged(familyId);
 
         eventPublisher.publishEvent(FamilyTreeUpdatedEvent.of(familyId));
         eventPublisher.publishEvent(RelationDeletedEvent.of(familyId, relationId,

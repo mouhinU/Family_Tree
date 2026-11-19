@@ -7,6 +7,7 @@ import com.mouhin.family.tree.common.dto.LoginDTO;
 import com.mouhin.family.tree.common.dto.ProfileUpdateDTO;
 import com.mouhin.family.tree.common.dto.RegisterDTO;
 import com.mouhin.family.tree.common.dto.UserProfileDTO;
+import com.mouhin.family.tree.common.enums.BirthCalendarEnum;
 import com.mouhin.family.tree.common.enums.PlatformSettingKeyEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.common.util.LunarSolarUtil;
@@ -247,6 +248,7 @@ public class UserAuthApplicationService {
         dto.setGender(user.getGender());
         dto.setBirthDate(user.getBirthDate());
         dto.setLunarBirthDate(user.getLunarBirthDate());
+        dto.setBirthCalendar(user.getBirthCalendar());
         // 联系方式仅用于本人查看与编辑，不进入成员列表等他人视图
         dto.setEmail(user.getEmail());
         dto.setPhone(user.getPhone());
@@ -267,6 +269,7 @@ public class UserAuthApplicationService {
         }
 
         boolean changed = false;
+        BirthCalendarEnum.validateCode(dto.getBirthCalendar());
         if (dto.getNickname() != null) {
             String nickname = dto.getNickname().trim();
             if (!nickname.isEmpty() && !nickname.equals(user.getNickname())) {
@@ -282,8 +285,16 @@ public class UserAuthApplicationService {
             if (!Objects.equals(birthDate, user.getBirthDate())) {
                 user.setBirthDate(birthDate);
                 user.setLunarBirthDate(LunarSolarUtil.solarTextToLunarOrNull(birthDate));
+                // 录入历法随出生日期记录；清空出生日期时同步清除
+                user.setBirthCalendar(birthDate == null ? null : dto.getBirthCalendar());
                 changed = true;
             }
+        }
+        // 出生日期未变但仅切换了录入历法（阳历/阴历模式）时同样落库
+        if (dto.getBirthCalendar() != null && user.getBirthDate() != null
+                && !dto.getBirthCalendar().equals(user.getBirthCalendar())) {
+            user.setBirthCalendar(dto.getBirthCalendar());
+            changed = true;
         }
         if (dto.getGender() != null) {
             if (!Objects.equals(dto.getGender(), user.getGender())) {
