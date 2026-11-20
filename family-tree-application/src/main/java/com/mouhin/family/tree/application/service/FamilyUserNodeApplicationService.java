@@ -305,7 +305,7 @@ public class FamilyUserNodeApplicationService {
     /**
      * 回收自动账号时同步移除其在本家族的成员记录。
      *
-     * <p>自动账号由 {@link #ensureFamilyMember} 补建 MEMBER 行，若只删 {@code sys_user} 而遗留
+     * <p>自动账号由 {@link #ensureFamilyMember} 补建 MEMBER 行，若只删 {@code account} 而遗留
      * {@code family_member}，成员列表会出现查无此人的幽灵行、成员上限统计也会虚高。</p>
      */
     private void removeMemberIfPresent(Long familyId, Long userId) {
@@ -316,10 +316,13 @@ public class FamilyUserNodeApplicationService {
     }
 
     /**
-     * 绑定节点后把节点档案回填到账号资料（性别/出生日期/农历/世代），仅在账号字段为空时补，不覆盖已有值
+     * 绑定节点后把节点档案回填到账号资料（性别/出生日期/农历/录入历法），仅在账号字段为空时补，不覆盖已有值
      *
      * <p>自动开通的账号建档时只写了昵称，本人激活或建族初始化绑定后若资料仍为空，
      * 个人信息页会显示一片空白，与其在族谱中的节点信息不一致。</p>
+     *
+     * <p>世代（辈分）不回填：辈分正式存储在节点层 {@code family_node.generation} 按家族维护，
+     * 账号级副本会被后绑家族覆写造成串辈（罗梦桃案例），V39 已删除 {@code account.generation} 列。</p>
      */
     private void backfillProfileFromNode(User user, FamilyNode node) {
         if (user == null || node == null) {
@@ -340,10 +343,6 @@ public class FamilyUserNodeApplicationService {
         }
         if (user.getBirthCalendar() == null && node.getBirthCalendar() != null) {
             user.setBirthCalendar(node.getBirthCalendar());
-            changed = true;
-        }
-        if (user.getGeneration() == null && node.getGeneration() != null) {
-            user.setGeneration(node.getGeneration());
             changed = true;
         }
         if (!changed) {

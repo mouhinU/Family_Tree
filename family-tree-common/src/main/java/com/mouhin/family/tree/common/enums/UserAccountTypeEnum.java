@@ -5,7 +5,7 @@ import java.util.Optional;
 /**
  * 平台用户列表的账号类型筛选项
  *
- * <p>与 {@code sys_user.is_auto_account} 对应：AUTO 为族谱节点代开的账号，REAL 为真人注册账号。</p>
+ * <p>与 {@code account.is_auto_account} 对应：AUTO 为族谱节点代开的账号，REAL 为真人注册账号。</p>
  *
  * @author Family-Tree
  * @date 2026-11-16

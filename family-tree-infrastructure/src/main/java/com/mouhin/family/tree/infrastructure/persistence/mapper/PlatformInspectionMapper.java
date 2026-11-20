@@ -29,7 +29,7 @@ public interface PlatformInspectionMapper {
     @Select("SELECT u.id AS refId, CONCAT(u.username, '(', COALESCE(u.nickname, '-'), ')') AS subject, "
             + "CONCAT('current_family_id=', u.current_family_id, ' 已无成员关系') AS detail, "
             + "COUNT(*) OVER () AS total "
-            + "FROM sys_user u "
+            + "FROM account u "
             + "LEFT JOIN family_member m ON m.user_id = u.id AND m.family_id = u.current_family_id "
             + "WHERE u.current_family_id IS NOT NULL AND m.id IS NULL "
             + "ORDER BY u.id LIMIT #{limit}")
@@ -62,7 +62,7 @@ public interface PlatformInspectionMapper {
             + "COUNT(*) OVER () AS total "
             + "FROM family_member m "
             + "LEFT JOIN family f ON f.id = m.family_id "
-            + "LEFT JOIN sys_user u ON u.id = m.user_id "
+            + "LEFT JOIN account u ON u.id = m.user_id "
             + "WHERE f.id IS NULL "
             + "ORDER BY m.id LIMIT #{limit}")
     List<InspectionSampleDO> listMemberOrphanFamily(@Param("limit") int limit);
@@ -78,7 +78,7 @@ public interface PlatformInspectionMapper {
             + "COUNT(*) OVER () AS total "
             + "FROM family_member m "
             + "LEFT JOIN family f ON f.id = m.family_id "
-            + "LEFT JOIN sys_user u ON u.id = m.user_id "
+            + "LEFT JOIN account u ON u.id = m.user_id "
             + "WHERE u.id IS NULL "
             + "ORDER BY m.id LIMIT #{limit}")
     List<InspectionSampleDO> listMemberOrphanUser(@Param("limit") int limit);
@@ -133,7 +133,7 @@ public interface PlatformInspectionMapper {
             + "COUNT(*) OVER () AS total "
             + "FROM family_user_node b "
             + "LEFT JOIN family_node n ON n.id = b.node_id "
-            + "LEFT JOIN sys_user u ON u.id = b.user_id "
+            + "LEFT JOIN account u ON u.id = b.user_id "
             + "WHERE n.id IS NULL OR u.id IS NULL OR n.family_id IS NULL OR n.family_id <> b.family_id "
             + "ORDER BY b.id LIMIT #{limit}")
     List<InspectionSampleDO> listNodeBindingMismatch(@Param("limit") int limit);
@@ -215,7 +215,7 @@ public interface PlatformInspectionMapper {
     @Select("SELECT u.id AS refId, u.username AS subject, "
             + "CONCAT('昵称占位：', COALESCE(u.nickname, '-')) AS detail, "
             + "COUNT(*) OVER () AS total "
-            + "FROM sys_user u "
+            + "FROM account u "
             + "WHERE u.is_auto_account = #{autoAccountFlag} AND (u.nickname LIKE '%*%' OR u.nickname LIKE '%?%') "
             + "ORDER BY u.id LIMIT #{limit}")
     List<InspectionSampleDO> listAutoAccountPlaceholder(@Param("autoAccountFlag") boolean autoAccountFlag,

@@ -4,7 +4,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 /**
- * 用户个人信息 DTO（聚合昵称、辈分、出生日期，减少多次查库）
+ * 用户个人信息 DTO（聚合昵称、出生日期，减少多次查库）
  *
  * @author Family-Tree
  * @date 2026-08-28
@@ -17,11 +17,6 @@ public class UserProfileDTO {
      * 昵称
      */
     private String nickname;
-
-    /**
-     * 辈分（第几世）
-     */
-    private Integer generation;
 
     /**
      * 性别（0未知 1男 2女，与 family_node.gender 同口径）

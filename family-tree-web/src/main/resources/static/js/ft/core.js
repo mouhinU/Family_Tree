@@ -194,19 +194,15 @@
     /**
      * 登录人在当前家族中的世代序号（第几世）。
      *
-     * <p>sys_user.generation 是账号级全局字段，不随家族切换：多家族账号在另一家族
-     * 建族或回填后可能被写成别的家族的世代（罗梦桃案例，切回蒙氏家族水印圈错辈分字）。
-     * 因此优先取当前家族树中「标记为我」节点的 generation，未绑定或该节点无世代时
-     * 才回落账号资料。</p>
+     * <p>辈分按家族维护，唯一权威来源是当前家族树中「标记为我」节点的 generation。
+     * 账号级 sys_user.generation 副本因多家族覆写串辈（罗梦桃案例）已于 V39 删除，
+     * 未绑定节点的登录人不高亮任何辈分字。</p>
      */
     function getMyGeneration() {
         const me = FT.state.currentUser;
-        if (!me) { return null; }
-        if (me.nodeId && FT.state.treeData && FT.state.treeData.length) {
-            const mine = findNodeIncludeSpouseById(FT.state.treeData, me.nodeId);
-            if (mine && mine.generation != null) { return mine.generation; }
-        }
-        return me.generation != null ? me.generation : null;
+        if (!me || !me.nodeId || !FT.state.treeData || !FT.state.treeData.length) { return null; }
+        const mine = findNodeIncludeSpouseById(FT.state.treeData, me.nodeId);
+        return mine && mine.generation != null ? mine.generation : null;
     }
 
     // ========== 轻提示（Toast） ==========

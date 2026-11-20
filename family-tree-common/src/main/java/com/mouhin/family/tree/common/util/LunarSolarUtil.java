@@ -49,7 +49,7 @@ public final class LunarSolarUtil {
     /**
      * 宽松版阳历字符串转农历：空白或非法格式一律返回 null，不抛异常。
      * <p>
-     * 用于 sys_user.birth_date 这类历史上未做格式校验的自由字符串，避免个人信息保存被非法日期打断。
+     * 用于 account.birth_date 这类历史上未做格式校验的自由字符串，避免个人信息保存被非法日期打断。
      *
      * @param solarDateText 阳历日期字符串
      * @return 农历字符串；空白或无法解析时返回 null

@@ -162,7 +162,6 @@ public class AuthController extends BaseController {
         Map<String, Object> data = new HashMap<>(16);
         data.put("userId", userId);
         data.put("nickname", profile != null ? profile.getNickname() : null);
-        data.put("generation", profile != null ? profile.getGeneration() : null);
         data.put("gender", profile != null ? profile.getGender() : null);
         data.put("birthDate", profile != null ? profile.getBirthDate() : null);
         data.put("lunarBirthDate", profile != null ? profile.getLunarBirthDate() : null);
@@ -188,7 +187,7 @@ public class AuthController extends BaseController {
     }
 
     /**
-     * 更新当前登录用户的个人信息（昵称、出生日期、辈分、邮箱、手机号）
+     * 更新当前登录用户的个人信息（昵称、出生日期、邮箱、手机号）
      */
     @PutMapping("/profile")
     public Result<Void> updateProfile(@Valid @RequestBody ProfileUpdateDTO dto, HttpSession session,

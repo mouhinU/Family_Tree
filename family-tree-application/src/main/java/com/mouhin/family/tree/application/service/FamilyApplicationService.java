@@ -239,7 +239,7 @@ public class FamilyApplicationService {
     /**
      * 获取用户当前所属家族
      *
-     * <p>多家族账号以 sys_user.current_family_id 指向的家族为当前家族，该列为空或指向已不属于的
+     * <p>多家族账号以 account.current_family_id 指向的家族为当前家族，该列为空或指向已不属于的
      * 家族时回退第一条成员记录，故单家族账号的行为与从前一致。</p>
      *
      * @param userId 用户ID
@@ -619,7 +619,7 @@ public class FamilyApplicationService {
     }
 
     /**
-     * 从成员记录中选出当前家族对应的行：优先 sys_user.current_family_id 指向且仍在册的家族，
+     * 从成员记录中选出当前家族对应的行：优先 account.current_family_id 指向且仍在册的家族，
      * 该列为空或指向已不属于的家族时回退第一条。
      *
      * @param userId        用户ID

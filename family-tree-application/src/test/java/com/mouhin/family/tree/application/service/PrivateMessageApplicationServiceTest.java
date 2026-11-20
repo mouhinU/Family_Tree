@@ -33,7 +33,7 @@ import static org.mockito.Mockito.*;
  * 覆盖：发送私信（正常/未选收信人/发送者不存在/收信人不存在/同族校验/内容为空）、
  * 会话列表（聚合/未读计数/对方名称解析）、会话详情（标记已读）、未读总数、联系人列表。
  *
- * <p>同族关系以 family_member 成员记录为准，与 sys_user.current_family_id 无关。</p>
+ * <p>同族关系以 family_member 成员记录为准，与 account.current_family_id 无关。</p>
  *
  * @author Family-Tree
  * @date 2026-08-31

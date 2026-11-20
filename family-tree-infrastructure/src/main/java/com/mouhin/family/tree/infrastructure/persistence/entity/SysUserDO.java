@@ -10,14 +10,14 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 
 /**
- * 系统用户数据对象
+ * 系统用户数据对象（V39 起表名由 sys_user 更名为 account）
  *
  * @author Family-Tree
  * @date 2026-08-25
  */
 @Getter
 @Setter
-@TableName("sys_user")
+@TableName("account")
 public class SysUserDO {
 
     @TableId(type = IdType.AUTO)
@@ -38,11 +38,6 @@ public class SysUserDO {
      * 手机号（选填，非空时全局唯一，可用于登录）
      */
     private String phone;
-
-    /**
-     * 所属辈分（第几世），用于水印高亮等展示
-     */
-    private Integer generation;
 
     /**
      * 性别（0未知 1男 2女，与 family_node.gender 同口径）

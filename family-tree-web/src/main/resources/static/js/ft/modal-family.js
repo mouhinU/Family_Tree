@@ -255,25 +255,11 @@
     }
 
     // ========== 个人信息维护 ==========
-    // 编辑当前登录用户的基本信息：昵称、出生日期、性别、辈分、邮箱、手机号
+    // 编辑当前登录用户的基本信息：昵称、出生日期、性别、邮箱、手机号
+    // 辈分不在账号资料维护：按家族存于节点（V39 已删 sys_user.generation），个人信息无世代可编辑
     async function showProfileModal() {
         var user = FT.state.currentUser;
         if (!user) { return; }
-
-        // 辈分下拉：从 generationNames 构建，补充当前值
-        var generationNames = FT.state.generationNames;
-        var genKeys = Object.keys(generationNames).map(Number).sort(function (a, b) { return a - b; });
-        var currentGen = user.generation;
-        if (currentGen != null && genKeys.indexOf(currentGen) === -1) {
-            genKeys.push(currentGen);
-            genKeys.sort(function (a, b) { return a - b; });
-        }
-        var genOpts = genKeys.map(function (g) {
-            var sel = g === currentGen ? ' selected' : '';
-            var label = generationNames[g] ? '第' + g + '世（' + FT.escapeHtml(generationNames[g]) + '）' : '第' + g + '世';
-            return '<option value="' + g + '"' + sel + '>' + label + '</option>';
-        }).join('');
-        var genUnset = currentGen == null ? ' selected' : '';
 
         // 性别下拉：与节点表单同口径（0未知/1男/2女），留空表示未设置
         var genderNames = {0: '未知', 1: '男', 2: '女'};
@@ -289,7 +275,6 @@
             '<div class="form-group"><label>昵称</label><input type="text" id="profile-nickname" value="' + FT.escapeAttr(user.nickname || '') + '" placeholder="请输入昵称"></div>' +
             '<div class="form-group"><label>出生日期</label>' + FT.birthCalendar.buildField('profile-birth', user.lunarBirthDate) + '</div>' +
             '<div class="form-group"><label>性别</label><select id="profile-gender"><option value=""' + genderUnset + '>未设置</option>' + genderOpts + '</select></div>' +
-            '<div class="form-group"><label>辈分（第几世）</label><select id="profile-generation"><option value=""' + genUnset + '>未设置</option>' + genOpts + '</select></div>' +
             '<div class="form-group"><label>邮箱（留空不修改，可用于登录）</label><input type="email" maxlength="100" id="profile-email" value="' + FT.escapeAttr(user.email || '') + '" placeholder="请输入邮箱"></div>' +
             '<div class="form-group"><label>手机号（留空不修改，可用于登录）</label><input type="tel" maxlength="20" id="profile-phone" value="' + FT.escapeAttr(user.phone || '') + '" placeholder="11位大陆手机号"></div>' +
             '<div class="modal-actions">' +
@@ -311,15 +296,13 @@
             var bc = FT.birthCalendar.getSolar('profile-birth');
             if (!bc.ok) { FT.toast(bc.message, 'warning'); return; }
             var birthDate = bc.solar;
-            var genRaw = document.getElementById('profile-generation').value;
             var genderRaw = document.getElementById('profile-gender').value;
             var email = document.getElementById('profile-email').value.trim();
             var phone = document.getElementById('profile-phone').value.trim();
 
             var body = {
                 nickname: nickname,
-                birthDate: birthDate,
-                generation: genRaw ? parseInt(genRaw) : null
+                birthDate: birthDate
             };
             // 出生日期录入历法随日期一并提交；日期为空时不提交（后端按缺省处理）
             if (birthDate) {
@@ -336,7 +319,6 @@
                 // 更新客户端缓存
                 FT.state.currentUser.nickname = nickname;
                 FT.state.currentUser.birthDate = birthDate;
-                FT.state.currentUser.generation = body.generation;
                 if (genderRaw !== '') { FT.state.currentUser.gender = body.gender; }
                 if (email) { FT.state.currentUser.email = email; }
                 if (phone) { FT.state.currentUser.phone = phone; }

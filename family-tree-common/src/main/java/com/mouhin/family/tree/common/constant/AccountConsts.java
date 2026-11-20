@@ -13,11 +13,11 @@ public final class AccountConsts {
      */
     public static final int MIN_PASSWORD_LENGTH = 6;
     /**
-     * 邮箱最大长度（与 sys_user.email 列宽一致）
+     * 邮箱最大长度（与 account.email 列宽一致）
      */
     public static final int MAX_EMAIL_LENGTH = 100;
     /**
-     * 手机号最大长度（与 sys_user.phone 列宽一致）
+     * 手机号最大长度（与 account.phone 列宽一致）
      */
     public static final int MAX_PHONE_LENGTH = 20;
     /**

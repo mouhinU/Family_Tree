@@ -40,7 +40,7 @@ import static org.mockito.Mockito.when;
 /**
  * 一个账号归属多个家族的单元测试。
  * 覆盖：家族数上限由平台配置判定、超限与重复加入时不写库、散落数据仅随首个家族迁移、
- * 新家族成为当前家族，以及当前家族读取优先 sys_user.current_family_id。
+ * 新家族成为当前家族，以及当前家族读取优先 account.current_family_id。
  *
  * @author Family-Tree
  * @date 2026-11-17

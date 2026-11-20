@@ -78,7 +78,7 @@ public class PrivateMessageApplicationService {
             throw new BusinessException("收信人不存在或不在同一家族");
         }
         // 同族以 family_member 成员关系为准：一个用户可属多个家族，
-        // sys_user.current_family_id 只是当前选中家族，不能用它判定家族归属
+        // account.current_family_id 只是当前选中家族，不能用它判定家族归属
         if (familyMemberRepository.findByFamilyIdAndUserId(familyId, senderId) == null) {
             throw new BusinessException("您不在该家族中，无法发送私信");
         }

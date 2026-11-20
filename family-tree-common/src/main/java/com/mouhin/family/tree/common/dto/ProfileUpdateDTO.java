@@ -37,11 +37,6 @@ public class ProfileUpdateDTO {
     private Integer birthCalendar;
 
     /**
-     * 所属辈分（第几世）
-     */
-    private Integer generation;
-
-    /**
      * 性别（0未知 1男 2女；留空表示不修改）
      */
     @Min(value = 0, message = "性别取值须为0未知/1男/2女")

@@ -244,7 +244,6 @@ public class UserAuthApplicationService {
         }
         UserProfileDTO dto = new UserProfileDTO();
         dto.setNickname(user.getNickname());
-        dto.setGeneration(user.getGeneration());
         dto.setGender(user.getGender());
         dto.setBirthDate(user.getBirthDate());
         dto.setLunarBirthDate(user.getLunarBirthDate());
@@ -299,12 +298,6 @@ public class UserAuthApplicationService {
         if (dto.getGender() != null) {
             if (!Objects.equals(dto.getGender(), user.getGender())) {
                 user.setGender(dto.getGender());
-                changed = true;
-            }
-        }
-        if (dto.getGeneration() != null) {
-            if (!Objects.equals(dto.getGeneration(), user.getGeneration())) {
-                user.setGeneration(dto.getGeneration());
                 changed = true;
             }
         }

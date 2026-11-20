@@ -477,7 +477,7 @@ class FamilyUserNodeApplicationServiceTest {
         assertEquals("1991-11-05", captor.getValue().getBirthDate());
         assertEquals("一九九一年十月初十", captor.getValue().getLunarBirthDate());
         assertEquals(Integer.valueOf(2), captor.getValue().getBirthCalendar());
-        assertEquals(Integer.valueOf(14), captor.getValue().getGeneration());
+        // V39 起世代不回填：辈分只存节点层，账号无 generation 字段
     }
 
     @Test
@@ -490,7 +490,6 @@ class FamilyUserNodeApplicationServiceTest {
         User filled = user(USER_ID, "胡兰");
         filled.setBirthDate("1991-09-29");
         filled.setBirthCalendar(1);
-        filled.setGeneration(1);
         when(userRepository.findById(USER_ID)).thenReturn(filled);
 
         familyUserNodeApplicationService.bindMyNode(FAMILY_ID, USER_ID, NODE_ID);
@@ -519,7 +518,6 @@ class FamilyUserNodeApplicationServiceTest {
         verify(userRepository).update(captor.capture());
         assertEquals(Integer.valueOf(1), captor.getValue().getGender());
         assertEquals("1960-03-01", captor.getValue().getBirthDate());
-        assertEquals(Integer.valueOf(12), captor.getValue().getGeneration());
     }
 
     // ========== 辅助方法 ==========

@@ -28,7 +28,6 @@ public class User {
     private String nickname;
     private String email;
     private String phone;
-    private Integer generation;
     /**
      * 性别（0未知 1男 2女，与 family_node.gender 同口径；null 表示尚未填写）
      */
@@ -72,11 +71,10 @@ public class User {
     /**
      * 更新用户资料
      *
-     * @param nickname   昵称
-     * @param birthDate  出生日期
-     * @param generation 世代
+     * @param nickname  昵称
+     * @param birthDate 出生日期
      */
-    public void updateProfile(String nickname, String birthDate, Integer generation) {
+    public void updateProfile(String nickname, String birthDate) {
         if (nickname != null && !nickname.isBlank()) {
             if (nickname.length() > MAX_NICKNAME_LENGTH) {
                 throw new BusinessException("昵称不能超过" + MAX_NICKNAME_LENGTH + "个字符");
@@ -85,9 +83,6 @@ public class User {
         }
         if (birthDate != null) {
             this.birthDate = birthDate;
-        }
-        if (generation != null) {
-            this.generation = generation;
         }
     }
 
@@ -115,7 +110,6 @@ public class User {
                 + "id=" + id
                 + ", username='" + username + '\''
                 + ", nickname='" + nickname + '\''
-                + ", generation=" + generation
                 + ", currentFamilyId=" + currentFamilyId
                 + '}';
     }

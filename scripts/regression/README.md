@@ -90,11 +90,11 @@ v57 scratch 环境实测通过：收紧段 4 行（覆盖为 1 后已属家族�
 
 scratch 库是从生产备份复制的，备份里的 `admin` 与 `蒙子羽` 存的是 BCrypt 散列而非默认口令，
 直接按 `123456` 登录会失败并累计登录失败次数。复跑前先在 scratch 实例注册一个临时账号拿到可用散列，
-把它回填给这两个账号（只写 scratch 库，切勿动生产库），再用环境变量覆盖口令：
+把它回填给这两个账号（只写 scratch 库，切勿动生产库；V39 起用户表已由 `sys_user` 更名为 `account`，跑 v64 及以后镜像时用 `account`），再用环境变量覆盖口令：
 
 ```bash
 docker exec knowledge-mysql mysql -uroot -p123456 -e " \
-  UPDATE family_tree_v57reg.sys_user SET password_hash='<临时账号的散列>', must_change_password=0 \
+  UPDATE family_tree_v57reg.account SET password_hash='<临时账号的散列>', must_change_password=0 \
   WHERE username IN ('admin','蒙子羽');"
 export FT_REG_BASE=http://127.0.0.1:8098 FT_REG_OWNER_PWD='Reg@2026reg' FT_REG_MEMBER_PWD='Reg@2026reg'
 ```
