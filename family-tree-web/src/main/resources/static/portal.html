@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>族谱管理系统 - 我的家族</title>
-    <link href="/css/style.css?v=20261119b" rel="stylesheet">
+    <link href="/css/style.css?v=20261121a" rel="stylesheet">
     <style>
         .portal-shell {
             min-height: 100vh;
@@ -38,7 +38,7 @@
             color: var(--ink-faint);
         }
 
-        /* 三块区域左右并排：我的家族 / 创建新家族 / 加入已有家族 */
+        /* 三块区域左右并排：我的家族 / 加入已有家族 / 创建新家族 */
         .portal-grid {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -298,6 +298,18 @@
 
         <section class="portal-panel">
             <div class="portal-panel-head">
+                <span class="panel-seal">邀</span>
+                <h2>加入已有家族</h2>
+            </div>
+            <p>输入族长分享给您的邀请码，加入该家族。</p>
+            <label for="join-code">邀请码</label>
+            <input id="join-code" placeholder="请输入邀请码" style="text-transform: uppercase;" type="text">
+            <p class="section-tip panel-foot">加入成功后会自动进入该家族；之后仍可回到本页切换回原来的家族。</p>
+            <button class="btn-ghost" id="btn-join" type="button">加入家族</button>
+        </section>
+
+        <section class="portal-panel">
+            <div class="portal-panel-head">
                 <span class="panel-seal">建</span>
                 <h2>创建新家族</h2>
             </div>
@@ -316,18 +328,6 @@
             <label for="init-birth">出生日期</label>
             <div id="init-birth-field"></div>
             <button id="btn-create" type="button">创建家族</button>
-        </section>
-
-        <section class="portal-panel">
-            <div class="portal-panel-head">
-                <span class="panel-seal">邀</span>
-                <h2>加入已有家族</h2>
-            </div>
-            <p>输入族长分享给您的邀请码，加入该家族。</p>
-            <label for="join-code">邀请码</label>
-            <input id="join-code" placeholder="请输入邀请码" style="text-transform: uppercase;" type="text">
-            <p class="section-tip panel-foot">加入成功后会自动进入该家族；之后仍可回到本页切换回原来的家族。</p>
-            <button class="btn-ghost" id="btn-join" type="button">加入家族</button>
         </section>
     </main>
 </div>
