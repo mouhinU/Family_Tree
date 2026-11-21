@@ -42,7 +42,8 @@
 | `mysql.yaml` / `redis.yaml` | MySQL/Redis StatefulSet + ClusterIP `mysql`/`redis`（utf8mb4/utf8mb4_unicode_ci；appendonly yes） |
 | `data-nodeport.yaml` | mysql/redis 的 NodePort 30308/30381，供宿主机 socat 代理转发 |
 | `pvc.yaml` | data/logs 两个 PVC（2Gi，storageClass standard） |
-| `deployment.yaml` | 单副本、Recreate、distroless 只能 httpGet 探针（startup 5s×60 容忍 3.5min 启动）；**image tag 在此处随部署更新** |
+| `deployment.yaml` | 蓝槽：单副本、Recreate、distroless 只能 httpGet 探针（startup 5s×60 容忍 3.5min 启动）；**image tag 在发版时更新** |
+| `deployment-b.yaml` | 绿槽：`app=family-tree-b`、limits 768Mi、默认 replicas 0；零停机蓝绿发版的另一半（见「零停机发版」） |
 | `service.yaml` | 应用 NodePort 30090 |
 | `test/namespace.yaml` | namespace test |
 | `test/configmap.yaml` | test 环境变量：库名 `family_tree_test`，redis 同为集群内 DNS |
@@ -80,19 +81,48 @@ kubectl -n prod exec seedjob -- sh -c 'mkdir -p /seed/photos && tar -xzf /tmp/se
 kubectl -n prod delete pod seedjob
 ```
 
-## 日常发版（prod，k8s 路线）
+## 零停机发版（prod，selector 蓝绿）
 
-前置：备份生产 MySQL（k8s 里的 `prod/mysql-0`，不再 docker exec compose 容器）→
-`./mvnw -B package` → 构建 `family-tree:vNN-local`（复用上版 Dockerfile）→ 镜像内预检。备份命令：
+前置不变：备份生产 MySQL（命令见本节末）→ `./mvnw -B package` →
+构建 `family-tree:vNN-local`（复用上版 `/tmp/ft-vNN-ctx/Dockerfile`）→ 镜像内预检。
+
+机制：两个槽交替——蓝槽 `deployment.yaml`（Deployment `family-tree-app`，label `app=family-tree`）、
+绿槽 `deployment-b.yaml`（`family-tree-app-b`，label `app=family-tree-b`，limits 768Mi 保证双槽并存可调度）。
+Service `family-tree` 的 selector 指谁谁接流量，**切流是一次 patch、原子生效**；空闲槽常年 replicas 0。
+当前在任槽：`kubectl -n prod get svc family-tree -o jsonpath='{.spec.selector.app}'`。
 
 ```bash
-kubectl -n prod exec statefulset/mysql -- sh -c \
-  'exec mysqldump --single-transaction --routines --triggers --events --set-gtid-purged=OFF \
-   --default-character-set=utf8mb4 -uroot -p"$MYSQL_ROOT_PASSWORD" family_tree' \
-  > backup/pre-vNN-$(date +%Y%m%d_%H%M%S).sql
+# 0) 确定空闲槽：在任是 family-tree(蓝) 就发绿槽，反之发蓝槽
+# 1) 新版本发到空闲槽并拉起（旧槽继续接流量，用户无感）
+sed -i '' -E 's|image: family-tree:v[0-9]+-local|image: family-tree:vNN-local|' k8s/deployment-b.yaml
+kubectl -n prod scale deployment/family-tree-app-b --replicas=1
+# 2) 隔离预检（不占 8090，port-forward 直连新 pod；启动可长达 3.5min，只用 HTTP 探活判定）
+kubectl -n prod port-forward deploy/family-tree-app-b 8097:8090 &
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8097/login.html   # 反复探到 200
+#    再打预检：index gedcom 计数、/api/auth/me 401、本批新功能专项；完事关掉 port-forward
+# 3) 原子切流
+kubectl -n prod patch svc family-tree -p '{"spec":{"selector":{"app":"family-tree-b"}}}'
+# 4) 线上电池：8090 login 200、隧道 200、/api/admin/settings 401、logs 0 ERROR；
+#    endpoints 应只剩新槽 pod IP：
+#    kubectl -n prod get endpointslices -l kubernetes.io/service-name=family-tree
+#    —— 出任何异常立刻回切（秒级）：
+#    kubectl -n prod patch svc family-tree -p '{"spec":{"selector":{"app":"family-tree"}}}'
+# 5) 观察窗口（建议 ≥30min）后休眠旧槽：
+kubectl -n prod scale deployment/family-tree-app --replicas=0
 ```
 
-然后：
+下一次发版方向相反（发蓝槽、selector 切回 `app=family-tree`），两槽永远交替。镜像修剪规则照旧（只留最近三代）。
+
+**边界与注意（为什么不是 RollingUpdate）：**
+
+- 同一时刻只有一个实例在服务：内存不翻倍顶满、树缓存无跨实例失效问题、WebSocket 不会半路断连。
+- **Flyway 时机**：新 pod 启动即迁移，此时旧 pod 还在接流量。加列/加表（向前兼容）无碍；
+  **删列/改名这类破坏性迁移（如 V39）会让旧 pod 在「迁移完成→切流」窗口内报错**——这种版本要么选低峰窗口
+  快跑四步，要么退回下面的停机发版模式。
+- 预检到切流之间双 pod 并挂同一 PVC：logback 双进程写同一日志文件有交错/滚动风险，窗口控制在几分钟内即可接受。
+- 发版期间 test 栈保持休眠（4GB VM 没有第三份内存）。
+
+## 停机发版（保底路线，Recreate 直切）
 
 ```bash
 sed -i '' -E 's|image: family-tree:v[0-9]+-local|image: family-tree:vNN-local|' k8s/deployment.yaml
@@ -100,8 +130,14 @@ kubectl apply -f k8s/deployment.yaml
 kubectl -n prod rollout status deployment/family-tree-app --timeout=420s
 ```
 
-验证口径不变：`/login.html` 200、index gedcom 计数、`/api/auth/me` 401、隧道 200、
-`kubectl -n prod logs deployment/family-tree-app` 0 ERROR。镜像修剪规则照旧（只留最近三代）。
+停机 ≈ 新 pod 启动时间（70s~3.5min）。适用于破坏性迁移版本或蓝绿机制故障时。两条路线发版前都必须先备份：
+
+```bash
+kubectl -n prod exec statefulset/mysql -- sh -c \
+  'exec mysqldump --single-transaction --routines --triggers --events --set-gtid-purged=OFF \
+   --default-character-set=utf8mb4 -uroot -p"$MYSQL_ROOT_PASSWORD" family_tree' \
+  > backup/pre-vNN-$(date +%Y%m%d_%H%M%S).sql
+```
 
 ## test 环境：按需拉起与回收（回归/实验专用，严禁打生产数据）
 
