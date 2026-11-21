@@ -11,13 +11,13 @@
 | 项 | 状态 |
 |---|---|
 | 生产运行时 | Docker Desktop k8s（kind 模式，**版本固定 1.35.0**，context `docker-desktop`） |
-| 生产 namespace | `prod`：`family-tree-app` + `mysql` + `redis` 全部在集群内 |
+| 生产 namespace | `prod`：应用双槽 `family-tree-app-blue` / `family-tree-app-green`（selector 蓝绿，v71 起新名；此前旧名 `family-tree-app`/`family-tree-app-b`）+ `mysql` + `redis` 全部在集群内 |
 | 测试 namespace | `test`：同构全套但**默认 0 副本休眠**，按需拉起做回归 |
 | 应用镜像 | `family-tree:v70-local`（DD registry-mirror 直接供给本地镜像，无需 push） |
 | 流量入口 | `ft-k8s-proxy`(socat, 8090→NodePort 30090) ← cloudflared 隧道，全程零改动 |
 | 宿主机兼容口 | 3308/6381 = `ft-k8s-mysql-proxy`/`ft-k8s-redis-proxy` → NodePort 30308/30381 |
 | compose 栈 | 数据栈 `family-tree-mysql`/`family-tree-redis` **已停用保留**，是冻结回滚副本 |
-| 旧 namespace | `family-tree` 已归零成空壳（PVC 保留作保险），待点名授权删除 |
+| 旧 namespace | `family-tree` 已于 2026-11-21 20:15 点名授权后删除（保险 PVC 一并回收） |
 | Flyway | V1~V40，库 `family_tree`（prod）/ `family_tree_test`（test） |
 
 **红线（先看）：**
@@ -86,7 +86,7 @@ docker run -d --name ft-k8s-proxy --restart=unless-stopped --network kind -p 809
 
 ### 3.3 清单与 PVC 播种
 
-清单见 `k8s/namespace.yaml`（现为 prod）、`configmap.yaml`、`deployment.yaml`、`service.yaml`、`pvc.yaml`。
+清单见 `k8s/namespace.yaml`（现为 prod）、`configmap.yaml`、`deployment-blue.yaml`（当时为 `deployment.yaml`，蓝绿拆分后另有 `deployment-green.yaml`）、`service.yaml`、`pvc.yaml`。
 要点：单副本 + `strategy: Recreate`（PVC RWO 不允许双挂）、distroless 探针只能 httpGet、
 startupProbe `5s×60` 容忍最长 3.5min 冷启动。照片/日志原来是 bind mount，kind 节点看不见宿主机目录，
 **一次性播种进 local-path PVC**（tar→helper pod→kubectl cp→解包→清 macOS `._*`，命令在 k8s/README.md）。
@@ -120,7 +120,7 @@ kubectl -n prod create secret generic family-tree-db \
 
 ### 4.2 dump/restore 迁移（字节校验是硬要求）
 
-1. 冻结应用：`kubectl -n prod scale deploy family-tree-app --replicas=0`。
+1. 冻结应用：`kubectl -n prod scale deploy family-tree-app-blue family-tree-app-green --replicas=0`（旧名时期为 `family-tree-app`/`family-tree-app-b`）。
 2. 从 compose 库 mysqldump（`docker exec family-tree-mysql mysqldump --single-transaction ...`，不带 `--databases`，utf8mb4），存 `backup/`。
 3. 灌入 k8s `mysql-0`（`kubectl -n prod exec -i statefulset/mysql -- sh -c 'exec mysql --default-character-set=utf8mb4 -uroot -p"$MYSQL_ROOT_PASSWORD" family_tree' < dump.sql`）。
 4. **校验：目标库重新 mysqldump，两侧都 `sed '$d'` 后 md5sum 必须逐字节相等。**
@@ -157,7 +157,7 @@ Service 才能把 30090/30308/30381 让给 prod——这就是 ft-k8s-proxy 们�
 3. MySQL 数据迁移：冻结旧 ns app → dump 旧 ns（`backup/renamespace-20261121_172521.sql`，354031B）→ restore 进 prod ns → `sed '$d'` md5 字节校验。
 4. PVC 照片/日志搬家：两侧各起 kindest/node helper pod，tar 出→`kubectl cp` 宿主机中转→tar 入（4 data + 2 logs 文件），清 `._*`。
 5. 删旧 ns 三个 Service（释放 NodePort）→ apply prod 的 deployment+service → 全电池验证（operation_log 935、探针 key 落 prod redis、隧道 200、0 ERROR）。
-6. 旧 ns 归零（sts/deploy scale 0），**PVC 暂留作保险**；`kubectl delete namespace family-tree` 需用户点名授权（权限分类器会拦未授权的不可逆删除）。
+6. 旧 ns 归零（sts/deploy scale 0），**PVC 暂留作保险**；`kubectl delete namespace family-tree` 需用户点名授权（权限分类器会拦未授权的不可逆删除）——2026-11-21 20:15 已获点名授权执行完毕，保险 PVC 随 ns 一并回收。
 
 `test` namespace：`k8s/test/` 全套同构清单，差异 = 三 workload `replicas: 0` 休眠、库名 `family_tree_test`
 （首启由 MYSQL_DATABASE 自动建库并授权 family_tree_app，**不需要账号嫁接**）、limits 减半
@@ -180,8 +180,8 @@ port-forward 或 socat。local-path 的 PVC 平时显示 Pending 是 WaitForFirs
 档位 A（最常用，秒级）：
 
 ```bash
-sed -i '' -E 's|image: family-tree:v[0-9]+-local|image: family-tree:vOLD-local|' k8s/deployment.yaml
-kubectl apply -f k8s/deployment.yaml && kubectl -n prod rollout status deployment/family-tree-app --timeout=420s
+sed -i '' -E 's|image: family-tree:v[0-9]+-local|image: family-tree:vOLD-local|' k8s/deployment-blue.yaml
+kubectl apply -f k8s/deployment-blue.yaml && kubectl -n prod rollout status deployment/family-tree-app-blue --timeout=420s
 ```
 
 ### 6.1 档位 B：应用回 compose、数据层留 k8s
@@ -190,7 +190,7 @@ kubectl apply -f k8s/deployment.yaml && kubectl -n prod rollout status deploymen
 3308/6381 健在（应用配置 `host.docker.internal:3308/6381` 恰好走它们）。
 
 ```bash
-kubectl -n prod scale deploy family-tree-app --replicas=0      # 先停 k8s 应用，避免双活
+kubectl -n prod scale deploy family-tree-app-blue family-tree-app-green --replicas=0   # 先停 k8s 应用，避免双活
 docker stop ft-k8s-proxy                                        # 让出 8090
 docker compose --profile mysql up -d family-tree-app           # .env FT_IMAGE 选版本
 # 验证：8090/login.html 200、登录探针 login:attempt key 落在 k8s redis、operation_log 只增
@@ -206,7 +206,7 @@ docker compose --profile mysql up -d family-tree-app           # .env FT_IMAGE �
 1. **冻结入口**（防迁移期间写入漂移）：
 
 ```bash
-kubectl -n prod scale deploy family-tree-app --replicas=0
+kubectl -n prod scale deploy family-tree-app-blue family-tree-app-green --replicas=0
 docker stop ft-k8s-proxy    # 8090 下线，宁可短暂不可用也不双写
 ```
 
@@ -257,7 +257,7 @@ kubectl -n prod scale statefulset/mysql statefulset/redis --replicas=0   # 留 P
 ## 七、日常运维速查
 
 - **发版（k8s）**：备份 prod 库 → `./mvnw -B package` → 构建 `vNN-local`（永远复用上版 `/tmp/ft-vNN-ctx/Dockerfile`，
-  勿凭记忆重写）→ 镜像内预检 → 改 `k8s/deployment.yaml` tag → apply → rollout → 电池验证 → 镜像只留近三代。
+  勿凭记忆重写）→ 镜像内预检 → 发到空闲槽（`k8s/deployment-blue.yaml`/`deployment-green.yaml` 择空闲者）→ 隔离预检 → selector 切流 → 电池验证 → 镜像只留近三代（SOP 见 `k8s/README.md`「零停机发版」）。
 - **备份**：MySQL = `kubectl -n prod exec statefulset/mysql -- mysqldump …`（见 6.2 第 2 步）；
   照片 = helper pod 挂 PVC tar 出；**`./docker-data` 是冻结目录，别再备份它当新的用**。
 - **test 回归**：k8s/README.md「test 环境」三步流；电池只打 8091。
@@ -274,7 +274,7 @@ kubectl -n prod scale statefulset/mysql statefulset/redis --replicas=0   # 留 P
 4. **socat 与 compose 抢 127.0.0.1:3308/6381**：先停后起，切换方向不同顺序不同。
 5. **DD Reset = 毁生产库**：所有 PV（含 mysql-0）住在 kind 节点的 docker 卷里，reclaim policy 为 Delete。
 6. **distroless 无 shell**：探针只能 httpGet；进容器看文件用挂 PVC 的 helper pod；`kubectl exec … -- env` 也拿不到有用输出。
-7. **pod label 是 `app=family-tree`**，`-l app=family-tree-app` 匹配不到任何东西。
+7. **pod label 是 `app=family-tree`（v71 起为 `app=family-tree-blue`/`app=family-tree-green`）**，`-l app=family-tree-app` 匹配不到任何东西。
 8. **local-path PVC 建出来 Pending 属正常**（WaitForFirstConsumer），test 休眠栈常年 Pending。
 9. **compose 管理的容器改名留作回滚会被 `compose up` 按 label 认领删除**（pre-V67 因此消失过）——compose 时代回滚用 `.env` FT_IMAGE 回切，或另起 docker-run 容器。
 10. **DD 重启团灭 137**：`restart=no` 的容器永不复活；数据栈/代理都置 `unless-stopped`。

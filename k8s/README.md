@@ -4,12 +4,12 @@
 
 - 集群：Docker Desktop 4.100 kind 模式，**版本固定 1.35.0**（`settings-store.json` 的 `KubernetesNodesVersion`）。
   1.37.0 有 DD bug：kind 写入的 kubeadm 配置是 `v1beta3`，kubeadm 1.36+ 直接拒绝，集群永远初始化失败。
-- **`prod` namespace = 线上环境**：`family-tree-app`、`mysql`、`redis` 全部跑在 k8s，应用经集群内 DNS
+- **`prod` namespace = 线上环境**：应用双槽 `family-tree-app-blue` / `family-tree-app-green`（selector 蓝绿，
+  见「零停机发版」）与 `mysql`、`redis` 全部跑在 k8s，应用经集群内 DNS
   `mysql:3306` / `redis:6379` 访问数据层（见 `k8s/configmap.yaml`）。清单文件在 `k8s/*.yaml`。
 - **`test` namespace = 测试环境**：结构同 prod 的独立全套栈，但**默认 0 副本休眠**（不占运行时内存），
   按需拉起做回归；库名 `family_tree_test`，与生产数据完全隔离。清单文件在 `k8s/test/*.yaml`。
-- 旧 `family-tree` namespace：已归零的空壳（PVC 暂留作保险），待点名授权后 `kubectl delete namespace family-tree` 删除；
-  删除会连带回收其 PVC，prod 数据不受影响（早已字节校验迁移完毕）。
+- 旧 `family-tree` namespace：已于 2026-11-21 20:15 删除（prod 迁移字节校验完毕后才执行，其保险 PVC 一并回收）。
 - compose 栈的 `family-tree-mysql`/`family-tree-redis`/healthcheck **已停用但保留**（`restart=no`），
   是 Phase 2 切换时点的回滚副本；**切换后新增的数据只存在于 k8s prod MySQL**，回滚前必须先做增量同步（见「数据迁移/回滚」）。
 - 端口总表：
@@ -42,8 +42,8 @@
 | `mysql.yaml` / `redis.yaml` | MySQL/Redis StatefulSet + ClusterIP `mysql`/`redis`（utf8mb4/utf8mb4_unicode_ci；appendonly yes） |
 | `data-nodeport.yaml` | mysql/redis 的 NodePort 30308/30381，供宿主机 socat 代理转发 |
 | `pvc.yaml` | data/logs 两个 PVC（2Gi，storageClass standard） |
-| `deployment.yaml` | 蓝槽：单副本、Recreate、distroless 只能 httpGet 探针（startup 5s×60 容忍 3.5min 启动）；**image tag 在发版时更新** |
-| `deployment-b.yaml` | 绿槽：`app=family-tree-b`、limits 768Mi、默认 replicas 0；零停机蓝绿发版的另一半（见「零停机发版」） |
+| `deployment-blue.yaml` | 蓝槽：Deployment `family-tree-app-blue`（label `app=family-tree-blue`），单副本、Recreate、distroless 只能 httpGet 探针（startup 5s×60 容忍 3.5min 启动）；**image tag 在发版时更新** |
+| `deployment-green.yaml` | 绿槽：Deployment `family-tree-app-green`（label `app=family-tree-green`）、limits 768Mi、默认 replicas 0；零停机蓝绿发版的另一半（见「零停机发版」） |
 | `service.yaml` | 应用 NodePort 30090 |
 | `test/namespace.yaml` | namespace test |
 | `test/configmap.yaml` | test 环境变量：库名 `family_tree_test`，redis 同为集群内 DNS |
@@ -61,7 +61,7 @@ kubectl -n prod create secret generic family-tree-db \
   --from-literal=DB_PASSWORD="$(grep ^DB_PASSWORD= .env | cut -d= -f2-)" \
   --from-literal=MYSQL_ROOT_PASSWORD="$(grep ^MYSQL_ROOT_PASSWORD= .env | cut -d= -f2-)"
 kubectl apply -f k8s/configmap.yaml k8s/mysql.yaml k8s/redis.yaml k8s/data-nodeport.yaml \
-  k8s/pvc.yaml k8s/deployment.yaml k8s/service.yaml
+  k8s/pvc.yaml k8s/deployment-blue.yaml k8s/deployment-green.yaml k8s/service.yaml
 # 宿主机端口代理（compose 同名端口容器必须先停）
 docker run -d --name ft-k8s-mysql-proxy --restart=unless-stopped --network kind -p 127.0.0.1:3308:3308 \
   alpine/socat TCP-LISTEN:3308,fork,reuseaddr TCP:desktop-control-plane:30308
@@ -86,32 +86,36 @@ kubectl -n prod delete pod seedjob
 前置不变：备份生产 MySQL（命令见本节末）→ `./mvnw -B package` →
 构建 `family-tree:vNN-local`（复用上版 `/tmp/ft-vNN-ctx/Dockerfile`）→ 镜像内预检。
 
-机制：两个槽交替——蓝槽 `deployment.yaml`（Deployment `family-tree-app`，label `app=family-tree`）、
-绿槽 `deployment-b.yaml`（`family-tree-app-b`，label `app=family-tree-b`，limits 768Mi 保证双槽并存可调度）。
+机制：两个槽交替——蓝槽 `deployment-blue.yaml`（Deployment `family-tree-app-blue`，label `app=family-tree-blue`）、
+绿槽 `deployment-green.yaml`（`family-tree-app-green`，label `app=family-tree-green`，limits 768Mi 保证双槽并存可调度）。
 Service `family-tree` 的 selector 指谁谁接流量，**切流是一次 patch、原子生效**；空闲槽常年 replicas 0。
 当前在任槽：`kubectl -n prod get svc family-tree -o jsonpath='{.spec.selector.app}'`。
+> 集群对象改名说明：v70 及之前集群里仍是旧名（`family-tree-app` / `family-tree-app-b`，label
+> `family-tree` / `family-tree-b`）。新名不就地改（会强制重启在任 pod），**自 v71 发版起按下方命令在空闲槽
+> apply 新清单**，切流并清理旧 Deployment 后即全部对齐。
 
 ```bash
-# 0) 确定空闲槽：在任是 family-tree(蓝) 就发绿槽，反之发蓝槽
+# 0) 确定空闲槽：在任是 family-tree-blue 就发绿槽，反之发蓝槽（下文以发绿槽为例，反向对称）
 # 1) 新版本发到空闲槽并拉起（旧槽继续接流量，用户无感）
-sed -i '' -E 's|image: family-tree:v[0-9]+-local|image: family-tree:vNN-local|' k8s/deployment-b.yaml
-kubectl -n prod scale deployment/family-tree-app-b --replicas=1
+sed -i '' -E 's|image: family-tree:v[0-9]+-local|image: family-tree:vNN-local|' k8s/deployment-green.yaml
+kubectl apply -f k8s/deployment-green.yaml
+kubectl -n prod scale deployment/family-tree-app-green --replicas=1
 # 2) 隔离预检（不占 8090，port-forward 直连新 pod；启动可长达 3.5min，只用 HTTP 探活判定）
-kubectl -n prod port-forward deploy/family-tree-app-b 8097:8090 &
+kubectl -n prod port-forward deploy/family-tree-app-green 8097:8090 &
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8097/login.html   # 反复探到 200
 #    再打预检：index gedcom 计数、/api/auth/me 401、本批新功能专项；完事关掉 port-forward
 # 3) 原子切流
-kubectl -n prod patch svc family-tree -p '{"spec":{"selector":{"app":"family-tree-b"}}}'
+kubectl -n prod patch svc family-tree -p '{"spec":{"selector":{"app":"family-tree-green"}}}'
 # 4) 线上电池：8090 login 200、隧道 200、/api/admin/settings 401、logs 0 ERROR；
 #    endpoints 应只剩新槽 pod IP：
 #    kubectl -n prod get endpointslices -l kubernetes.io/service-name=family-tree
 #    —— 出任何异常立刻回切（秒级）：
-#    kubectl -n prod patch svc family-tree -p '{"spec":{"selector":{"app":"family-tree"}}}'
+#    kubectl -n prod patch svc family-tree -p '{"spec":{"selector":{"app":"family-tree-blue"}}}'
 # 5) 观察窗口（建议 ≥30min）后休眠旧槽：
-kubectl -n prod scale deployment/family-tree-app --replicas=0
+kubectl -n prod scale deployment/family-tree-app-blue --replicas=0
 ```
 
-下一次发版方向相反（发蓝槽、selector 切回 `app=family-tree`），两槽永远交替。镜像修剪规则照旧（只留最近三代）。
+下一次发版方向相反（发蓝槽、selector 切回 `app=family-tree-blue`），两槽永远交替。镜像修剪规则照旧（只留最近三代）。
 
 **边界与注意（为什么不是 RollingUpdate）：**
 
@@ -125,9 +129,9 @@ kubectl -n prod scale deployment/family-tree-app --replicas=0
 ## 停机发版（保底路线，Recreate 直切）
 
 ```bash
-sed -i '' -E 's|image: family-tree:v[0-9]+-local|image: family-tree:vNN-local|' k8s/deployment.yaml
-kubectl apply -f k8s/deployment.yaml
-kubectl -n prod rollout status deployment/family-tree-app --timeout=420s
+sed -i '' -E 's|image: family-tree:v[0-9]+-local|image: family-tree:vNN-local|' k8s/deployment-blue.yaml
+kubectl apply -f k8s/deployment-blue.yaml
+kubectl -n prod rollout status deployment/family-tree-app-blue --timeout=420s
 ```
 
 停机 ≈ 新 pod 启动时间（70s~3.5min）。适用于破坏性迁移版本或蓝绿机制故障时。两条路线发版前都必须先备份：
@@ -181,7 +185,7 @@ test redis 与 prod 独立，探针 key（`login:attempt:*`）互不可见，验
 
 切换/回滚数据层都是 dump→restore，不用文件拷贝（kind 节点看不见宿主机目录，且版本一致性更稳）：
 
-1. 冻结应用：`kubectl -n prod scale deploy family-tree-app --replicas=0`。
+1. 冻结应用：`kubectl -n prod scale deploy family-tree-app-blue family-tree-app-green --replicas=0`（v71 前旧名为 `family-tree-app`/`family-tree-app-b`）。
 2. 从当前生效库 mysqldump（上面备份命令），存 `backup/`（gitignored）。
 3. 目标库重建并导入：
    ```bash

@@ -1,26 +1,25 @@
-# 绿槽（blue/green 的 green）：零停机发版专用。label 与蓝槽（deployment.yaml, app=family-tree）区分，
-# Service selector 指向哪边哪边接流量；平时保持 replicas 0，发版时 scale 1 做隔离预检。
+# 蓝槽（blue/green 的 blue）：Service selector 指向 app=family-tree-blue 时接流量。
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: family-tree-app-b
+  name: family-tree-app-blue
   namespace: prod
 spec:
-  replicas: 0
+  replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      app: family-tree-b
+      app: family-tree-blue
   template:
     metadata:
       labels:
-        app: family-tree-b
+        app: family-tree-blue
     spec:
       containers:
         - name: family-tree-app
-          # 发版时更新此 tag（蓝绿两槽交替使用，见 README「零停机发版」）
-          image: family-tree:v70-local
+          # 部署时更新此 tag（与 .env FT_IMAGE 同规则，每次构建用新 vNN-local）
+          image: family-tree:v71-local
           imagePullPolicy: Always
           ports:
             - containerPort: 8090
@@ -36,10 +35,10 @@ spec:
           resources:
             requests:
               cpu: 250m
-              memory: 256Mi
+              memory: 512Mi
             limits:
               cpu: "1"
-              memory: 768Mi
+              memory: 1Gi
           # distroless 无 shell，探针只能 httpGet；启动可长达 3.5min
           startupProbe:
             httpGet:

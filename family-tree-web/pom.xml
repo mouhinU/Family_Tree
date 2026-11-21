@@ -39,6 +39,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-aspectj</artifactId>
         </dependency>
+        <!-- 会话外置 Redis：蓝绿双槽共享登录态，切流不掉线 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-session-data-redis</artifactId>
+        </dependency>
 
         <!-- 数据库：H2 默认 + MySQL 可选 -->
         <dependency>

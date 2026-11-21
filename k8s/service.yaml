@@ -6,7 +6,8 @@ metadata:
 spec:
   type: NodePort
   selector:
-    app: family-tree
+    # 蓝绿切流即 patch 此 selector：app=family-tree-blue ↔ app=family-tree-green（见 README「零停机发版」）
+    app: family-tree-blue
   ports:
     - port: 8090
       targetPort: 8090
