@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#a63a2b">
     <title>族谱管理系统</title>
     <link rel="manifest" href="/manifest.json">
-    <link href="/css/style.css?v=20261119b" rel="stylesheet">
+    <link href="/css/style.css?v=20261121a" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -68,6 +68,8 @@
                 <div class="header-more-item" id="btn-chat" title="私信">私信</div>
                 <div class="header-more-item" id="btn-event" title="活动组织">活动组织</div>
                 <div class="header-more-item" id="btn-invite" title="邀请族人加入">邀请族人</div>
+                <div class="header-more-item" id="btn-gedcom-export" style="display:none;" title="导出族谱为 GEDCOM（.ged）文件">导出GEDCOM</div>
+                <div class="header-more-item" id="btn-gedcom-import" style="display:none;" title="从 GEDCOM 文件导入族谱数据">导入GEDCOM</div>
                 <div class="header-more-item" id="btn-operation-log" style="display:none;">操作日志</div>
                 <div class="header-more-item" id="btn-admin" style="display:none;" title="平台系统管理">平台管理</div>
             </div>
@@ -160,6 +162,14 @@
         <div class="drawer-nav-item" id="drawer-btn-event">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span>活动组织</span>
+        </div>
+        <div class="drawer-nav-item" id="drawer-btn-gedcom-export" style="display:none;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>导出GEDCOM</span>
+        </div>
+        <div class="drawer-nav-item" id="drawer-btn-gedcom-import" style="display:none;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span>导入GEDCOM</span>
         </div>
         <div class="drawer-nav-item" id="drawer-btn-operation-log" style="display:none;">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -338,9 +348,9 @@
 <script src="/js/lib/lunar.js?v=20261114a"></script>
 <script src="/js/ft/birth-calendar.js?v=20261119a"></script>
 <script src="/js/ft/modal-offering.js?v=20260830a"></script>
-<script src="/js/ft/modal-node.js?v=20261120a"></script>
+<script src="/js/ft/modal-node.js?v=20261121a"></script>
 <script src="/js/ft/modal-family.js?v=20261120b"></script>
-<script src="/js/ft/modal-tools.js?v=20260830a"></script>
+<script src="/js/ft/modal-tools.js?v=20261121a"></script>
 <script src="/js/ft/modal-message.js?v=20260828a"></script>
 <script src="/js/ft/modal-notification.js?v=20260827a"></script>
 <script src="/js/ft/modal-ai.js?v=20261112a"></script>
@@ -356,7 +366,7 @@
 <script src="/js/ft/message-carousel.js?v=20260828a"></script>
 <script src="/js/ft/context-menu.js?v=20261119b"></script>
 <script src="/js/ft/websocket.js?v=20260827a"></script>
-<script src="/js/ft/main.js?v=20261117b"></script>
+<script src="/js/ft/main.js?v=20261121a"></script>
 <script src="/js/ft/sw-register.js?v=20261115a"></script>
 </body>
 </html>

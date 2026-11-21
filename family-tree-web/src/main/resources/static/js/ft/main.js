@@ -96,6 +96,10 @@
                 if (logBtn) {
                     logBtn.style.display = 'inline-block';
                 }
+                showIfPresent('btn-gedcom-export', 'inline-block');
+                showIfPresent('btn-gedcom-import', 'inline-block');
+                showIfPresent('drawer-btn-gedcom-export', 'flex');
+                showIfPresent('drawer-btn-gedcom-import', 'flex');
             } else {
                 // 非管理员：隐藏"添加始祖"整族级入口（后端创建根节点无锚点，操作门会拒绝）
                 FT.state.isManager = false;
@@ -202,6 +206,26 @@
                 var dropdown = document.getElementById('header-more-dropdown');
                 if (dropdown) dropdown.style.display = 'none';
                 FT.showOperationLogModal();
+            });
+        }
+
+        // GEDCOM 导出按钮（更多下拉，仅管理员可见）
+        const btnGedcomExport = document.getElementById('btn-gedcom-export');
+        if (btnGedcomExport) {
+            btnGedcomExport.addEventListener('click', function () {
+                var dropdown = document.getElementById('header-more-dropdown');
+                if (dropdown) dropdown.style.display = 'none';
+                FT.exportGedcom();
+            });
+        }
+
+        // GEDCOM 导入按钮（更多下拉，仅管理员可见）
+        const btnGedcomImport = document.getElementById('btn-gedcom-import');
+        if (btnGedcomImport) {
+            btnGedcomImport.addEventListener('click', function () {
+                var dropdown = document.getElementById('header-more-dropdown');
+                if (dropdown) dropdown.style.display = 'none';
+                FT.showGedcomImportModal();
             });
         }
 
@@ -629,6 +653,8 @@
             'drawer-btn-chat': function () { closeDrawer(); FT.showChatModal(); },
             'drawer-btn-event': function () { closeDrawer(); FT.showEventModal(); },
             'drawer-btn-operation-log': function () { closeDrawer(); FT.showOperationLogModal(); },
+            'drawer-btn-gedcom-export': function () { closeDrawer(); FT.exportGedcom(); },
+            'drawer-btn-gedcom-import': function () { closeDrawer(); FT.showGedcomImportModal(); },
             'drawer-btn-admin': function () { closeDrawer(); window.location.href = '/admin.html'; },
             'drawer-btn-export': function () { closeDrawer(); FT.exportToPdf(); },
             'drawer-btn-add-root': function () { closeDrawer(); FT.showNodeModal('添加始祖', {}); },
@@ -713,6 +739,14 @@
         var drawerLogBtn = document.getElementById('drawer-btn-operation-log');
         if (drawerLogBtn && (role === 'OWNER' || role === 'ADMIN')) {
             drawerLogBtn.style.display = 'flex';
+        }
+
+        // GEDCOM 导入导出入口（仅 OWNER/ADMIN 可见）
+        if (role === 'OWNER' || role === 'ADMIN') {
+            var drawerGedcomExport = document.getElementById('drawer-btn-gedcom-export');
+            if (drawerGedcomExport) drawerGedcomExport.style.display = 'flex';
+            var drawerGedcomImport = document.getElementById('drawer-btn-gedcom-import');
+            if (drawerGedcomImport) drawerGedcomImport.style.display = 'flex';
         }
 
         // 家族名称

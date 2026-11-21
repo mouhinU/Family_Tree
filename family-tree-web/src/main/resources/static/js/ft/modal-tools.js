@@ -1,6 +1,6 @@
 /**
  * 族谱前端 - 工具弹窗模块
- * 操作日志、时间线、关系路径分析、忌日提醒弹窗。
+ * 操作日志、时间线、关系路径分析、忌日提醒、GEDCOM 导入/导出弹窗。
  *
  * @author Family-Tree
  * @date 2026-08-09
@@ -354,6 +354,85 @@
         FT.showModal(html);
     }
 
+    // ========== GEDCOM 导出/导入 ==========
+    function exportGedcom() {
+        var a = document.createElement('a');
+        a.href = '/api/data/export/gedcom?t=' + Date.now();
+        a.download = 'family-tree.ged';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        FT.toast('已开始导出 GEDCOM', 'success');
+    }
+
+    function showGedcomImportModal() {
+        var html = '<h3 style="margin-bottom:10px;">导入 GEDCOM</h3>' +
+            '<div class="form-group"><label>选择文件</label>' +
+            '<input type="file" id="gedcom-file" accept=".ged,.gedcom"></div>' +
+            '<div class="form-group"><label>导入模式</label>' +
+            '<label style="display:block;font-weight:normal;margin:4px 0;"><input type="radio" name="gedcom-mode" value="append" checked> 追加导入（保留现有数据）</label>' +
+            '<label style="display:block;font-weight:normal;margin:4px 0;"><input type="radio" name="gedcom-mode" value="overwrite"> 覆盖导入（清空现有数据，不可恢复）</label></div>' +
+            '<p style="font-size:12px;color:#999;">仅支持 .ged / .gedcom 文件；覆盖导入前建议先导出备份。</p>' +
+            '<div id="gedcom-import-result" style="margin-top:8px;"></div>' +
+            '<div class="modal-actions">' +
+            '<button class="btn-confirm" id="gedcom-import-submit">开始导入</button>' +
+            '<button class="btn-cancel" data-close-modal>关闭</button></div>';
+        FT.showModal(html, true);
+
+        document.getElementById('gedcom-import-submit').addEventListener('click', async function () {
+            var fileInput = document.getElementById('gedcom-file');
+            var file = fileInput.files && fileInput.files[0];
+            if (!file) { FT.toast('请先选择 GEDCOM 文件', 'warning'); return; }
+            var fileName = file.name.toLowerCase();
+            if (!fileName.endsWith('.ged') && !fileName.endsWith('.gedcom')) {
+                FT.toast('仅支持 .ged 或 .gedcom 格式的文件', 'warning');
+                return;
+            }
+            var modeEl = document.querySelector('input[name="gedcom-mode"]:checked');
+            var mode = modeEl ? modeEl.value : 'append';
+
+            var doImport = async function () {
+                var url = mode === 'overwrite'
+                    ? '/api/data/import/gedcom'
+                    : '/api/data/import/gedcom/append';
+                var btn = document.getElementById('gedcom-import-submit');
+                var resultEl = document.getElementById('gedcom-import-result');
+                btn.disabled = true;
+                btn.textContent = '导入中...';
+                try {
+                    var formData = new FormData();
+                    formData.append('file', file);
+                    var res = await FT.uploadFile(url, formData);
+                    if (res && res.code === 200 && res.data) {
+                        var d = res.data;
+                        resultEl.innerHTML = '<p style="color:#4caf50;">导入完成：节点 ' + d.importedNodeCount +
+                            ' 个、关系 ' + d.importedRelationCount + ' 条' +
+                            (d.message ? '（' + FT.escapeHtml(d.message) + '）' : '') + '</p>';
+                        FT.toast('GEDCOM 导入成功', 'success');
+                        await FT.loadTree();
+                    } else if (res && res.message) {
+                        resultEl.innerHTML = '<p style="color:red;">' + FT.escapeHtml(res.message) + '</p>';
+                    }
+                } catch (e) {
+                    // uploadFile 内部已提示错误，此处仅恢复按钮
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = '开始导入';
+                }
+            };
+
+            if (mode === 'overwrite') {
+                FT.confirm('覆盖导入将清空当前家族的全部节点与关系，确定继续？', async function () {
+                    await doImport();
+                });
+            } else {
+                await doImport();
+            }
+        });
+    }
+
+    FT.exportGedcom = exportGedcom;
+    FT.showGedcomImportModal = showGedcomImportModal;
     FT.showOperationLogModal = showOperationLogModal;
     FT.showTimelineModal = showTimelineModal;
     FT.showRelationPathModal = showRelationPathModal;
