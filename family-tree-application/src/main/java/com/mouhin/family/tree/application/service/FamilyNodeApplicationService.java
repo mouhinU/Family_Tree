@@ -10,6 +10,7 @@ import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.common.util.LunarSolarUtil;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
+import com.mouhin.family.tree.domain.repository.CrossFamilyLinkRepository;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
 import com.mouhin.family.tree.domain.event.FamilyTreeUpdatedEvent;
@@ -56,6 +57,7 @@ public class FamilyNodeApplicationService {
     private final FamilyNodeVisibilityApplicationService visibilityService;
     private final FamilySettingApplicationService settingService;
     private final GenerationRepairApplicationService generationRepairService;
+    private final CrossFamilyLinkRepository crossFamilyLinkRepository;
 
     public FamilyNodeApplicationService(FamilyNodeRepository familyNodeRepository,
                                         FamilyRelationRepository familyRelationRepository,
@@ -68,7 +70,8 @@ public class FamilyNodeApplicationService {
                                         FamilyUserNodeApplicationService familyUserNodeApplicationService,
                                         FamilyNodeVisibilityApplicationService visibilityService,
                                         FamilySettingApplicationService settingService,
-                                        GenerationRepairApplicationService generationRepairService) {
+                                        GenerationRepairApplicationService generationRepairService,
+                                        CrossFamilyLinkRepository crossFamilyLinkRepository) {
         this.familyNodeRepository = familyNodeRepository;
         this.familyRelationRepository = familyRelationRepository;
         this.relationValidationDomainService = relationValidationDomainService;
@@ -81,6 +84,7 @@ public class FamilyNodeApplicationService {
         this.visibilityService = visibilityService;
         this.settingService = settingService;
         this.generationRepairService = generationRepairService;
+        this.crossFamilyLinkRepository = crossFamilyLinkRepository;
     }
 
     /**
@@ -402,6 +406,8 @@ public class FamilyNodeApplicationService {
         versionControlDomainService.recordNodeDelete(node, userId, username, ipAddress);
 
         familyRelationRepository.removeByNodeId(familyId, nodeId);
+        // 跨族链接与族内关系同收口点级联清理（两端任一方向指向该节点的链一并删除）
+        crossFamilyLinkRepository.removeByNodeId(nodeId);
         familyNodeRepository.removeById(nodeId);
         logger.info("Deleted family node id={} for family={}", nodeId, familyId);
 

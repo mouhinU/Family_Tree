@@ -10,6 +10,7 @@ import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyRelation;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
+import com.mouhin.family.tree.domain.repository.CrossFamilyLinkRepository;
 import com.mouhin.family.tree.domain.service.FamilyNodeDomainService;
 import com.mouhin.family.tree.domain.event.FamilyTreeUpdatedEvent;
 import com.mouhin.family.tree.domain.service.RelationValidationDomainService;
@@ -80,6 +81,9 @@ class FamilyNodeApplicationServiceTest {
 
     @Mock
     private GenerationRepairApplicationService generationRepairService;
+
+    @Mock
+    private CrossFamilyLinkRepository crossFamilyLinkRepository;
 
     @InjectMocks
     private FamilyNodeApplicationService familyNodeApplicationService;
@@ -257,6 +261,9 @@ class FamilyNodeApplicationServiceTest {
         // 验证：删除了涉及该节点的所有关系
         verify(familyRelationRepository).removeByNodeId(FAMILY_ID, 5L);
 
+        // 验证：跨族链接两端级联清理
+        verify(crossFamilyLinkRepository).removeByNodeId(5L);
+
         // 验证：删除了节点本身
         verify(familyNodeRepository).removeById(5L);
 
@@ -280,6 +287,7 @@ class FamilyNodeApplicationServiceTest {
         // 被绑定节点不得删除，关系与时间线也不应被动到
         verify(familyNodeRepository, never()).removeById(any());
         verify(familyRelationRepository, never()).removeByNodeId(any(), any());
+        verify(crossFamilyLinkRepository, never()).removeByNodeId(any());
     }
 
     @Test

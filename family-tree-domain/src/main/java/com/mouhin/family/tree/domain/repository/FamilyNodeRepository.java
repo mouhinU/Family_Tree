@@ -47,6 +47,24 @@ public interface FamilyNodeRepository {
     List<FamilyNode> findByFamilyIdAndNameContaining(Long familyId, String keyword);
 
     /**
+     * 跨族按姓名精确查询节点（排除指定家族，亲族候选生成用）
+     *
+     * @param name             姓名（精确匹配）
+     * @param excludeFamilyId  排除的家族ID
+     * @param limit            返回条数上限
+     * @return 节点列表
+     */
+    List<FamilyNode> findByNameExcludeFamily(String name, Long excludeFamilyId, int limit);
+
+    /**
+     * 查询家族内最早创建的节点（建族初始节点，即始祖口径）
+     *
+     * @param familyId 家族ID
+     * @return 节点领域对象，家族无节点时返回null
+     */
+    FamilyNode findFirstByFamilyId(Long familyId);
+
+    /**
      * 更新节点
      *
      * @param node 节点领域对象

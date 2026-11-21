@@ -2,26 +2,36 @@ package com.mouhin.family.tree.application.service;
 
 import com.mouhin.family.tree.common.constant.AccountConsts;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
+import com.mouhin.family.tree.common.constant.OperationLogConsts;
 import com.mouhin.family.tree.common.enums.FamilyMemberRoleEnum;
+import com.mouhin.family.tree.common.enums.NodeLinkSourceEnum;
+import com.mouhin.family.tree.common.enums.NodeLinkTypeEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
+import com.mouhin.family.tree.domain.entity.CrossFamilyLink;
 import com.mouhin.family.tree.domain.entity.FamilyMember;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyUserNode;
 import com.mouhin.family.tree.domain.entity.User;
+import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
+import com.mouhin.family.tree.domain.repository.CrossFamilyLinkRepository;
 import com.mouhin.family.tree.domain.repository.FamilyMemberRepository;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyUserNodeRepository;
 import com.mouhin.family.tree.domain.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -30,7 +40,9 @@ import java.util.regex.Pattern;
  * <p>承载"标记为我"的绑定读写，并负责族谱节点与用户账号之间的一致性：
  * 在世节点开通账号（用户名优先取姓名、重名/脱敏兜底 fp_编号）时一并建立绑定并补建家族成员身份、节点改名同步绑定用户昵称、
  * 真人标记节点时回收重复的自动账号、删除节点时区分自动绑定（回收放行）与真人标记（拦截）。
- * 自动账号靠 is_auto_account 标记识别，不再依赖用户名形态。</p>
+ * 自动账号靠 is_auto_account 标记识别，不再依赖用户名形态。
+ * 另承载跨族方案的 ACCOUNT 通道：真人账号多族绑定/解绑时自动同步 source=ACCOUNT 的跨族链接
+ * （{@link CrossFamilyLink}），候选链自动核销升级。</p>
  *
  * @author Family-Tree
  * @date 2026-11-05
@@ -50,17 +62,23 @@ public class FamilyUserNodeApplicationService {
     private final UserRepository userRepository;
     private final FamilyMemberRepository familyMemberRepository;
     private final UserAuthApplicationService userAuthApplicationService;
+    private final CrossFamilyLinkRepository crossFamilyLinkRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     public FamilyUserNodeApplicationService(FamilyUserNodeRepository familyUserNodeRepository,
                                             FamilyNodeRepository familyNodeRepository,
                                             UserRepository userRepository,
                                             FamilyMemberRepository familyMemberRepository,
-                                            UserAuthApplicationService userAuthApplicationService) {
+                                            UserAuthApplicationService userAuthApplicationService,
+                                            CrossFamilyLinkRepository crossFamilyLinkRepository,
+                                            ApplicationEventPublisher eventPublisher) {
         this.familyUserNodeRepository = familyUserNodeRepository;
         this.familyNodeRepository = familyNodeRepository;
         this.userRepository = userRepository;
         this.familyMemberRepository = familyMemberRepository;
         this.userAuthApplicationService = userAuthApplicationService;
+        this.crossFamilyLinkRepository = crossFamilyLinkRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -148,6 +166,7 @@ public class FamilyUserNodeApplicationService {
         if (nodeId == null) {
             if (existing != null) {
                 familyUserNodeRepository.removeByFamilyIdAndUserId(familyId, userId);
+                syncAccountLinksForUser(userId, existing.getNodeId());
                 logger.info("User unbound from node: familyId={} userId={}", familyId, userId);
             }
             return;
@@ -177,6 +196,7 @@ public class FamilyUserNodeApplicationService {
             familyUserNodeRepository.update(existing);
         }
         backfillProfileFromNode(userRepository.findById(userId), node);
+        syncAccountLinksForUser(userId, nodeId);
         logger.info("User bound to node: familyId={} userId={} nodeId={}", familyId, userId, nodeId);
     }
 
@@ -383,6 +403,138 @@ public class FamilyUserNodeApplicationService {
         User boundUser = userRepository.findById(binding.getUserId());
         return boundUser != null && Boolean.TRUE.equals(boundUser.getAutoAccount())
                 && Objects.equals(binding.getNodeId(), nodeId);
+    }
+
+    /**
+     * ACCOUNT 通道自动成链同步：按真人账号当前全部跨族绑定重算 source=ACCOUNT 的跨族链接（收敛为期望态）
+     *
+     * <p>同一真人账号在两族分别「标记为我」即自动建链（血缘同人），解绑即自动释放；
+     * fp_/autoAccount 自动账号不成链（跨族对不上人，见方案册 §4.1 口径）。
+     * 候选确认（SUGGESTED）链接在本人绑定后自动核销升级为 ACCOUNT；
+     * 人工指认（MANUAL）链接不受绑定变化影响。仅由 {@link #bindMyNode} 绑定/解绑两分支调用。</p>
+     *
+     * @param userId        绑定用户ID（真人账号才同步）
+     * @param touchedNodeId 本次绑定/解绑涉及的节点ID（用于发现需释放的旧链）
+     */
+    private void syncAccountLinksForUser(Long userId, Long touchedNodeId) {
+        User user = userRepository.findById(userId);
+        if (user == null || Boolean.TRUE.equals(user.getAutoAccount())) {
+            return;
+        }
+        List<FamilyUserNode> bindings = new ArrayList<>();
+        for (FamilyUserNode binding : familyUserNodeRepository.findByUserId(userId)) {
+            if (binding.getNodeId() != null && binding.getFamilyId() != null) {
+                bindings.add(binding);
+            }
+        }
+
+        Set<String> expectedPairs = new HashSet<>(bindings.size() * bindings.size() + 1);
+        for (int i = 0; i < bindings.size(); i++) {
+            for (int j = i + 1; j < bindings.size(); j++) {
+                FamilyUserNode a = bindings.get(i);
+                FamilyUserNode b = bindings.get(j);
+                if (!Objects.equals(a.getFamilyId(), b.getFamilyId())) {
+                    expectedPairs.add(pairKey(a.getNodeId(), b.getNodeId()));
+                }
+            }
+        }
+
+        releaseStaleAccountLinks(userId, bindings, touchedNodeId, expectedPairs);
+        createMissingAccountLinks(user, bindings, expectedPairs);
+    }
+
+    /**
+     * 释放不再成立的账号自动链：仅回收 source=ACCOUNT 且两端已不构成跨族绑定对的链接
+     */
+    private void releaseStaleAccountLinks(Long userId, List<FamilyUserNode> bindings,
+                                          Long touchedNodeId, Set<String> expectedPairs) {
+        Set<Long> nodeIds = new HashSet<>(bindings.size() * 4 / 3 + 2);
+        for (FamilyUserNode binding : bindings) {
+            nodeIds.add(binding.getNodeId());
+        }
+        if (touchedNodeId != null) {
+            nodeIds.add(touchedNodeId);
+        }
+        Set<Long> releasedLinkIds = new HashSet<>(nodeIds.size() + 1);
+        for (Long nodeId : nodeIds) {
+            for (CrossFamilyLink link : crossFamilyLinkRepository.findByNodeId(nodeId)) {
+                if (link.getId() == null || !releasedLinkIds.add(link.getId())) {
+                    continue;
+                }
+                if (link.isAccountSourced()
+                        && !expectedPairs.contains(pairKey(link.getSrcNodeId(), link.getDstNodeId()))) {
+                    crossFamilyLinkRepository.removeById(link.getId());
+                    eventPublisher.publishEvent(OperationPerformedEvent.of(userId, null,
+                            OperationLogConsts.OP_NODE_UNLINK, "解除账号自动亲族链接",
+                            OperationLogConsts.TARGET_NODE_LINK, link.getId(),
+                            link.getSrcFamilyId(), null));
+                    logger.info("Released account-derived cross-family link: linkId={} userId={} {}<->{}",
+                            link.getId(), userId, link.getSrcNodeId(), link.getDstNodeId());
+                }
+            }
+        }
+    }
+
+    /**
+     * 补齐缺失的账号自动链并把候选确认链核销升级为账号链；人工指认链原样保留
+     */
+    private void createMissingAccountLinks(User user, List<FamilyUserNode> bindings,
+                                           Set<String> expectedPairs) {
+        LocalDateTime now = LocalDateTime.now();
+        for (int i = 0; i < bindings.size(); i++) {
+            for (int j = i + 1; j < bindings.size(); j++) {
+                FamilyUserNode a = bindings.get(i);
+                FamilyUserNode b = bindings.get(j);
+                if (!Objects.equals(a.getFamilyId(), b.getFamilyId())) {
+                    upsertAccountLink(user, a, b, now);
+                }
+            }
+        }
+    }
+
+    /**
+     * 单对绑定的成链落库：无链新建；候选链核销升级为账号链；账号链/人工链已存在则不动
+     */
+    private void upsertAccountLink(User user, FamilyUserNode a, FamilyUserNode b, LocalDateTime now) {
+        CrossFamilyLink existing = crossFamilyLinkRepository.findByNodePair(a.getNodeId(), b.getNodeId());
+        if (existing != null) {
+            if (Objects.equals(existing.getSource(), NodeLinkSourceEnum.SUGGESTED.getCode())) {
+                existing.setSource(NodeLinkSourceEnum.ACCOUNT.getCode());
+                existing.setConfirmedBy(null);
+                existing.setUpdateTime(now);
+                crossFamilyLinkRepository.update(existing);
+                logger.info("Upgraded suggested link to account link: linkId={} userId={}",
+                        existing.getId(), user.getId());
+            }
+            return;
+        }
+        CrossFamilyLink link = new CrossFamilyLink();
+        link.setSrcFamilyId(a.getFamilyId());
+        link.setSrcNodeId(a.getNodeId());
+        link.setDstFamilyId(b.getFamilyId());
+        link.setDstNodeId(b.getNodeId());
+        link.setLinkType(NodeLinkTypeEnum.BLOOD.getCode());
+        link.setSource(NodeLinkSourceEnum.ACCOUNT.getCode());
+        link.setCreateTime(now);
+        link.setUpdateTime(now);
+        link.validate();
+        link.orderEndpoints();
+        crossFamilyLinkRepository.save(link);
+        eventPublisher.publishEvent(OperationPerformedEvent.of(user.getId(), user.getUsername(),
+                OperationLogConsts.OP_NODE_LINK, "账号多族绑定自动建立亲族链接",
+                OperationLogConsts.TARGET_NODE_LINK, link.getId(), link.getSrcFamilyId(), null));
+        logger.info("Created account-derived cross-family link: linkId={} userId={} {}<->{}",
+                link.getId(), user.getId(), link.getSrcNodeId(), link.getDstNodeId());
+    }
+
+    /**
+     * 节点对的规范化键（小ID在前），与 {@link CrossFamilyLink#orderEndpoints()} 同口径
+     */
+    private static String pairKey(Long nodeA, Long nodeB) {
+        if (nodeA == null || nodeB == null) {
+            return "";
+        }
+        return nodeA <= nodeB ? nodeA + "-" + nodeB : nodeB + "-" + nodeA;
     }
 
     /**

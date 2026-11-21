@@ -68,6 +68,14 @@ public class FamilyUserNodeRepositoryImpl implements FamilyUserNodeRepository {
     }
 
     @Override
+    public List<FamilyUserNode> findByUserId(Long userId) {
+        LambdaQueryWrapper<FamilyUserNodeDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(FamilyUserNodeDO::getUserId, userId);
+        List<FamilyUserNodeDO> doList = mapper.selectList(wrapper);
+        return FamilyUserNodeConverter.toDomainList(doList);
+    }
+
+    @Override
     public void removeByFamilyIdAndUserId(Long familyId, Long userId) {
         LambdaQueryWrapper<FamilyUserNodeDO> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FamilyUserNodeDO::getFamilyId, familyId)

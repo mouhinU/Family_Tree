@@ -54,6 +54,14 @@ public interface FamilyUserNodeRepository {
     List<FamilyUserNode> findByFamilyId(Long familyId);
 
     /**
+     * 查询某用户全部家族内的绑定关系（跨族账号成链同步用）
+     *
+     * @param userId 用户ID
+     * @return 绑定列表
+     */
+    List<FamilyUserNode> findByUserId(Long userId);
+
+    /**
      * 解除某用户在某家族内的绑定
      *
      * @param familyId 家族ID

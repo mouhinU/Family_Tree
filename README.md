@@ -69,6 +69,7 @@ web → application → domain ← infrastructure
 - **标记为我**：登录用户可标记自己在族谱中对应的节点，节点卡片显示金色边框与"我"徽章；入口前置在节点右键菜单第一层与详情弹窗按钮，无需展开子菜单；绑定关系按家族隔离（`family_user_node`），同一用户在不同家族可各自标记，互不影响。未绑定成员的非管理员可见集合为空，若操作门同时挡住「标记为我」会形成"永远无法首绑"的死锁（胡氏家族案例）：右键/长按入口对未绑定成员放行，但菜单收纳为仅「标记为我」（`context-menu.js` 的 `canOpenMenu` + CSS `mark-self-only`），标记成功后立即重拉 `/api/tree/detail-scope` 恢复完整菜单；后端 `bindMyNode` 权限不变（仅校验节点属于当前家族），其余操作接口仍独立拦截。
 - **账号与族谱联动**：族谱节点改名时自动同步已绑定用户的昵称；真人标记为本人的节点禁止删除（需先解除标记），仅自动账号绑定的节点删除时回收账号后放行；覆盖式 GEDCOM 导入会一并清空旧绑定。绑定节点（含创建家族时的初始节点）与自动开通账号时，若账号的性别、阳历/农历出生日期为空，自动从节点内容回填（仅补空值，不覆盖用户手填；世代不回填，辈分只存节点层，V39 已删除账号级 generation 列）；个人信息弹窗与 `PUT /api/auth/profile` 支持查看和修改性别（0未知/1男/2女，与节点同口径，V37 加列）。出生日期的录入历法（当时按阳历还是阴历录入）记录在 `birth_calendar` 列（1阳历/2阴历，V38 加列，NULL 未记录）：登录过渡页与注册设置页的建族初始节点、节点新建/编辑弹窗、个人信息弹窗四处出生日期均为阳历/阴历切换录入，所选历法随日期一并落库；节点详情弹窗据此标志把对应历法的出生行排在最上，未记录标志的存量数据回落到「2000 年前出生且已登记农历则农历在前」启发式。清空出生日期同步清除标志；更新请求未携带历法字段时保留原值。
 - **节点自动开通账号**：族谱新增在世节点时，`NodeAccountProvisioningEventListener` 监听 `NodeCreatedEvent`（事务提交后）自动创建登录账号并一并建立 `family_user_node` 绑定，用户名优先取节点姓名（重名/脱敏/空名兜底 `fp_{节点ID}`）、昵称为节点姓名、初始密码 `123456`；已故节点不开通。自动账号以 `account.is_auto_account` 标记识别（不再依赖用户名形态），开通逻辑先查绑定再建号，事件重投也不会重复建号。V27 迁移按同一规则为存量在世节点补建账号，V29 再补建绑定关系，V30 新增 `is_auto_account` 标记列并把姓名干净且无重名者的 `username` 对换为真实姓名（脱敏/空名/重名者保留 `fp_{节点ID}` 兜底，`nickname` 与密码不变，`NOT EXISTS` 保护唯一键，均幂等）。真人「标记为我」某节点时回收该节点重复的自动账号（V28 思路，避免一人两号），回收时同步移除该自动账号在本家族的 `family_member` 成员行，避免成员列表与人数统计出现幽灵记录；删除节点时区分自动绑定（回收放行）与真人标记（拦截）。这批账号初始密码相同，本人首次登录后应立即改密。
+- **跨族亲族（父族/母族/妻族/夫族）**：跨家族亲缘由独立表 `family_node_link` 承载，与 `family_relation` 正交——建树、世代修复、亲属路径分析等族内算法永不读取链接，链接也不生成任何族内边。成链有三个通道：同一真人账号在多个家族「标记为我」时自动在两端节点间成 ACCOUNT 链（改绑同步成链、取消标记释放，自动账号不成链）；族长/管理员在节点详情弹窗通过「关联亲族」按同名候选确认后人工指认成 MANUAL 链；系统按姓名精确一致 + 生日吻合（阳历相等或农历相等，中/高置信）预识别的候选为 SUGGESTED 链，被自动绑定或人工确认后升级。节点详情弹窗展示「亲族关系」（父族/母族/妻族/夫族解析结果，父族无跨族血亲链时回落本家且不显示解除）与「归属家族」（仅本人或本家族管理者可见，只列本人真实绑定家族、排除自动账号、不含当前家族）；有链的行对两端任一家族管理者提供「解除关联」，查看者归属的家族提供「切换查看」。链接端点按 `src_node_id < dst_node_id` 规范化存储并以唯一索引实现双向去重；删除节点级联清链；建链/解链记入操作日志（NODE_LINK / NODE_UNLINK）。
 - **操作日志**：记录登录/注册/节点增删改/颜色修改等操作（各应用服务发布 `OperationPerformedEvent`，监听器在事务提交后解耦落库），OWNER/ADMIN 可分页查询并按类型筛选。
 - **族言留言板**：家族成员可发布留言，支持分类、点赞、回复（二级结构 + 回复计数），底部轮播条实时滚动展示最新留言，支持悬停暂停和关闭。
 - **通知中心**：系统内通知的列表查询、未读计数与标记已读。
@@ -167,7 +168,7 @@ cd family-tree-web
 | `dev`（默认） | H2 文件库 `./data/family-tree`（AUTO_SERVER 模式）     | `db/migration/h2`    |
 | `mysql`   | MySQL `jdbc:mysql://localhost:3306/family_tree` | `db/migration/mysql` |
 
-Flyway 在启动时自动执行迁移（V1~V38），`baseline-on-migrate: true`。
+Flyway 在启动时自动执行迁移（V1~V40），`baseline-on-migrate: true`。
 
 平台管理与相册存储相关环境变量：
 
@@ -194,7 +195,7 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 
 ## 数据库模型
 
-共 27 张表，通过 37 个 Flyway 迁移版本管理：
+共 28 张表，通过 40 个 Flyway 迁移版本管理：
 
 | 表名                      | 说明        | 核心字段                                                                       |
 |-------------------------|-----------|----------------------------------------------------------------------------|
@@ -203,6 +204,7 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 | `family_member`         | 用户-家族成员关系 | family_id, user_id, role (OWNER/ADMIN/MEMBER)                              |
 | `family_node`           | 族谱节点（人物）  | name, gender, birth_date, death_date, generation, color_label, birth_order, biography |
 | `family_relation`       | 节点间关系     | from_node_id, to_node_id, relation_type (亲子/配偶/过继)                         |
+| `family_node_link`      | 跨族节点链接（与 `family_relation` 正交，不参与任何族内算法） | src_family_id, src_node_id, dst_family_id, dst_node_id, link_type (血亲/婚姻), source (账号自动/人工指认/候选确认), confirmed_by（端点规范化 src<dst，唯一索引 src_node_id + dst_node_id） |
 | `family_generation`     | 辈分名（字辈）   | family_id, generation, name                                                |
 | `family_offering`       | 祭奠记录      | node_id, offering_type (敬献/鲜花)                                             |
 | `operation_log`         | 操作审计日志    | operation_type, operation_desc, target_type, ip_address                    |
@@ -272,7 +274,7 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 
 ## API 概览
 
-共 32 个控制器、129 个 API 端点：
+共 33 个控制器、135 个 API 端点：
 
 | 前缀                       | 端点数 | 说明                                            |
 |--------------------------|-----|-----------------------------------------------|
@@ -282,6 +284,7 @@ AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 | `/api/invite`            | 2   | 邀请链接校验与邀请加入                                  |
 | `/api/node`              | 8   | 节点增删改查、列表、搜索、批量修改颜色、节点详情                        |
 | `/api/relation`          | 5   | 关系增删改查（配偶 / 亲子 / 过继）、单节点关系列表、全量关系列表           |
+| `/api`（跨族亲族）        | 6   | 节点的亲族家族解析 / 归属家族列表 / 亲族链接建立与解除 / 同名候选确认 / 家族简要信息 |
 | `/api/tree`              | 3   | 完整族谱树（Caffeine 缓存）/ 子树 / 详情可见范围                    |
 | `/api/generation`        | 4   | 辈分名列表 / 批量保存 / 布局查询 / 布局保存                    |
 | `/api/offering`          | 2   | 祭奠记录 / 节点祭奠统计                                 |

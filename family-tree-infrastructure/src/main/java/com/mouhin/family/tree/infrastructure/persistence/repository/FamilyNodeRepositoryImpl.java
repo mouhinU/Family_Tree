@@ -66,6 +66,26 @@ public class FamilyNodeRepositoryImpl implements FamilyNodeRepository {
     }
 
     @Override
+    public List<FamilyNode> findByNameExcludeFamily(String name, Long excludeFamilyId, int limit) {
+        LambdaQueryWrapper<FamilyNodeDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(FamilyNodeDO::getName, name)
+                .ne(FamilyNodeDO::getFamilyId, excludeFamilyId)
+                .orderByAsc(FamilyNodeDO::getId)
+                .last("LIMIT " + Math.max(1, limit));
+        List<FamilyNodeDO> doList = mapper.selectList(wrapper);
+        return FamilyNodeConverter.toDomainList(doList);
+    }
+
+    @Override
+    public FamilyNode findFirstByFamilyId(Long familyId) {
+        LambdaQueryWrapper<FamilyNodeDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(FamilyNodeDO::getFamilyId, familyId)
+                .orderByAsc(FamilyNodeDO::getId)
+                .last("LIMIT 1");
+        return FamilyNodeConverter.toDomain(mapper.selectOne(wrapper));
+    }
+
+    @Override
     public void update(FamilyNode entity) {
         FamilyNodeDO doObj = FamilyNodeConverter.toDO(entity);
         mapper.updateById(doObj);
