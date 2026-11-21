@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: family-tree-app
+  namespace: prod
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: family-tree
+  template:
+    metadata:
+      labels:
+        app: family-tree
+    spec:
+      containers:
+        - name: family-tree-app
+          # 部署时更新此 tag（与 .env FT_IMAGE 同规则，每次构建用新 vNN-local）
+          image: family-tree:v70-local
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8090
+          envFrom:
+            - configMapRef:
+                name: family-tree-env
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: family-tree-db
+                  key: DB_PASSWORD
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          # distroless 无 shell，探针只能 httpGet；启动可长达 3.5min
+          startupProbe:
+            httpGet:
+              path: /login.html
+              port: 8090
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /login.html
+              port: 8090
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /login.html
+              port: 8090
+            periodSeconds: 30
+            failureThreshold: 3
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+            - name: logs
+              mountPath: /app/logs
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: family-tree-data
+        - name: logs
+          persistentVolumeClaim:
+            claimName: family-tree-logs

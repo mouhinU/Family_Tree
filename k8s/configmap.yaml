@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: family-tree-env
+  namespace: prod
+data:
+  SPRING_PROFILES_ACTIVE: "mysql"
+  DB_URL: "jdbc:mysql://mysql:3306/family_tree?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai"
+  DB_USERNAME: "family_tree_app"
+  SPRING_DATA_REDIS_HOST: "redis"
+  SPRING_DATA_REDIS_PORT: "6379"
+  PLATFORM_ADMIN_USERNAMES: "admin"
+  FAMILY_TREE_PHOTO_DIR: "/app/data/photos"
+  JAVA_OPTS: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"

@@ -45,3 +45,6 @@ __pycache__/
 
 # 篆体字体完整 TTF 原件体积大且方正小篆体 fsType=8 禁止再分发，不入库（子集产物在 static/fonts/ 提交）
 fonts/*.ttf
+
+# k8s 真实口令文件（模板 secret.yaml.example 入库，实体绝不入库）
+k8s/secret.yaml
