@@ -24,21 +24,25 @@ docker build -t family-tree:v51-local /tmp/ft-v51-ctx
 #    1b. 走仓库 Dockerfile（多阶段，构建期要联网拉 Maven 依赖）
 docker build -t family-tree:v51-local .
 
-# 2. 首次准备 scratch 库（示例用宿主机 3307 的 MySQL，库名单独一个）
+# 2. 首次准备 scratch 库（family-tree 专属容器 family-tree-mysql，宿主映射 127.0.0.1:3308，库名单独一个）
 #    可从生产备份导一份副本，之后复用即可（Flyway 会自动补迁移）
+#    口令不入库：root 口令与 family_tree_app 口令均取自仓库根 .env（MYSQL_ROOT_PASSWORD / DB_PASSWORD）
 #    注意 mysqldump 不要加 --databases：那样会带 USE `family_tree`，导入时会写回生产库
-docker exec knowledge-mysql mysqldump -uroot -p123456 --single-transaction --routines --triggers family_tree \
+FTROOT=$(grep ^MYSQL_ROOT_PASSWORD= .env | cut -d= -f2)
+docker exec family-tree-mysql mysqldump -uroot -p"$FTROOT" --single-transaction --routines --triggers family_tree \
   > /tmp/ft-v51reg-seed.sql
-docker exec knowledge-mysql mysql -uroot -p123456 \
-  -e "CREATE DATABASE IF NOT EXISTS family_tree_v51reg DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
-docker exec -i knowledge-mysql mysql -uroot -p123456 family_tree_v51reg < /tmp/ft-v51reg-seed.sql
+docker exec family-tree-mysql mysql -uroot -p"$FTROOT" \
+  -e "CREATE DATABASE IF NOT EXISTS family_tree_v51reg DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+      GRANT ALL PRIVILEGES ON family_tree_v51reg.* TO 'family_tree_app'@'%'; FLUSH PRIVILEGES;"
+docker exec -i family-tree-mysql mysql -uroot -p"$FTROOT" family_tree_v51reg < /tmp/ft-v51reg-seed.sql
 
-# 3. 起回归容器（/tmp 下挂数据与日志目录，照片目录落在卷内）
-docker run -d --name family-tree-reg-v51 -p 8093:8090 \
-  -e DB_URL='jdbc:mysql://host.docker.internal:3307/family_tree_v51reg?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai' \
-  -e DB_USERNAME=root -e DB_PASSWORD=123456 \
+# 3. 起回归容器：挂到 compose 网络 family_tree_default，直接用服务名 mysql / redis（无需 host.docker.internal）
+#    /tmp 下挂数据与日志目录，照片目录落在卷内
+docker run -d --name family-tree-reg-v51 -p 8093:8090 --network family_tree_default \
+  -e DB_URL='jdbc:mysql://mysql:3306/family_tree_v51reg?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai' \
+  -e DB_USERNAME=family_tree_app -e DB_PASSWORD="$(grep ^DB_PASSWORD= .env | cut -d= -f2)" \
   -e SPRING_PROFILES_ACTIVE=mysql \
-  -e SPRING_DATA_REDIS_HOST=host.docker.internal -e SPRING_DATA_REDIS_PORT=6380 -e SPRING_DATA_REDIS_DATABASE=7 \
+  -e SPRING_DATA_REDIS_HOST=redis -e SPRING_DATA_REDIS_PORT=6379 -e SPRING_DATA_REDIS_DATABASE=7 \
   -e PLATFORM_ADMIN_USERNAMES=admin \
   -e FAMILY_TREE_PHOTO_DIR=/app/data/photos \
   -v /tmp/ft-v51reg-data:/app/data -v /tmp/ft-v51reg-logs:/app/logs \
@@ -93,7 +97,7 @@ scratch 库是从生产备份复制的，备份里的 `admin` 与 `蒙子羽` �
 把它回填给这两个账号（只写 scratch 库，切勿动生产库；V39 起用户表已由 `sys_user` 更名为 `account`，跑 v64 及以后镜像时用 `account`），再用环境变量覆盖口令：
 
 ```bash
-docker exec knowledge-mysql mysql -uroot -p123456 -e " \
+docker exec family-tree-mysql mysql -uroot -p"$(grep ^MYSQL_ROOT_PASSWORD= .env | cut -d= -f2)" -e " \
   UPDATE family_tree_v57reg.account SET password_hash='<临时账号的散列>', must_change_password=0 \
   WHERE username IN ('admin','蒙子羽');"
 export FT_REG_BASE=http://127.0.0.1:8098 FT_REG_OWNER_PWD='Reg@2026reg' FT_REG_MEMBER_PWD='Reg@2026reg'

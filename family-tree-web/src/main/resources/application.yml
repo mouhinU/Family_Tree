@@ -22,11 +22,11 @@ spring:
         temperature: 0.7
         max-tokens: 4096
 
-  # Redis 分布式缓存（Docker 容器，端口 6380）
+  # Redis 分布式缓存（family-tree 专属容器 family-tree-redis，宿主映射 127.0.0.1:6381；compose 内走服务名 redis:6379）
   data:
     redis:
       host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6380}
+      port: ${REDIS_PORT:6381}
       password: ${REDIS_PASSWORD:}
       database: ${REDIS_DATABASE:0}
       lettuce:

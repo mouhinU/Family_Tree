@@ -8,9 +8,11 @@ SRC="$ROOT/fonts/bbyz-seal-script.ttf"
 OUT="$ROOT/family-tree-web/src/main/resources/static/fonts/seal-subset.woff2"
 PY="${FT_PYTHON:-python3}"
 
-# 1. 从数据库导出全部辈分字（生产库名 family_tree，scratch 库名不同请覆盖 FT_DB）
+# 1. 从数据库导出全部辈分字（family-tree 专属容器；生产库名 family_tree，scratch 库名不同请覆盖 FT_DB）
+#    root 口令取自仓库根 .env（MYSQL_ROOT_PASSWORD），不入库
 DB="${FT_DB:-family_tree}"
-docker exec knowledge-mysql mysql --default-character-set=utf8mb4 -uroot -p123456 -N \
+FTROOT=$(grep ^MYSQL_ROOT_PASSWORD= "$ROOT/.env" | cut -d= -f2)
+docker exec family-tree-mysql mysql --default-character-set=utf8mb4 -uroot -p"$FTROOT" -N \
     -e "SELECT DISTINCT name FROM ${DB}.family_generation WHERE name IS NOT NULL AND name<>'';" \
     | tr -d '\r' > /tmp/seal-gen.txt
 
