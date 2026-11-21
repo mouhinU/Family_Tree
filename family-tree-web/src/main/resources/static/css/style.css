@@ -5767,3 +5767,87 @@ body.toolbar-hidden .tree-container {
 .fx-text--lamp {
     color: #c99b3f;
 }
+
+/* ========== 详情弹窗跨族亲族区块（#264） ========== */
+.detail-section {
+    margin-top: 14px;
+}
+
+.detail-section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--ink);
+    margin-bottom: 6px;
+}
+
+.detail-action-bar {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid #eee;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.detail-action-bar [data-close-modal] {
+    margin-left: auto;
+}
+
+.affinity-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid #eee;
+    border-left: 3px solid var(--gold);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    font-size: 14px;
+    background: #fffdf8;
+}
+
+.affinity-type {
+    color: #a63a2b;
+    font-weight: 600;
+    flex: 0 0 auto;
+}
+
+.affinity-person {
+    color: #666;
+    font-size: 13px;
+}
+
+.affinity-src {
+    color: #8a7f6a;
+    font-size: 12px;
+}
+
+.affinity-actions {
+    margin-left: auto;
+    display: flex;
+    gap: 6px;
+    flex: 0 0 auto;
+}
+
+.affinity-empty {
+    color: #999;
+    font-size: 13px;
+    margin: 4px 0 8px;
+}
+
+.affinity-candidate-panel {
+    margin-top: 8px;
+}
+
+.affinity-title {
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 6px;
+}

@@ -537,7 +537,7 @@
         var spouseHtml = '';
         var hasSpouses = (node.spouses && node.spouses.length > 0) || (node.bloodSpouses && node.bloodSpouses.length > 0) || (node.formerSpouses && node.formerSpouses.length > 0);
         if (hasSpouses) {
-            spouseHtml = '<div class="detail-section" style="margin-top:14px;"><label style="font-weight:600;display:block;margin-bottom:6px;">配偶关系</label>';
+            spouseHtml = '<div class="detail-section"><label class="detail-section-title">配偶关系</label>';
             var renderSpouseRow = function (sp, isBlood, isFormer) {
                 // 已故节点不展示婚姻状态（在婚/已离异），配偶名后留空；
                 // 在婚（含再婚）与离异配偶用不同底色卡片 + 徽章区分，一眼可辨。
@@ -617,13 +617,13 @@
             (node.remark ? '<p style="margin:4px 0;color:#666;font-size:14px;">备注：' + FT.escapeHtml(node.remark) + '</p>' : '') +
             '</div>' +
             spouseHtml +
-            '<div style="margin-top:16px;padding-top:14px;border-top:1px solid #eee;display:flex;gap:10px;">' +
+            // 跨族亲族区块占位：数据来自 /api/node/{id}/affinity-families 等接口，弹窗渲染后异步填充
+            '<div id="affinity-sections" data-node-id="' + FT.escapeAttr(node.id) + '"></div>' +
+            '<div class="detail-action-bar">' +
             markSelfHtml +
             '<button class="btn-sm js-death-btn" data-node-id="' + FT.escapeAttr(node.id) +
             '" data-death="' + FT.escapeAttr(node.deathDate || '') +
             '" data-name="' + FT.escapeAttr(node.name) + '">设置去世日期</button>' +
-            '</div>' +
-            '<div class="modal-actions" style="margin-top:20px;">' +
             '<button class="btn-cancel" data-close-modal>关闭</button></div>'
         , true);
 
@@ -654,6 +654,168 @@
         // 已故长辈：异步加载祭奠统计面板（上香烛 / 烧纸）
         if (isSenior) {
             FT.loadOfferingPanel(node.id);
+        }
+        // 跨族亲族区块（亲族关系 / 归属家族）异步填充
+        loadAffinitySections(node.id);
+    }
+
+    // ========== 跨族亲族区块（亲族关系 / 归属家族 / 候选确认） ==========
+    var AFFINITY_TYPE_LABELS = {1: '父族', 2: '母族', 3: '妻族', 4: '夫族'};
+    var NODE_LINK_SOURCE_LABELS = {1: '账号自动', 2: '人工指认', 3: '候选确认'};
+    var CANDIDATE_CONFIDENCE_LABELS = {2: '高置信', 1: '中置信'};
+    var MEMBER_ROLE_LABELS = {OWNER: '族长', ADMIN: '管理员', MEMBER: '成员'};
+
+    async function loadAffinitySections(nodeId) {
+        var container = document.getElementById('affinity-sections');
+        if (!container || nodeId == null) {
+            return;
+        }
+        var isManager = !!FT.state.isManager;
+        var currentUser = FT.state.currentUser;
+        var isSelfNode = !!currentUser && currentUser.nodeId === nodeId;
+        var jobs = [
+            FT.api('/api/node/' + nodeId + '/affinity-families'),
+            // member-families 后端门为「本人或家族管理者」，前端同口径跳过请求，避免普通成员查看他人详情时误弹错误
+            (isManager || isSelfNode) ? FT.api('/api/node/' + nodeId + '/member-families') : Promise.resolve(null),
+            FT.api('/api/family/my-list')
+        ];
+        var res;
+        try {
+            res = await Promise.all(jobs);
+        } catch (e) {
+            // FT.api 已统一 toast 提示，此处仅中止区块渲染
+            return;
+        }
+        renderAffinitySections(container, nodeId, res[0], res[1], res[2], isManager);
+    }
+
+    function renderAffinitySections(container, nodeId, affinityRes, memberRes, myListRes, isManager) {
+        var currentFamilyId = FT.state.currentUser ? FT.state.currentUser.familyId : null;
+        var myFamilyIds = {};
+        ((myListRes && myListRes.code === 200 && myListRes.data) || []).forEach(function (f) {
+            myFamilyIds[f.id] = true;
+        });
+        var affinityRows = (affinityRes && affinityRes.code === 200 && affinityRes.data) || [];
+        var memberRows = (memberRes && memberRes.code === 200 && memberRes.data) || [];
+
+        var switchBtn = function (familyId) {
+            return familyId !== currentFamilyId && myFamilyIds[familyId]
+                ? '<button class="btn-sm js-affinity-switch-btn" data-family-id="' + FT.escapeAttr(familyId) + '">切换查看</button>'
+                : '';
+        };
+        var html = '';
+        if (affinityRows.length > 0 || isManager) {
+            html += '<div class="detail-section">' +
+                '<label class="detail-section-title affinity-title">亲族关系' +
+                (isManager ? '<button class="btn-sm js-affinity-candidates-btn" data-node-id="' + FT.escapeAttr(nodeId) +
+                    '">关联亲族</button>' : '') +
+                '</label>';
+            affinityRows.forEach(function (row) {
+                var typeLabel = AFFINITY_TYPE_LABELS[row.type] || '亲族';
+                var personLabel = row.relatedPersonName
+                    ? '<span class="affinity-person">经 ' + FT.escapeHtml(row.relatedPersonName) + '</span>' : '';
+                var sourceLabel = row.linkId && row.linkSource ? NODE_LINK_SOURCE_LABELS[row.linkSource] || '' : '';
+                var actions = switchBtn(row.familyId);
+                if (row.linkId && isManager) {
+                    actions += '<button class="btn-sm js-affinity-unlink-btn" data-node-id="' + FT.escapeAttr(nodeId) +
+                        '" data-link-id="' + FT.escapeAttr(row.linkId) + '">解除关联</button>';
+                }
+                html += '<div class="affinity-row">' +
+                    '<span class="affinity-type">' + typeLabel + '</span>' +
+                    '<strong>' + FT.escapeHtml(row.familyName || '') + '</strong>' +
+                    personLabel +
+                    (sourceLabel ? '<span class="affinity-src">' + sourceLabel + '</span>' : '') +
+                    (actions ? '<span class="affinity-actions">' + actions + '</span>' : '') +
+                    '</div>';
+            });
+            if (affinityRows.length === 0) {
+                html += '<p class="affinity-empty">暂未发现跨族亲族，可通过「关联亲族」指认同名族人</p>';
+            }
+            html += '<div class="affinity-candidate-panel" id="affinity-candidate-panel"></div></div>';
+        }
+        if (memberRows.length > 0) {
+            html += '<div class="detail-section">' +
+                '<label class="detail-section-title">归属家族</label>';
+            memberRows.forEach(function (row) {
+                var roleLabel = row.role ? '<span class="affinity-src">（' + (MEMBER_ROLE_LABELS[row.role] || row.role) + '）</span>' : '';
+                var actions = switchBtn(row.familyId);
+                html += '<div class="affinity-row">' +
+                    '<strong>' + FT.escapeHtml(row.familyName || '') + '</strong>' + roleLabel +
+                    (actions ? '<span class="affinity-actions">' + actions + '</span>' : '') +
+                    '</div>';
+            });
+            html += '</div>';
+        }
+        container.innerHTML = html;
+        bindAffinityEvents(container, nodeId);
+    }
+
+    function bindAffinityEvents(container, nodeId) {
+        container.querySelectorAll('.js-affinity-unlink-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                FT.confirm('确定解除该亲族关联？解除后对应亲族族谱入口将消失。', async function () {
+                    var res = await FT.api('/api/node/' + btn.dataset.nodeId + '/affinity-links/' + btn.dataset.linkId,
+                        {method: 'DELETE'});
+                    if (res.code === 200) {
+                        FT.toast('已解除关联', 'success');
+                        loadAffinitySections(nodeId);
+                    }
+                });
+            });
+        });
+        container.querySelectorAll('.js-affinity-switch-btn').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                var res = await FT.api('/api/family/switch/' + btn.dataset.familyId, {method: 'PUT'});
+                if (res.code === 200) {
+                    FT.toast('已切换家族', 'success');
+                    location.reload();
+                }
+            });
+        });
+        var linkBtn = container.querySelector('.js-affinity-candidates-btn');
+        if (linkBtn) {
+            linkBtn.addEventListener('click', async function () {
+                var panel = container.querySelector('#affinity-candidate-panel');
+                if (!panel) {
+                    return;
+                }
+                if (panel.dataset.open === '1') {
+                    panel.innerHTML = '';
+                    panel.dataset.open = '';
+                    return;
+                }
+                var res = await FT.api('/api/node/' + nodeId + '/affinity-candidates');
+                var rows = (res.code === 200 && res.data) || [];
+                var html = '';
+                rows.forEach(function (c) {
+                    var confLabel = CANDIDATE_CONFIDENCE_LABELS[c.confidence] || '';
+                    html += '<div class="affinity-row">' +
+                        '<strong>' + FT.escapeHtml(c.nodeName || '') + '</strong>' +
+                        '<span class="affinity-person">' + FT.escapeHtml(c.familyName || '') + '</span>' +
+                        (c.birthDate ? '<span class="affinity-src">' + FT.escapeHtml(c.birthDate) + '</span>' : '') +
+                        (confLabel ? '<span class="affinity-src">' + confLabel + '</span>' : '') +
+                        '<span class="affinity-actions">' +
+                        '<button class="btn-sm js-affinity-confirm-btn" data-dst-node-id="' + FT.escapeAttr(c.nodeId) +
+                        '" data-name="' + FT.escapeAttr(c.nodeName || '') + '">确认关联</button></span></div>';
+                });
+                if (!rows.length) {
+                    html = '<p class="affinity-empty">未发现同名跨族候选（仅按姓名精确匹配，需对方家族有同名节点）</p>';
+                }
+                panel.innerHTML = html;
+                panel.dataset.open = '1';
+                panel.querySelectorAll('.js-affinity-confirm-btn').forEach(function (cb) {
+                    cb.addEventListener('click', async function () {
+                        var linkRes = await FT.api('/api/node/' + nodeId + '/affinity-links', {
+                            method: 'POST',
+                            body: JSON.stringify({dstNodeId: parseInt(cb.dataset.dstNodeId, 10)})
+                        });
+                        if (linkRes.code === 200) {
+                            FT.toast('已关联 ' + cb.dataset.name, 'success');
+                            loadAffinitySections(nodeId);
+                        }
+                    });
+                });
+            });
         }
     }
 
