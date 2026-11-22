@@ -111,11 +111,19 @@ kubectl -n prod patch svc family-tree -p '{"spec":{"selector":{"app":"family-tre
 #    kubectl -n prod get endpointslices -l kubernetes.io/service-name=family-tree
 #    —— 出任何异常立刻回切（秒级）：
 #    kubectl -n prod patch svc family-tree -p '{"spec":{"selector":{"app":"family-tree-blue"}}}'
-# 5) 观察窗口（建议 ≥30min）后休眠旧槽：
+# 5) 确认新槽正常后休眠旧槽（不必等固定观察窗口）：
+#    判据两条，都满足即可 scale 0：
+#      a. 线上电池全绿（见第 4 步），endpointslices 只剩新槽 pod IP —— 旧槽已不再接新请求；
+#      b. 旧槽在途请求处理完毕：旧 pod 日志无新的进行中请求，且 WebSocket 已无存活连接
+#         （客户端会自动重连到新槽）。留 1~2min 排空余量即可。
 kubectl -n prod scale deployment/family-tree-app-blue --replicas=0
 ```
 
 下一次发版方向相反（发蓝槽、selector 切回 `app=family-tree-blue`），两槽永远交替。镜像修剪规则照旧（只留最近三代）。
+
+> ⚠ **旧槽休眠后，「秒级回切」不再成立**：回滚要先把旧槽 `scale --replicas=1` 并等启动（可长达 3.5min），
+> 期间旧版本 pod 还要重新跑 Flyway 前的兼容校验。因此第 4 步电池必须全绿再休眠；若对新版本还有疑虑，
+> 就多留旧槽跑一会儿，休眠是发版的收尾动作而非必做项。破坏性迁移版本（见下）本来就只能停机发版，不受影响。
 
 **边界与注意（为什么不是 RollingUpdate）：**
 

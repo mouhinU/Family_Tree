@@ -13,6 +13,8 @@ import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyUserNode;
 import com.mouhin.family.tree.domain.entity.User;
 import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
+import com.mouhin.family.tree.domain.event.UserNodeBoundEvent;
+import com.mouhin.family.tree.domain.event.UserNodeUnboundEvent;
 import com.mouhin.family.tree.domain.repository.CrossFamilyLinkRepository;
 import com.mouhin.family.tree.domain.repository.FamilyMemberRepository;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
@@ -41,8 +43,8 @@ import java.util.regex.Pattern;
  * 在世节点开通账号（用户名优先取姓名、重名/脱敏兜底 fp_编号）时一并建立绑定并补建家族成员身份、节点改名同步绑定用户昵称、
  * 真人标记节点时回收重复的自动账号、删除节点时区分自动绑定（回收放行）与真人标记（拦截）。
  * 自动账号靠 is_auto_account 标记识别，不再依赖用户名形态。
- * 另承载跨族方案的 ACCOUNT 通道：真人账号多族绑定/解绑时自动同步 source=ACCOUNT 的跨族链接
- * （{@link CrossFamilyLink}），候选链自动核销升级。</p>
+ * 另承载跨族方案的 ACCOUNT 通道：「标记为我」绑定/解绑发布领域事件，由监听器在事务提交后
+ * 按账号全部跨族绑定自动同步 source=ACCOUNT 的跨族链接（{@link CrossFamilyLink}），候选链自动核销升级。</p>
  *
  * @author Family-Tree
  * @date 2026-11-05
@@ -166,7 +168,7 @@ public class FamilyUserNodeApplicationService {
         if (nodeId == null) {
             if (existing != null) {
                 familyUserNodeRepository.removeByFamilyIdAndUserId(familyId, userId);
-                syncAccountLinksForUser(userId, existing.getNodeId());
+                eventPublisher.publishEvent(UserNodeUnboundEvent.of(familyId, userId, existing.getNodeId()));
                 logger.info("User unbound from node: familyId={} userId={}", familyId, userId);
             }
             return;
@@ -196,7 +198,7 @@ public class FamilyUserNodeApplicationService {
             familyUserNodeRepository.update(existing);
         }
         backfillProfileFromNode(userRepository.findById(userId), node);
-        syncAccountLinksForUser(userId, nodeId);
+        eventPublisher.publishEvent(UserNodeBoundEvent.of(familyId, userId, nodeId));
         logger.info("User bound to node: familyId={} userId={} nodeId={}", familyId, userId, nodeId);
     }
 
@@ -406,19 +408,21 @@ public class FamilyUserNodeApplicationService {
     }
 
     /**
-     * ACCOUNT 通道自动成链同步：按真人账号当前全部跨族绑定重算 source=ACCOUNT 的跨族链接（收敛为期望态）
+     * ACCOUNT 通道自动成链同步：按账号当前全部跨族绑定重算 source=ACCOUNT 的跨族链接（收敛为期望态）
      *
-     * <p>同一真人账号在两族分别「标记为我」即自动建链（血缘同人），解绑即自动释放；
-     * fp_/autoAccount 自动账号不成链（跨族对不上人，见方案册 §4.1 口径）。
-     * 候选确认（SUGGESTED）链接在本人绑定后自动核销升级为 ACCOUNT；
-     * 人工指认（MANUAL）链接不受绑定变化影响。仅由 {@link #bindMyNode} 绑定/解绑两分支调用。</p>
+     * <p>同一账号在两族分别「标记为我」后即自动建链（血缘同人），解绑即自动释放；
+     * 自动账号与真人账号同口径成链——绑定动作即本人操作证明（2026-11-21 口径修订，替代原 fp_/autoAccount
+     * 不成链的 §4.1 旧口径）。候选确认（SUGGESTED）链接在绑定后自动核销升级为 ACCOUNT；
+     * 人工指认（MANUAL）链接不受绑定变化影响。由 {@link UserNodeBoundEvent}/{@link UserNodeUnboundEvent}
+     * 的监听器在绑定事务提交后调用。</p>
      *
-     * @param userId        绑定用户ID（真人账号才同步）
+     * @param userId        绑定用户ID
      * @param touchedNodeId 本次绑定/解绑涉及的节点ID（用于发现需释放的旧链）
      */
-    private void syncAccountLinksForUser(Long userId, Long touchedNodeId) {
+    @Transactional(rollbackFor = Exception.class)
+    public void syncAccountLinksForUser(Long userId, Long touchedNodeId) {
         User user = userRepository.findById(userId);
-        if (user == null || Boolean.TRUE.equals(user.getAutoAccount())) {
+        if (user == null) {
             return;
         }
         List<FamilyUserNode> bindings = new ArrayList<>();

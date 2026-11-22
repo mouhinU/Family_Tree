@@ -20,7 +20,7 @@ spec:
       containers:
         - name: family-tree-app
           # 发版时更新此 tag（蓝绿两槽交替使用，见 README「零停机发版」）
-          image: family-tree:v71-local
+          image: family-tree:v74-local
           imagePullPolicy: Always
           ports:
             - containerPort: 8090

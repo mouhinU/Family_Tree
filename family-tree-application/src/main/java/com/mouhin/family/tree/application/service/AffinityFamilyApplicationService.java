@@ -40,7 +40,8 @@ import java.util.Objects;
 /**
  * 跨族亲族应用服务：亲族家族展示、归属家族展示、人工建链/解链、候选生成与家族只读摘要
  *
- * <p>边界口径（与跨族方案册一致）：缺链时空着不猜测；除真人账号证据外禁止自动成链，
+ * <p>边界口径（与跨族方案册一致）：缺链时空着不猜测；除账号绑定证据（「标记为我」事件驱动成链，
+ * 自动账号与真人同口径）外禁止自动成链，
  * 候选仅提示、确认后才落链；查询时惰性解析不物化；按当前生效边呈现。
  * {@code @RequireFamilyManager} 切面只校验会话当前家族，解链可能由另一端家族管理者发起，
  * 故 {@link #unlinkNode} 在应用层显式校验其对链接两端家族的管理者身份。</p>
@@ -108,7 +109,7 @@ public class AffinityFamilyApplicationService {
      *
      * @param familyId 会话当前家族ID
      * @param nodeId   节点ID
-     * @return 亲族家族VO列表；父族恒有一条（链接优先、回落本族）
+     * @return 亲族家族VO列表；父族恒有一条（族内父边优先、链接回指次之、回落本族）
      */
     public List<NodeAffinityFamilyVO> listAffinityFamilies(Long familyId, Long nodeId) {
         FamilyNode node = requireNodeInFamily(familyId, nodeId);

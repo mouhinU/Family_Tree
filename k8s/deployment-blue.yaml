@@ -19,7 +19,7 @@ spec:
       containers:
         - name: family-tree-app
           # 部署时更新此 tag（与 .env FT_IMAGE 同规则，每次构建用新 vNN-local）
-          image: family-tree:v71-local
+          image: family-tree:v75-local
           imagePullPolicy: Always
           ports:
             - containerPort: 8090

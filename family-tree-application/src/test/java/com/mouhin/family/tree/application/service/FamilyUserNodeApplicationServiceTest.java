@@ -11,6 +11,8 @@ import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyUserNode;
 import com.mouhin.family.tree.domain.entity.User;
 import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
+import com.mouhin.family.tree.domain.event.UserNodeBoundEvent;
+import com.mouhin.family.tree.domain.event.UserNodeUnboundEvent;
 import com.mouhin.family.tree.domain.repository.CrossFamilyLinkRepository;
 import com.mouhin.family.tree.domain.repository.FamilyMemberRepository;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
@@ -534,17 +536,46 @@ class FamilyUserNodeApplicationServiceTest {
         assertEquals("1960-03-01", captor.getValue().getBirthDate());
     }
 
-    // ========== ACCOUNT 通道自动成链（跨族绑定同步） ==========
+    // ========== ACCOUNT 通道自动成链（跨族绑定同步，事件监听器事务提交后调用） ==========
 
     @Test
-    void bindMyNode_secondFamilyBinding_createsAccountBloodLink() {
+    void bindMyNode_bind_publishesUserNodeBoundEvent() {
         when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID)).thenReturn(null);
         when(familyNodeRepository.findById(NODE_ID)).thenReturn(node(NODE_ID, FAMILY_ID));
+
+        familyUserNodeApplicationService.bindMyNode(FAMILY_ID, USER_ID, NODE_ID);
+
+        ArgumentCaptor<UserNodeBoundEvent> captor = ArgumentCaptor.forClass(UserNodeBoundEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertEquals(FAMILY_ID, captor.getValue().familyId());
+        assertEquals(USER_ID, captor.getValue().userId());
+        assertEquals(NODE_ID, captor.getValue().nodeId());
+        // 链接同步不随绑定事务内联执行，交由监听器在提交后处理
+        verifyNoInteractions(crossFamilyLinkRepository);
+    }
+
+    @Test
+    void bindMyNode_unbind_publishesUserNodeUnboundEvent() {
+        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID))
+                .thenReturn(binding(5L, NODE_ID));
+
+        familyUserNodeApplicationService.bindMyNode(FAMILY_ID, USER_ID, null);
+
+        ArgumentCaptor<UserNodeUnboundEvent> captor = ArgumentCaptor.forClass(UserNodeUnboundEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertEquals(FAMILY_ID, captor.getValue().familyId());
+        assertEquals(USER_ID, captor.getValue().userId());
+        assertEquals(NODE_ID, captor.getValue().nodeId());
+        verifyNoInteractions(crossFamilyLinkRepository);
+    }
+
+    @Test
+    void syncAccountLinksForUser_secondFamilyBinding_createsAccountBloodLink() {
         when(userRepository.findById(USER_ID)).thenReturn(user(USER_ID, "mengziyu"));
         when(familyUserNodeRepository.findByUserId(USER_ID))
                 .thenReturn(List.of(binding(5L, NODE_ID), otherFamilyBinding(200L, 21L)));
 
-        familyUserNodeApplicationService.bindMyNode(FAMILY_ID, USER_ID, NODE_ID);
+        familyUserNodeApplicationService.syncAccountLinksForUser(USER_ID, NODE_ID);
 
         ArgumentCaptor<CrossFamilyLink> captor = ArgumentCaptor.forClass(CrossFamilyLink.class);
         verify(crossFamilyLinkRepository).save(captor.capture());
@@ -561,31 +592,27 @@ class FamilyUserNodeApplicationServiceTest {
     }
 
     @Test
-    void bindMyNode_sameFamilyBindings_createsNoLink() {
-        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID)).thenReturn(null);
-        when(familyNodeRepository.findById(NODE_ID)).thenReturn(node(NODE_ID, FAMILY_ID));
+    void syncAccountLinksForUser_sameFamilyBindings_createsNoLink() {
         when(userRepository.findById(USER_ID)).thenReturn(user(USER_ID, "mengziyu"));
         when(familyUserNodeRepository.findByUserId(USER_ID))
                 .thenReturn(List.of(binding(5L, NODE_ID), binding(6L, 8L)));
 
-        familyUserNodeApplicationService.bindMyNode(FAMILY_ID, USER_ID, NODE_ID);
+        familyUserNodeApplicationService.syncAccountLinksForUser(USER_ID, NODE_ID);
 
         verify(crossFamilyLinkRepository, never()).save(any());
         verify(crossFamilyLinkRepository, never()).update(any());
     }
 
     @Test
-    void bindMyNode_suggestedLinkBetweenBoundPair_upgradedToAccountSilently() {
+    void syncAccountLinksForUser_suggestedLinkBetweenBoundPair_upgradedToAccountSilently() {
         CrossFamilyLink suggested = link(9L, FAMILY_ID, NODE_ID, 200L, 21L, NodeLinkSourceEnum.SUGGESTED);
         suggested.setConfirmedBy(88L);
-        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID)).thenReturn(null);
-        when(familyNodeRepository.findById(NODE_ID)).thenReturn(node(NODE_ID, FAMILY_ID));
         when(userRepository.findById(USER_ID)).thenReturn(user(USER_ID, "mengziyu"));
         when(familyUserNodeRepository.findByUserId(USER_ID))
                 .thenReturn(List.of(binding(5L, NODE_ID), otherFamilyBinding(200L, 21L)));
         when(crossFamilyLinkRepository.findByNodePair(NODE_ID, 21L)).thenReturn(suggested);
 
-        familyUserNodeApplicationService.bindMyNode(FAMILY_ID, USER_ID, NODE_ID);
+        familyUserNodeApplicationService.syncAccountLinksForUser(USER_ID, NODE_ID);
 
         ArgumentCaptor<CrossFamilyLink> captor = ArgumentCaptor.forClass(CrossFamilyLink.class);
         verify(crossFamilyLinkRepository).update(captor.capture());
@@ -597,16 +624,14 @@ class FamilyUserNodeApplicationServiceTest {
     }
 
     @Test
-    void bindMyNode_manualLinkBetweenBoundPair_leftUntouched() {
-        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID)).thenReturn(null);
-        when(familyNodeRepository.findById(NODE_ID)).thenReturn(node(NODE_ID, FAMILY_ID));
+    void syncAccountLinksForUser_manualLinkBetweenBoundPair_leftUntouched() {
         when(userRepository.findById(USER_ID)).thenReturn(user(USER_ID, "mengziyu"));
         when(familyUserNodeRepository.findByUserId(USER_ID))
                 .thenReturn(List.of(binding(5L, NODE_ID), otherFamilyBinding(200L, 21L)));
         when(crossFamilyLinkRepository.findByNodePair(NODE_ID, 21L))
                 .thenReturn(link(9L, FAMILY_ID, NODE_ID, 200L, 21L, NodeLinkSourceEnum.MANUAL));
 
-        familyUserNodeApplicationService.bindMyNode(FAMILY_ID, USER_ID, NODE_ID);
+        familyUserNodeApplicationService.syncAccountLinksForUser(USER_ID, NODE_ID);
 
         verify(crossFamilyLinkRepository, never()).save(any());
         verify(crossFamilyLinkRepository, never()).update(any());
@@ -615,16 +640,14 @@ class FamilyUserNodeApplicationServiceTest {
     }
 
     @Test
-    void bindMyNode_unbind_releasesStaleAccountLinkAndKeepsManual() {
-        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID))
-                .thenReturn(binding(5L, NODE_ID));
+    void syncAccountLinksForUser_bindingsReleased_removesStaleAccountLinkAndKeepsManual() {
         when(userRepository.findById(USER_ID)).thenReturn(user(USER_ID, "mengziyu"));
         when(familyUserNodeRepository.findByUserId(USER_ID)).thenReturn(List.of());
         when(crossFamilyLinkRepository.findByNodeId(NODE_ID)).thenReturn(List.of(
                 link(9L, FAMILY_ID, NODE_ID, 200L, 21L, NodeLinkSourceEnum.ACCOUNT),
                 link(10L, FAMILY_ID, NODE_ID, 200L, 21L, NodeLinkSourceEnum.MANUAL)));
 
-        familyUserNodeApplicationService.bindMyNode(FAMILY_ID, USER_ID, null);
+        familyUserNodeApplicationService.syncAccountLinksForUser(USER_ID, NODE_ID);
 
         verify(crossFamilyLinkRepository).removeById(9L);
         verify(crossFamilyLinkRepository, never()).removeById(10L);
@@ -632,15 +655,27 @@ class FamilyUserNodeApplicationServiceTest {
     }
 
     @Test
-    void bindMyNode_autoAccountUser_skipsLinkSyncEntirely() {
-        when(familyUserNodeRepository.findByFamilyIdAndUserId(FAMILY_ID, USER_ID)).thenReturn(null);
-        when(familyNodeRepository.findById(NODE_ID)).thenReturn(node(NODE_ID, FAMILY_ID));
+    void syncAccountLinksForUser_autoAccountUser_linksLikeRealUser() {
         when(userRepository.findById(USER_ID)).thenReturn(autoUser(USER_ID, "fp_7"));
+        when(familyUserNodeRepository.findByUserId(USER_ID))
+                .thenReturn(List.of(binding(5L, NODE_ID), otherFamilyBinding(200L, 21L)));
 
-        familyUserNodeApplicationService.bindMyNode(FAMILY_ID, USER_ID, NODE_ID);
+        familyUserNodeApplicationService.syncAccountLinksForUser(USER_ID, NODE_ID);
+
+        // 2026-11-21 口径修订：自动账号两族绑定同样成链（绑定即本人操作证明）
+        ArgumentCaptor<CrossFamilyLink> captor = ArgumentCaptor.forClass(CrossFamilyLink.class);
+        verify(crossFamilyLinkRepository).save(captor.capture());
+        assertEquals(NodeLinkSourceEnum.ACCOUNT.getCode(), captor.getValue().getSource());
+    }
+
+    @Test
+    void syncAccountLinksForUser_userNotFound_doesNothing() {
+        when(userRepository.findById(USER_ID)).thenReturn(null);
+
+        familyUserNodeApplicationService.syncAccountLinksForUser(USER_ID, NODE_ID);
 
         verifyNoInteractions(crossFamilyLinkRepository);
-        verifyNoInteractions(eventPublisher);
+        verifyNoInteractions(familyUserNodeRepository);
     }
 
     // ========== 辅助方法 ==========

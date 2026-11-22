@@ -1,0 +1,10 @@
+[Unit]
+Description=family-tree: 将 docker 网桥绑入 firewalld trusted 区（防容器间 TCP 被 reject）
+Documentation=file:/opt/family-tree/RELEASE-SOP.md
+After=docker.service firewalld.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ft-firewall-guard.sh
+Nice=10

@@ -12,25 +12,31 @@ import com.mouhin.family.tree.domain.repository.CrossFamilyLinkRepository;
 import com.mouhin.family.tree.domain.repository.FamilyNodeRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRelationRepository;
 import com.mouhin.family.tree.domain.repository.FamilyRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 /**
- * 亲族家族领域服务单元测试：覆盖父族回落与回指、母族沿链、妻/夫族按性别判定、
- * 去重与缺链空着不猜测等解析口径。
+ * 亲族家族领域服务单元测试：覆盖出身家族统一口径（族内父边优先、血缘链接回指、多链接优选）、
+ * 母族/妻夫族按亲属出身解析、去重与缺链空着不猜测。
  *
  * @author Family-Tree
- * @date 2026-11-20
+ * @date 2026-11-22
  */
 @ExtendWith(MockitoExtension.class)
 class AffinityFamilyDomainServiceTest {
@@ -53,6 +59,23 @@ class AffinityFamilyDomainServiceTest {
     @InjectMocks
     private AffinityFamilyDomainService affinityFamilyDomainService;
 
+    private final Map<Long, FamilyNode> nodes = new HashMap<>(16);
+    private final Map<Long, Family> families = new HashMap<>(8);
+    private final Map<Long, List<CrossFamilyLink>> linksByNode = new HashMap<>(16);
+    private final Map<Long, List<FamilyRelation>> relationsByNode = new HashMap<>(16);
+
+    @BeforeEach
+    void stubFixtureMaps() {
+        lenient().when(familyNodeRepository.findById(anyLong()))
+                .thenAnswer(invocation -> nodes.get(invocation.<Long>getArgument(0)));
+        lenient().when(familyRepository.findById(anyLong()))
+                .thenAnswer(invocation -> families.get(invocation.<Long>getArgument(0)));
+        lenient().when(crossFamilyLinkRepository.findByNodeId(anyLong()))
+                .thenAnswer(invocation -> linksByNode.getOrDefault(invocation.<Long>getArgument(0), List.of()));
+        lenient().when(familyRelationRepository.findByNodeId(anyLong(), anyLong()))
+                .thenAnswer(invocation -> relationsByNode.getOrDefault(invocation.<Long>getArgument(1), List.of()));
+    }
+
     // ========== 父族 ==========
 
     @Test
@@ -62,244 +85,452 @@ class AffinityFamilyDomainServiceTest {
     }
 
     @Test
-    void resolve_noBloodLink_fallsBackToOwnFamily() {
-        when(crossFamilyLinkRepository.findByNodeId(NODE_ID)).thenReturn(List.of());
-        when(familyRepository.findById(FAMILY_ID)).thenReturn(family(FAMILY_ID, "蒙氏"));
-        when(familyRelationRepository.findByNodeId(FAMILY_ID, NODE_ID)).thenReturn(List.of());
+    void resolve_inFamilyFatherEdge_fatherFamilyShowsFather() {
+        putFamily(FAMILY_ID, "蒙氏");
+        putNode(NODE_ID, FAMILY_ID, 1, "蒙斌");
+        putNode(20L, FAMILY_ID, 1, "蒙永成");
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), 20L, NODE_ID);
 
         List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
-                affinityFamilyDomainService.resolveAffinityFamilies(node(NODE_ID, FAMILY_ID, 1, "蒙大"));
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
 
+        // 族内有父边：父族=本族、对应人为父亲（2026-11-22 口径，蒙斌父族=蒙氏/蒙永成）
         assertEquals(1, result.size());
-        AffinityFamilyDomainService.AffinityFamilyValueObject father = result.get(0);
-        assertEquals(AffinityTypeEnum.FATHER, father.type());
-        assertEquals(FAMILY_ID, father.familyId());
-        assertEquals("蒙氏", father.familyName());
-        // 回落本族行无链接依据（linkId 为空，前端不渲染解除按钮）
-        assertNull(father.linkId());
-        assertEquals(NODE_ID, father.relatedPersonNodeId());
+        assertEquals(AffinityTypeEnum.FATHER, result.get(0).type());
+        assertEquals(FAMILY_ID, result.get(0).familyId());
+        assertEquals("蒙氏", result.get(0).familyName());
+        assertEquals(Long.valueOf(20L), result.get(0).relatedPersonNodeId());
+        assertEquals("蒙永成", result.get(0).relatedPersonName());
+        assertNull(result.get(0).linkId());
+    }
+
+    @Test
+    void resolve_noFatherEdgeNoLink_noFallbackFatherRow() {
+        putFamily(FAMILY_ID, "蒙氏");
+        putNode(NODE_ID, FAMILY_ID, 1, "蒙大");
+
+        List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
+
+        // 无父边且无血缘链接：出身不可考，不再回落误显本族父族行
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void resolve_marriedInSpouseNode_noFallbackFatherRow() {
+        putFamily(FAMILY_ID, "蒙氏");
+        putNode(NODE_ID, FAMILY_ID, 2, "冉从桃");
+        putNode(21L, FAMILY_ID, 1, "蒙夫");
+        putRelation(RelationTypeEnum.SPOUSE.getCode(), NODE_ID, 21L);
+
+        List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
+
+        // 入嫁夫/妻节点无父边且无同人链接：出身不可考，不得误显本族为父族（2026-11-22 全库误显修订）
+        assertTrue(result.isEmpty());
     }
 
     @Test
     void resolve_ownBloodLink_usesLinkedOriginFamily() {
-        CrossFamilyLink link = link(5L, FAMILY_ID, NODE_ID, 200L, 99L);
-        when(crossFamilyLinkRepository.findByNodeId(NODE_ID)).thenReturn(List.of(link));
-        when(familyRepository.findById(200L)).thenReturn(family(200L, "罗氏"));
-        when(familyRelationRepository.findByNodeId(FAMILY_ID, NODE_ID)).thenReturn(List.of());
+        putFamily(FAMILY_ID, "蒙氏");
+        putFamily(200L, "罗氏");
+        putNode(NODE_ID, FAMILY_ID, 2, "蒙英");
+        putNode(99L, 200L, 2, "蒙英");
+        putLink(5L, FAMILY_ID, NODE_ID, 200L, 99L);
 
         List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
-                affinityFamilyDomainService.resolveAffinityFamilies(node(NODE_ID, FAMILY_ID, 1, "蒙大"));
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
 
+        // 无父边沿血缘链接回指出身家族（外嫁回指），对应人为本人
         assertEquals(1, result.size());
         assertEquals(AffinityTypeEnum.FATHER, result.get(0).type());
         assertEquals(Long.valueOf(200L), result.get(0).familyId());
         assertEquals(Long.valueOf(5L), result.get(0).linkId());
+        assertEquals(NODE_ID, result.get(0).relatedPersonNodeId());
     }
 
     @Test
-    void resolve_ownLinkNotBloodType_stillFallsBack() {
-        CrossFamilyLink marriageLink = link(5L, FAMILY_ID, NODE_ID, 200L, 99L);
-        marriageLink.setLinkType(NodeLinkTypeEnum.MARRIAGE.getCode());
-        when(crossFamilyLinkRepository.findByNodeId(NODE_ID)).thenReturn(List.of(marriageLink));
-        when(familyRepository.findById(FAMILY_ID)).thenReturn(family(FAMILY_ID, "蒙氏"));
-        when(familyRelationRepository.findByNodeId(FAMILY_ID, NODE_ID)).thenReturn(List.of());
+    void resolve_multipleBloodLinks_prefersEndWithFatherRecord() {
+        putFamily(FAMILY_ID, "蒙氏");
+        putFamily(200L, "胡氏");
+        putFamily(300L, "蒙氏分支");
+        putNode(NODE_ID, FAMILY_ID, 1, "蒙斌");
+        putNode(98L, 200L, 1, "蒙斌");
+        putNode(77L, 300L, 1, "蒙斌");
+        putNode(70L, 300L, 1, "蒙父");
+        // 300 族内 77 有父边（血脉延续记载源），10↔77 应优先于无父边端 10↔98
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), 70L, 77L);
+        putLink(6L, FAMILY_ID, NODE_ID, 200L, 98L);
+        putLink(7L, FAMILY_ID, NODE_ID, 300L, 77L);
 
         List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
-                affinityFamilyDomainService.resolveAffinityFamilies(node(NODE_ID, FAMILY_ID, 1, "蒙大"));
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
 
-        // 父族回指只认血缘同人链接，姻亲链接不误作出身家族
-        assertEquals(FAMILY_ID, result.get(0).familyId());
-        assertNull(result.get(0).linkId());
+        assertEquals(1, result.size());
+        assertEquals(Long.valueOf(300L), result.get(0).familyId());
+        assertEquals(Long.valueOf(7L), result.get(0).linkId());
+    }
+
+    @Test
+    void resolve_ownLinkNotBloodType_noFatherRow() {
+        putFamily(FAMILY_ID, "蒙氏");
+        putFamily(200L, "罗氏");
+        putNode(NODE_ID, FAMILY_ID, 1, "蒙大");
+        putNode(99L, 200L, 2, "罗氏");
+        CrossFamilyLink marriageLink = putLink(5L, FAMILY_ID, NODE_ID, 200L, 99L);
+        marriageLink.setLinkType(NodeLinkTypeEnum.MARRIAGE.getCode());
+
+        List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
+
+        // 父族回指只认血缘同人链接，姻亲链接不误作出身家族；无父边也无血缘链接时不出父族行
+        assertTrue(result.isEmpty());
     }
 
     // ========== 母族 ==========
 
     @Test
     void resolve_motherLinkAppended() {
-        FamilyNode mother = node(20L, FAMILY_ID, 2, "蒙母");
-        when(crossFamilyLinkRepository.findByNodeId(NODE_ID)).thenReturn(List.of());
-        when(familyRepository.findById(FAMILY_ID)).thenReturn(family(FAMILY_ID, "蒙氏"));
-        when(familyRelationRepository.findByNodeId(FAMILY_ID, NODE_ID))
-                .thenReturn(List.of(relation(RelationTypeEnum.PARENT_CHILD.getCode(), 20L, NODE_ID)));
-        when(familyNodeRepository.findById(20L)).thenReturn(mother);
-        when(crossFamilyLinkRepository.findByNodeId(20L))
-                .thenReturn(List.of(link(6L, FAMILY_ID, 20L, 300L, 30L)));
-        when(familyRepository.findById(300L)).thenReturn(family(300L, "陈氏"));
+        putFamily(FAMILY_ID, "蒙氏");
+        putFamily(300L, "陈氏");
+        putNode(NODE_ID, FAMILY_ID, 1, "蒙斌");
+        putNode(20L, FAMILY_ID, 2, "罗梦桃");
+        putNode(30L, 300L, 2, "罗梦桃");
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), 20L, NODE_ID);
+        putLink(6L, FAMILY_ID, 20L, 300L, 30L);
 
         List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
-                affinityFamilyDomainService.resolveAffinityFamilies(node(NODE_ID, FAMILY_ID, 1, "蒙大"));
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
 
-        assertEquals(2, result.size());
-        AffinityFamilyDomainService.AffinityFamilyValueObject motherFamily = result.get(1);
+        assertEquals(1, result.size());
+        AffinityFamilyDomainService.AffinityFamilyValueObject motherFamily = result.get(0);
         assertEquals(AffinityTypeEnum.MOTHER, motherFamily.type());
         assertEquals(Long.valueOf(300L), motherFamily.familyId());
         assertEquals(Long.valueOf(20L), motherFamily.relatedPersonNodeId());
-        assertEquals("蒙母", motherFamily.relatedPersonName());
+        assertEquals("罗梦桃", motherFamily.relatedPersonName());
         assertEquals(Long.valueOf(6L), motherFamily.linkId());
     }
 
     @Test
-    void resolve_parentEdgeFromFatherGender_skipped() {
-        when(crossFamilyLinkRepository.findByNodeId(NODE_ID)).thenReturn(List.of());
-        when(familyRepository.findById(FAMILY_ID)).thenReturn(family(FAMILY_ID, "蒙氏"));
-        when(familyRelationRepository.findByNodeId(FAMILY_ID, NODE_ID))
-                .thenReturn(List.of(relation(RelationTypeEnum.PARENT_CHILD.getCode(), 20L, NODE_ID)));
-        when(familyNodeRepository.findById(20L)).thenReturn(node(20L, FAMILY_ID, 1, "蒙父"));
+    void resolve_parentEdgeFromFatherGender_notAppendedAsMother() {
+        putFamily(FAMILY_ID, "蒙氏");
+        putNode(NODE_ID, FAMILY_ID, 1, "蒙斌");
+        putNode(20L, FAMILY_ID, 1, "蒙永成");
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), 20L, NODE_ID);
 
         List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
-                affinityFamilyDomainService.resolveAffinityFamilies(node(NODE_ID, FAMILY_ID, 1, "蒙大"));
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
 
+        // 父端边不产母族行；转为父族行（对应人=父亲）
         assertEquals(1, result.size());
+        assertEquals(AffinityTypeEnum.FATHER, result.get(0).type());
+        assertEquals(Long.valueOf(20L), result.get(0).relatedPersonNodeId());
     }
 
     @Test
     void resolve_childDirectionEdgeNotForThisNode_skipped() {
-        when(crossFamilyLinkRepository.findByNodeId(NODE_ID)).thenReturn(List.of());
-        when(familyRepository.findById(FAMILY_ID)).thenReturn(family(FAMILY_ID, "蒙氏"));
-        // from=当前节点 to=子女：本节点是父端，不产生母族行
-        when(familyRelationRepository.findByNodeId(FAMILY_ID, NODE_ID))
-                .thenReturn(List.of(relation(RelationTypeEnum.PARENT_CHILD.getCode(), NODE_ID, 25L)));
+        putFamily(FAMILY_ID, "蒙氏");
+        putNode(NODE_ID, FAMILY_ID, 1, "蒙大");
+        putNode(25L, FAMILY_ID, 1, "蒙二");
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), NODE_ID, 25L);
 
         List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
-                affinityFamilyDomainService.resolveAffinityFamilies(node(NODE_ID, FAMILY_ID, 1, "蒙大"));
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
 
-        assertEquals(1, result.size());
+        // 子方向边不算本人父边；无父边无链接时不回落出父族行
+        assertTrue(result.isEmpty());
     }
 
     @Test
     void resolve_duplicateMotherEdges_deduplicated() {
-        when(crossFamilyLinkRepository.findByNodeId(NODE_ID)).thenReturn(List.of());
-        when(familyRepository.findById(FAMILY_ID)).thenReturn(family(FAMILY_ID, "蒙氏"));
-        when(familyRelationRepository.findByNodeId(FAMILY_ID, NODE_ID)).thenReturn(List.of(
-                relation(RelationTypeEnum.PARENT_CHILD.getCode(), 20L, NODE_ID),
-                relation(RelationTypeEnum.ADOPTION.getCode(), 20L, NODE_ID)));
-        when(familyNodeRepository.findById(20L)).thenReturn(node(20L, FAMILY_ID, 2, "蒙母"));
-        when(crossFamilyLinkRepository.findByNodeId(20L))
-                .thenReturn(List.of(link(6L, FAMILY_ID, 20L, 300L, 30L)));
-        when(familyRepository.findById(300L)).thenReturn(family(300L, "陈氏"));
+        putFamily(FAMILY_ID, "蒙氏");
+        putFamily(300L, "陈氏");
+        putNode(NODE_ID, FAMILY_ID, 1, "蒙斌");
+        putNode(20L, FAMILY_ID, 2, "蒙母");
+        putNode(30L, 300L, 2, "蒙母");
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), 20L, NODE_ID);
+        putRelation(RelationTypeEnum.ADOPTION.getCode(), 20L, NODE_ID);
+        putLink(6L, FAMILY_ID, 20L, 300L, 30L);
 
         List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
-                affinityFamilyDomainService.resolveAffinityFamilies(node(NODE_ID, FAMILY_ID, 1, "蒙大"));
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
 
-        assertEquals(2, result.size());
-        assertEquals(AffinityTypeEnum.MOTHER, result.get(1).type());
+        // 仅母亲出身一行（本人无父边无链接，无父族行）
+        assertEquals(1, result.size());
+        assertEquals(AffinityTypeEnum.MOTHER, result.get(0).type());
     }
 
     @Test
-    void resolve_motherLinkOtherFamilyMissing_leftEmpty() {
-        when(crossFamilyLinkRepository.findByNodeId(NODE_ID)).thenReturn(List.of());
-        when(familyRepository.findById(FAMILY_ID)).thenReturn(family(FAMILY_ID, "蒙氏"));
-        when(familyRelationRepository.findByNodeId(FAMILY_ID, NODE_ID))
-                .thenReturn(List.of(relation(RelationTypeEnum.PARENT_CHILD.getCode(), 20L, NODE_ID)));
-        when(familyNodeRepository.findById(20L)).thenReturn(node(20L, FAMILY_ID, 2, "蒙母"));
-        when(crossFamilyLinkRepository.findByNodeId(20L))
-                .thenReturn(List.of(link(6L, FAMILY_ID, 20L, 300L, 30L)));
-        when(familyRepository.findById(300L)).thenReturn(null);
+    void resolve_motherLinkOtherFamilyMissing_noMotherRow() {
+        putFamily(FAMILY_ID, "蒙氏");
+        putNode(NODE_ID, FAMILY_ID, 1, "蒙斌");
+        putNode(20L, FAMILY_ID, 2, "蒙母");
+        putNode(30L, 300L, 2, "蒙母");
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), 20L, NODE_ID);
+        putLink(6L, FAMILY_ID, 20L, 300L, 30L);
 
         List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
-                affinityFamilyDomainService.resolveAffinityFamilies(node(NODE_ID, FAMILY_ID, 1, "蒙大"));
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
 
-        // 缺链/族数据缺失时空着不猜测
+        // 链接另一端家族数据缺失、母亲在本族又无父边：出身不可考，母族空着不猜测（2026-11-22 修订，勿回落本族）
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void resolve_marriedInMotherNoEvidence_noMotherRow() {
+        putFamily(FAMILY_ID, "蒙氏");
+        putNode(NODE_ID, FAMILY_ID, 1, "林世强");
+        putNode(20L, FAMILY_ID, 2, "林母");
+        putNode(21L, FAMILY_ID, 1, "蒙夫");
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), 20L, NODE_ID);
+        putRelation(RelationTypeEnum.SPOUSE.getCode(), 21L, 20L);
+
+        List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
+
+        // 生产 1:72 林世强案例：母亲为入嫁方（族内无父边、无出身链接），母族不得算作本族，空着不猜测
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void resolve_noFatherEvidenceMotherNativeToCurrentFamily_currentFamilyShowsAsMother() {
+        putFamily(FAMILY_ID, "蒙氏");
+        putNode(NODE_ID, FAMILY_ID, 1, "姚能刚");
+        putNode(20L, FAMILY_ID, 2, "蒙昌绪");
+        putNode(21L, FAMILY_ID, 1, "蒙母父");
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), 20L, NODE_ID);
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), 21L, 20L);
+
+        List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
+
+        // 生产 1:48 姚能刚案例：本人无父族证据、母亲为本族女儿（族内有父边）→ 本族以母族行显示
         assertEquals(1, result.size());
+        assertEquals(AffinityTypeEnum.MOTHER, result.get(0).type());
+        assertEquals(FAMILY_ID, result.get(0).familyId());
+        assertEquals("蒙氏", result.get(0).familyName());
+        assertEquals(Long.valueOf(20L), result.get(0).relatedPersonNodeId());
+        assertEquals("蒙昌绪", result.get(0).relatedPersonName());
+        assertNull(result.get(0).linkId());
+    }
+
+    @Test
+    void resolve_nativeChildWithNativeMother_noMotherRow() {
+        putFamily(FAMILY_ID, "蒙氏");
+        putNode(NODE_ID, FAMILY_ID, 1, "蒙斌");
+        putNode(20L, FAMILY_ID, 2, "蒙母");
+        putNode(21L, FAMILY_ID, 1, "蒙母父");
+        putNode(22L, FAMILY_ID, 1, "蒙父");
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), 20L, NODE_ID);
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), 21L, 20L);
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), 22L, NODE_ID);
+
+        List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
+
+        // 本人有父族行（族内父边）：母亲出身即本族时不显示母族行，不误伤正常本族子女
+        assertEquals(1, result.size());
+        assertEquals(AffinityTypeEnum.FATHER, result.get(0).type());
+        assertEquals(Long.valueOf(22L), result.get(0).relatedPersonNodeId());
     }
 
     // ========== 妻族 / 夫族 ==========
 
     @Test
     void resolve_femaleSpouseLink_appendsWifeFamily() {
-        when(crossFamilyLinkRepository.findByNodeId(NODE_ID)).thenReturn(List.of());
-        when(familyRepository.findById(FAMILY_ID)).thenReturn(family(FAMILY_ID, "蒙氏"));
-        when(familyRelationRepository.findByNodeId(FAMILY_ID, NODE_ID))
-                .thenReturn(List.of(relation(RelationTypeEnum.SPOUSE.getCode(), NODE_ID, 21L)));
-        when(familyNodeRepository.findById(21L)).thenReturn(node(21L, FAMILY_ID, 2, "罗氏"));
-        when(crossFamilyLinkRepository.findByNodeId(21L))
-                .thenReturn(List.of(link(7L, FAMILY_ID, 21L, 400L, 44L)));
-        when(familyRepository.findById(400L)).thenReturn(family(400L, "罗家"));
+        putFamily(FAMILY_ID, "蒙氏");
+        putFamily(400L, "胡氏");
+        putNode(NODE_ID, FAMILY_ID, 1, "蒙斌");
+        putNode(21L, FAMILY_ID, 2, "胡兰");
+        putNode(44L, 400L, 2, "胡兰");
+        putRelation(RelationTypeEnum.SPOUSE.getCode(), NODE_ID, 21L);
+        putLink(7L, FAMILY_ID, 21L, 400L, 44L);
 
         List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
-                affinityFamilyDomainService.resolveAffinityFamilies(node(NODE_ID, FAMILY_ID, 1, "蒙大"));
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
 
-        assertEquals(2, result.size());
-        assertEquals(AffinityTypeEnum.WIFE, result.get(1).type());
-        assertEquals(Long.valueOf(400L), result.get(1).familyId());
+        assertEquals(1, result.size());
+        assertEquals(AffinityTypeEnum.WIFE, result.get(0).type());
+        assertEquals(Long.valueOf(400L), result.get(0).familyId());
+        assertEquals("胡兰", result.get(0).relatedPersonName());
     }
 
     @Test
     void resolve_spouseGenderMissing_inferredFromNodeGender() {
-        when(crossFamilyLinkRepository.findByNodeId(NODE_ID)).thenReturn(List.of());
-        when(familyRepository.findById(FAMILY_ID)).thenReturn(family(FAMILY_ID, "蒙氏"));
-        when(familyRelationRepository.findByNodeId(FAMILY_ID, NODE_ID))
-                .thenReturn(List.of(relation(RelationTypeEnum.SPOUSE.getCode(), 21L, NODE_ID)));
-        when(familyNodeRepository.findById(21L)).thenReturn(node(21L, FAMILY_ID, null, "未知性别配偶"));
-        when(crossFamilyLinkRepository.findByNodeId(21L))
-                .thenReturn(List.of(link(7L, 400L, 44L, FAMILY_ID, 21L)));
-        when(familyRepository.findById(400L)).thenReturn(family(400L, "罗家"));
+        putFamily(FAMILY_ID, "蒙氏");
+        putFamily(400L, "罗家");
+        putNode(NODE_ID, FAMILY_ID, 2, "蒙英");
+        putNode(21L, FAMILY_ID, null, "未知性别配偶");
+        putNode(44L, 400L, 1, "未知性别配偶");
+        putRelation(RelationTypeEnum.SPOUSE.getCode(), 21L, NODE_ID);
+        putLink(7L, 400L, 44L, FAMILY_ID, 21L);
+
+        List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
 
         // 本人为女、配偶性别缺失 → 反推为夫族；链接两端家族取非本族一端
-        List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
-                affinityFamilyDomainService.resolveAffinityFamilies(node(NODE_ID, FAMILY_ID, 2, "蒙英"));
-
-        assertEquals(2, result.size());
-        assertEquals(AffinityTypeEnum.HUSBAND, result.get(1).type());
-        assertEquals(Long.valueOf(400L), result.get(1).familyId());
+        assertEquals(1, result.size());
+        assertEquals(AffinityTypeEnum.HUSBAND, result.get(0).type());
+        assertEquals(Long.valueOf(400L), result.get(0).familyId());
     }
 
     @Test
     void resolve_bothGendersUnknown_spouseSkipped() {
-        when(crossFamilyLinkRepository.findByNodeId(NODE_ID)).thenReturn(List.of());
-        when(familyRepository.findById(FAMILY_ID)).thenReturn(family(FAMILY_ID, "蒙氏"));
-        when(familyRelationRepository.findByNodeId(FAMILY_ID, NODE_ID))
-                .thenReturn(List.of(relation(RelationTypeEnum.SPOUSE.getCode(), NODE_ID, 21L)));
-        when(familyNodeRepository.findById(21L)).thenReturn(node(21L, FAMILY_ID, null, "无名配偶"));
+        putFamily(FAMILY_ID, "蒙氏");
+        putNode(NODE_ID, FAMILY_ID, null, "蒙大");
+        putNode(21L, FAMILY_ID, null, "无名配偶");
+        putRelation(RelationTypeEnum.SPOUSE.getCode(), NODE_ID, 21L);
 
         List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
-                affinityFamilyDomainService.resolveAffinityFamilies(node(NODE_ID, FAMILY_ID, null, "蒙大"));
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
 
-        assertEquals(1, result.size());
+        // 性别均未知：配偶行跳过，本人亦无父族证据
+        assertTrue(result.isEmpty());
     }
 
     @Test
     void resolve_spouseWithoutLink_leftEmpty() {
-        when(crossFamilyLinkRepository.findByNodeId(NODE_ID)).thenReturn(List.of());
-        when(familyRepository.findById(FAMILY_ID)).thenReturn(family(FAMILY_ID, "蒙氏"));
-        when(familyRelationRepository.findByNodeId(FAMILY_ID, NODE_ID))
-                .thenReturn(List.of(relation(RelationTypeEnum.SPOUSE.getCode(), NODE_ID, 21L)));
-        when(familyNodeRepository.findById(21L)).thenReturn(node(21L, FAMILY_ID, 2, "罗氏"));
-        when(crossFamilyLinkRepository.findByNodeId(21L)).thenReturn(List.of());
+        putFamily(FAMILY_ID, "蒙氏");
+        putNode(NODE_ID, FAMILY_ID, 1, "蒙大");
+        putNode(21L, FAMILY_ID, 2, "罗氏");
+        putRelation(RelationTypeEnum.SPOUSE.getCode(), NODE_ID, 21L);
 
         List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
-                affinityFamilyDomainService.resolveAffinityFamilies(node(NODE_ID, FAMILY_ID, 1, "蒙大"));
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
+
+        // 配偶无跨族链接：妻族空着不猜测，本人亦无父族行
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void resolve_marriedInWithNativeSpouse_currentFamilyShowsAsHusband() {
+        putFamily(FAMILY_ID, "蒙氏");
+        putNode(296L, FAMILY_ID, 2, "胡兰");
+        putNode(298L, FAMILY_ID, 1, "蒙斌");
+        putNode(10L, FAMILY_ID, 1, "蒙父");
+        putRelation(RelationTypeEnum.SPOUSE.getCode(), 296L, 298L);
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), 10L, 298L);
+        putLink(7L, FAMILY_ID, 298L, 39L, 328L);
+
+        List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(296L));
+
+        // 本节点（入嫁方）不再回落误显父族；配偶出身即本族且有族内父边证据 → 本族以夫族行显示
+        assertEquals(1, result.size());
+        assertEquals(AffinityTypeEnum.HUSBAND, result.get(0).type());
+        assertEquals(FAMILY_ID, result.get(0).familyId());
+        assertEquals(Long.valueOf(298L), result.get(0).relatedPersonNodeId());
+        assertNull(result.get(0).linkId());
+    }
+
+    @Test
+    void resolve_marriedInWifeWithNativeHusband_showsHusbandFamilyNotFather() {
+        putFamily(FAMILY_ID, "蒙氏家族");
+        putNode(11L, FAMILY_ID, 2, "冉从桃");
+        putNode(8L, FAMILY_ID, 1, "蒙永华");
+        putNode(1L, FAMILY_ID, 1, "蒙正文");
+        putRelation(RelationTypeEnum.SPOUSE.getCode(), 11L, 8L);
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), 1L, 8L);
+
+        List<AffinityFamilyDomainService.AffinityFamilyValueObject> wifeView =
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(11L));
+
+        // 入嫁妻页面（生产 1:11 冉从桃案例）：不再误显「父族=蒙氏家族」，本族以夫族行显示、对应人为丈夫
+        assertEquals(1, wifeView.size());
+        assertEquals(AffinityTypeEnum.HUSBAND, wifeView.get(0).type());
+        assertEquals(FAMILY_ID, wifeView.get(0).familyId());
+        assertEquals("蒙氏家族", wifeView.get(0).familyName());
+        assertEquals(Long.valueOf(8L), wifeView.get(0).relatedPersonNodeId());
+        assertNull(wifeView.get(0).linkId());
+
+        List<AffinityFamilyDomainService.AffinityFamilyValueObject> husbandView =
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(8L));
+
+        // 本族丈夫页面：父族=本族（对应人=父亲），妻子出身不可考时不显示妻族行
+        assertEquals(1, husbandView.size());
+        assertEquals(AffinityTypeEnum.FATHER, husbandView.get(0).type());
+        assertEquals(Long.valueOf(1L), husbandView.get(0).relatedPersonNodeId());
+    }
+
+    @Test
+    void resolve_linkedMarriedInWife_showsNatalFatherFamilyAndCurrentHusbandFamily() {
+        putFamily(FAMILY_ID, "蒙氏家族");
+        putFamily(39L, "胡氏家族");
+        putNode(296L, FAMILY_ID, 2, "胡兰");
+        putNode(328L, 39L, 2, "胡兰");
+        putNode(298L, FAMILY_ID, 1, "蒙斌");
+        putNode(10L, FAMILY_ID, 1, "蒙正文");
+        putRelation(RelationTypeEnum.SPOUSE.getCode(), 296L, 298L);
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), 10L, 298L);
+        putLink(7L, FAMILY_ID, 296L, 39L, 328L);
+
+        List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(296L));
+
+        // 有血缘回指的入嫁方：父族=娘家（链接证据）+ 夫族=本族（配偶有族内父边）
+        assertEquals(2, result.size());
+        assertEquals(AffinityTypeEnum.FATHER, result.get(0).type());
+        assertEquals(Long.valueOf(39L), result.get(0).familyId());
+        assertEquals(Long.valueOf(7L), result.get(0).linkId());
+        assertEquals(AffinityTypeEnum.HUSBAND, result.get(1).type());
+        assertEquals(FAMILY_ID, result.get(1).familyId());
+        assertEquals(Long.valueOf(298L), result.get(1).relatedPersonNodeId());
+        assertNull(result.get(1).linkId());
+    }
+
+    @Test
+    void resolve_wifeFamilyFollowsSpousePreferredLink() {
+        putFamily(FAMILY_ID, "蒙氏");
+        putFamily(39L, "胡氏");
+        putFamily(40L, "罗氏");
+        putNode(NODE_ID, FAMILY_ID, 1, "蒙斌");
+        putNode(21L, FAMILY_ID, 2, "胡兰");
+        putNode(44L, 39L, 2, "胡兰");
+        putNode(45L, 40L, 2, "胡兰");
+        putNode(46L, 40L, 1, "胡兰父");
+        putRelation(RelationTypeEnum.SPOUSE.getCode(), NODE_ID, 21L);
+        // 配偶多链接时优选"另一端在其族内有父边"的一条（40 族记载 45 有父边）
+        putRelation(RelationTypeEnum.PARENT_CHILD.getCode(), 46L, 45L);
+        putLink(8L, FAMILY_ID, 21L, 39L, 44L);
+        putLink(9L, FAMILY_ID, 21L, 40L, 45L);
+
+        List<AffinityFamilyDomainService.AffinityFamilyValueObject> result =
+                affinityFamilyDomainService.resolveAffinityFamilies(nodes.get(NODE_ID));
 
         assertEquals(1, result.size());
+        assertEquals(AffinityTypeEnum.WIFE, result.get(0).type());
+        assertEquals(Long.valueOf(40L), result.get(0).familyId());
+        assertEquals(Long.valueOf(9L), result.get(0).linkId());
     }
 
     // ========== 辅助方法 ==========
 
-    private FamilyNode node(Long id, Long familyId, Integer gender, String name) {
+    private void putFamily(Long id, String name) {
+        Family family = new Family();
+        family.setId(id);
+        family.setName(name);
+        families.put(id, family);
+    }
+
+    private void putNode(Long id, Long familyId, Integer gender, String name) {
         FamilyNode node = new FamilyNode();
         node.setId(id);
         node.setFamilyId(familyId);
         node.setGender(gender);
         node.setName(name);
-        return node;
+        nodes.put(id, node);
     }
 
-    private Family family(Long id, String name) {
-        Family family = new Family();
-        family.setId(id);
-        family.setName(name);
-        return family;
-    }
-
-    private FamilyRelation relation(Integer type, Long fromNodeId, Long toNodeId) {
+    private void putRelation(Integer type, Long fromNodeId, Long toNodeId) {
         FamilyRelation relation = new FamilyRelation();
         relation.setRelationType(type);
         relation.setFromNodeId(fromNodeId);
         relation.setToNodeId(toNodeId);
-        return relation;
+        relationsByNode.computeIfAbsent(fromNodeId, key -> new ArrayList<>()).add(relation);
+        relationsByNode.computeIfAbsent(toNodeId, key -> new ArrayList<>()).add(relation);
     }
 
-    private CrossFamilyLink link(Long id, Long srcFamilyId, Long srcNodeId, Long dstFamilyId, Long dstNodeId) {
+    private CrossFamilyLink putLink(Long id, Long srcFamilyId, Long srcNodeId, Long dstFamilyId, Long dstNodeId) {
         CrossFamilyLink link = new CrossFamilyLink();
         link.setId(id);
         link.setSrcFamilyId(srcFamilyId);
@@ -308,6 +539,8 @@ class AffinityFamilyDomainServiceTest {
         link.setDstNodeId(dstNodeId);
         link.setLinkType(NodeLinkTypeEnum.BLOOD.getCode());
         link.setSource(NodeLinkSourceEnum.MANUAL.getCode());
+        linksByNode.computeIfAbsent(srcNodeId, key -> new ArrayList<>()).add(link);
+        linksByNode.computeIfAbsent(dstNodeId, key -> new ArrayList<>()).add(link);
         return link;
     }
 }

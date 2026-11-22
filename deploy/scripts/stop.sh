@@ -57,12 +57,15 @@ stop_docker() {
     fi
 
     cd "$PROJECT_DIR"
+    # 与 restart.sh/rollback.sh 同一套口径：compose 的服务集由 profile 决定，写死 mysql 时
+    # H2 形态（--profile h2）的那组容器停不掉。默认仍是 MySQL 生产形态。
+    COMPOSE_PROFILE="${FT_COMPOSE_PROFILE:-${COMPOSE_PROFILES:-mysql}}"
     if [ "$FORCE" -eq 1 ]; then
         log "强制停止 Docker 服务..."
-        docker compose --profile mysql kill
+        docker compose --profile "$COMPOSE_PROFILE" kill
     else
         log "优雅停止 Docker 服务（超时 ${TIMEOUT}s）..."
-        docker compose --profile mysql stop -t "$TIMEOUT"
+        docker compose --profile "$COMPOSE_PROFILE" stop -t "$TIMEOUT"
     fi
     log "Docker 服务已停止"
     return 0

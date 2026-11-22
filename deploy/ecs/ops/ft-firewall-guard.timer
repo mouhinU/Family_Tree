@@ -1,0 +1,10 @@
+[Unit]
+Description=family-tree: 周期校正 docker 网桥的 firewalld 区域绑定（宝塔重载防火墙后自动补回）
+
+[Timer]
+OnBootSec=60s
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

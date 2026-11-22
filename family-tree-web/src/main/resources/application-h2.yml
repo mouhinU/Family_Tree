@@ -1,0 +1,36 @@
+# H2 文件库配置（application-mysql.yml 的对照面：换数据库只换 profile，不改代码）
+#
+# 只管数据源、Flyway 与 H2 控制台开关，不碰反代形态与 Cookie（那是 ecs / prod 的事），所以激活方式是组合：
+#   mysql 形态  SPRING_PROFILES_ACTIVE=mysql,ecs
+#   h2 形态     SPRING_PROFILES_ACTIVE=h2,ecs
+#
+# ⚠ 切到 H2 省掉的只有 mysql 容器（实测 149Mi / 配额 512m），redis 省不掉：
+#   family-tree-web 依赖 spring-boot-starter-session-data-redis，会话外置是硬要求，
+#   LoginAttemptService 还直接用 StringRedisTemplate 数登录失败次数。
+#   实测（2026-11-22，本机一次性容器）：没有 redis 时应用照样启动、/actuator/health 照样 200
+#   （Lettuce 懒连接），但登录会先卡约 60s 再返回 {"code":500,"message":"系统内部错误"}
+#   —— HTTP 状态码还是 200，异常被 Result 包装兜住了，所以别靠状态码判断。
+#
+# 数据源 URL 故意不读 DB_URL：.env 里那个键存的是 mysql 的 jdbc 地址，被这边继承过去
+# 就成了「H2 驱动 + MySQL 地址」这种起不来的组合。库文件位置只由 H2_DATA_PATH 决定。
+spring:
+  datasource:
+    url: jdbc:h2:file:${H2_DATA_PATH:./data/family_tree};AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    # 复用 .env 里的 DB_USERNAME/DB_PASSWORD（在 ECS 上它们是 MySQL 应用账号那一对）。
+    # 首次建库时这对凭据就写进 H2 文件，之后改 .env 里那两个键会让应用连不上老库 ——
+    # 要挪库就用 H2 的 Script/RunScript 导出，别指望换口令还能读。本机裸跑（无 .env）时退回 sa/空密码。
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:}
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/h2
+    baseline-on-migrate: true
+
+  # 默认关：反代（deploy/nginx 与 deploy/ecs 两份）对 /h2-console 都是 deny，开着也只是 404。
+  # 本机排查时用 H2_CONSOLE_ENABLED=true 临时打开；口令就是上面的 username/password。
+  h2:
+    console:
+      enabled: ${H2_CONSOLE_ENABLED:false}
+      path: /h2-console

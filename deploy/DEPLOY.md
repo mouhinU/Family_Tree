@@ -6,11 +6,14 @@
 
 软件依赖：Docker 24+、Docker Compose v2+。生产模式额外需要域名和 SSL 证书（可用 Let's Encrypt 免费申请）。
 
+> 「2GB 内存」是理论下限：本文件第二节沿用根 `docker-compose.yml` 的默认配额（app 1536m + mysql 1024m + redis 128m = 2688m），在标称 2GiB 的机型上会被 OOM 杀掉（阿里云 `ecs.e-c1m1.large` 实测可用 1870MiB）。
+> 这类小机器请用 [`deploy/ecs/`](ecs/README.md)（配额 768/512/96 + 分阶段部署脚本）。
+
 ---
 
 ## 一、快速体验（H2 内嵌数据库）
 
-适合个人使用或数据量较小的场景，无需额外安装数据库。
+适合个人使用或数据量较小的场景，无需外部数据库进程。
 
 ```bash
 # 1. 创建部署目录
@@ -19,14 +22,23 @@ mkdir -p /opt/family-tree && cd /opt/family-tree
 # 2. 下载 docker-compose.yml
 curl -O https://raw.githubusercontent.com/mouhinU/Family_Tree/main/docker-compose.yml
 
-# 3. 启动
-docker compose up -d
+# 3. 启动（H2 模式挂在 compose profile 上，必须带 --profile h2；裸 `up -d` 一个容器都不会起）
+docker compose --profile h2 up -d
 
 # 4. 访问 http://your-server-ip:8090
 ```
 
-数据存储在 Docker 卷 `family-tree-data` 中。如需持久化到宿主机，可在 docker-compose.yml 中将 `family-tree-data` 改为 bind
-mount（如 `./data:/app/data`）。
+启动的是三个容器：`family-tree`（应用）、`family-tree-redis`、`family-tree-healthcheck`。MySQL 模式起的应用容器名是 `family-tree-app`，两套模式互斥，别同时起（8090 端口会撞）。
+
+- redis 不是可选的：会话外置（`spring-boot-starter-session-data-redis`）与登录失败锁定都落在它上面。
+  实测没有 redis 时应用照样启动、`/actuator/health` 照样 200（Lettuce 懒连接），但登录会卡约 60s 后返回
+  `{"code":500,"message":"系统内部错误"}`（HTTP 状态码仍是 200，别看状态码判断）。
+- 数据库形态由 compose 里各服务硬编码的 `SPRING_PROFILES_ACTIVE` 决定，**不要**在 `.env` 里设这个变量。
+  历史坑：以前 `.env.example` 给的是 `SPRING_PROFILES_ACTIVE=prod`，而 prod 的数据源是 MySQL 且没有 redis 地址，
+  于是这一节「H2 快速体验」从来没真正走过 H2（填了还会登录即挂）。
+- H2 库文件在容器内 `/app/data/family_tree.mv.db`，落在 `family-tree-data` 卷里（宿主上是
+  `<项目名>_family-tree-data`）。如需持久化到宿主机，把该卷改成 bind mount（如 `./data:/app/data`）；
+  `docker compose down -v` 会删命名卷，改动前先导数据。
 
 ---
 
@@ -51,8 +63,10 @@ cp .env.example .env
 # 锁定镜像版本（重要！避免 latest 导致意外升级）
 IMAGE_TAG=1.0.0
 
-# 使用 MySQL 模式
-SPRING_PROFILES_ACTIVE=mysql
+# 这里不要设 SPRING_PROFILES_ACTIVE：两个应用服务各在自己的 compose 块里写死了
+# （--profile h2 → SPRING_PROFILES_ACTIVE=h2，--profile mysql → =mysql），
+# 它属于服务定义而不是运行时变量；保留这一行只会让人以为改它能换数据库。
+# （根 .env.example 里的同名行已删除，理由见第一节的历史坑。）
 
 # MySQL 配置（请修改为强密码）
 MYSQL_ROOT_PASSWORD=StrongRootP@ssw0rd
@@ -123,23 +137,26 @@ sudo nginx -t && sudo systemctl reload nginx
 # 修改 .env 中的 IMAGE_TAG
 sed -i 's/IMAGE_TAG=.*/IMAGE_TAG=1.1.0/' .env
 
-# 拉取新镜像并重启
-docker compose pull
-docker compose up -d
+# 拉取新镜像并重启（--profile 要和部署形态一致，不带的话两个应用服务都不在启用集合里，命令空转）
+docker compose --profile mysql pull
+docker compose --profile mysql up -d
 ```
 
 ### 3.2 回滚版本
 
 ```bash
-# 方式一：使用回滚脚本
+# 方式一：使用回滚脚本（默认按 MySQL 形态执行 pull/up；H2 形态用 FT_COMPOSE_PROFILE=h2 前缀）
 chmod +x deploy/scripts/rollback.sh
 ./deploy/scripts/rollback.sh 1.0.0
 
 # 方式二：手动操作
 sed -i 's/IMAGE_TAG=.*/IMAGE_TAG=1.0.0/' .env
-docker compose pull
-docker compose up -d
+docker compose --profile mysql pull
+docker compose --profile mysql up -d
 ```
+
+> `deploy/scripts/` 下的 `restart.sh` / `stop.sh` / `rollback.sh` 同样按 profile 编排，默认 MySQL 形态；
+> 换 H2 形态时加 `FT_COMPOSE_PROFILE=h2`（compose 原生变量 `COMPOSE_PROFILES` 也认）。
 
 ---
 
@@ -259,3 +276,26 @@ Docker 容器日志已通过 json-file 驱动配置了自动轮转（50MB/文件
 6. 数据库备份已配置定时任务
 7. 镜像版本已锁定（.env 中 `IMAGE_TAG` 不使用 `latest`）
 8. 防火墙仅开放 80、443 端口
+
+---
+
+## 九、阿里云 ECS 单机部署（deploy/ecs）
+
+面向 2 vCPU / 2GiB 的小机型，与本文第二节的差别集中在三处，其余口径一致：
+
+| 维度 | 本文第二节（根 compose） | `deploy/ecs/` |
+|---|---|---|
+| 内存配额 | app 1536m / mysql 1024m / redis 128m | app 768m / mysql 512m / redis 96m，另关 performance_schema、限 redis maxmemory |
+| 数据持久化 | 命名卷（`family-tree-data` 等），`docker compose down -v` 会删掉 | 全部宿主 bind 挂载 `/opt/family-tree/data/{mysql,redis,photos}` + `logs`，`down -v` 毁不掉；命名卷老环境用 `ecs-setup.sh tobind` 一次性搬迁 |
+| 镜像来源 | `ghcr.io` + `IMAGE_TAG` | 本机 `docker save` → 上传 → `docker load`，`.env` 里 `FT_IMAGE` 锁定 tag |
+| 暴露方式 | 域名 + HTTPS + 301 | 公网 IP + 明文 HTTP（备案接入商不是阿里云，80/443 被网关 403 拦截） |
+| Spring profile | `prod`（cookie `Secure` + `SameSite=Strict`） | `mysql,ecs` → 新增的 `application-ecs.yml`（`secure: false` + `SameSite=Lax` + Tomcat/Hikari 小配额 + stdout 日志） |
+
+部署与升级步骤、备份口径、Workbench CLI 与 distroless 的坑，见 [`deploy/ecs/README.md`](ecs/README.md)；
+已有环境换镜像的一轮完整动作（预检读数 → 备份校验 → 容器网络自检 → 构建导入 → repair 判定 → 切换 → 验收电池 → 回滚）见 [`deploy/ecs/RELEASE-SOP.md`](ecs/RELEASE-SOP.md)。
+
+对第八节安全清单的两处例外（当前状态，非建议做法）：
+
+- 第 3 项「Nginx 已配置 HTTPS」：`deploy/ecs/nginx-family-tree.conf` 只有 HTTP，且刻意不下发 HSTS。也因此不能用 `prod` profile —— 实测它在明文 HTTP 下仍下发 `Set-Cookie: ...; Secure`，浏览器不再回传会话，表现为「登录成功、下一个请求就未登录」；改用 `mysql,ecs`。
+- 第 8 项「仅开放 80、443」：ECS 上 3308/6381 只绑 `127.0.0.1`，公网不可达，等价满足。
+

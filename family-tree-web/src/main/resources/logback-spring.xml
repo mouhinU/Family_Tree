@@ -66,4 +66,14 @@
         </root>
         <logger name="com.mouhin.family.tree" level="INFO"/>
     </springProfile>
+
+    <!-- ECS 单机部署（application-ecs.yml）：容器里排障主要看 docker logs，
+         所以在 mysql 块的文件输出之外再挂一个 CONSOLE。
+         两个块同时激活时 root 的 appender-ref 是累加的，不会重复写文件。 -->
+    <springProfile name="ecs">
+        <root level="WARN">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+        <logger name="com.mouhin.family.tree" level="INFO"/>
+    </springProfile>
 </configuration>

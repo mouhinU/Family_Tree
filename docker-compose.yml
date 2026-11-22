@@ -1,16 +1,26 @@
 # 族谱管理系统 Docker Compose 部署配置
 #
-# 快速启动（H2 内嵌数据库，适合试用/小规模使用）：
+# 快速启动（H2 文件库，不用装 MySQL，适合试用/小规模使用；redis 仍是必需的，见下）：
 #   docker compose --profile h2 up -d
+#   注意这套仍然会起 redis 容器 —— 会话与登录锁定计数都存 Redis（依赖
+#   spring-boot-starter-session-data-redis + LoginAttemptService 的 StringRedisTemplate），
+#   只换数据库不换 redis；实测（2026-11-22）没有 redis 时应用照样启动、/actuator/health 照样 200
+#   （Lettuce 懒连接），但登录会先卡约 60s 再返回 {"code":500,"message":"系统内部错误"}（HTTP 仍 200）。
 #
 # 生产部署（MySQL 专属容器，不再依赖任何共享库）：
 #   1. 复制 .env.example 为 .env 并填写数据库凭据
 #   2. 本地镜像部署时设置 FT_IMAGE=family-tree:vNN-local
 #   3. docker compose --profile mysql up -d
 #
+# 两套模式选哪套由「各服务硬编码的 SPRING_PROFILES_ACTIVE」决定（h2 / mysql），
+# 不再读 .env 里的同名变量 —— 以前 h2 模式默认落到 prod，而 prod 的数据源是 MySQL，
+# 于是「H2 快速启动」其实从没走过 H2。数据源定义分别在 application-h2.yml 与 application-mysql.yml。
+#
 # 版本管理：
 #   在 .env 中设置 IMAGE_TAG 锁定版本（如 1.0.0），不设置则使用 latest
-#   回滚：修改 IMAGE_TAG 为上一版本号，docker compose up -d 即可
+#   回滚：修改 IMAGE_TAG 为上一版本号，docker compose --profile <h2|mysql> up -d 即可
+#   （不带 --profile 时两个应用服务都不在启用集合里，命令会什么都不做；deploy/scripts/rollback.sh
+#    已按 FT_COMPOSE_PROFILE/COMPOSE_PROFILES 处理，默认 mysql）
 
 services:
   # ========== H2 模式（--profile h2 激活） ==========
@@ -20,13 +30,24 @@ services:
     restart: unless-stopped
     profiles:
       - h2
+    depends_on:
+      # redis 服务同时挂在 h2 与 mysql 两个 profile 下：会话外置去不掉，见文件头
+      redis:
+        condition: service_healthy
     ports:
       - "${APP_PORT:-8090}:8090"
     volumes:
       - family-tree-data:/app/data
       - family-tree-logs:/app/logs
     environment:
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      # 硬编码而不是 ${SPRING_PROFILES_ACTIVE:-prod}：prod 的数据源是 MySQL，
+      # 而 compose 里没有供它连的地址，以前这套「H2 快速启动」实际起的是 MySQL 配置
+      - SPRING_PROFILES_ACTIVE=h2
+      # 容器内的 redis 走服务名，别让它退化成基配置的 localhost:6381（那是宿主映射口径）
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      # H2 库文件落在 family-tree-data 卷里（{path}.mv.db / {path}.trace.db），换镜像不丢数据
+      - H2_DATA_PATH=/app/data/family_tree
       # 平台管理员白名单（逗号分隔的登录用户名，与家族角色无关；为空则 /api/admin 全部拒绝）
       - PLATFORM_ADMIN_USERNAMES=${PLATFORM_ADMIN_USERNAMES:-}
       # 家族相册根目录：必须落在 /app/data 卷内，实际布局 {dir}/{familyId}/{userId}_{uuid}.{ext}
@@ -89,6 +110,8 @@ services:
     container_name: family-tree-redis
     restart: unless-stopped
     profiles:
+      # 两种数据库形态都要它：Spring Session 与 LoginAttemptService 都直连 Redis
+      - h2
       - mysql
     ports:
       - "127.0.0.1:${REDIS_PORT:-6381}:6379"

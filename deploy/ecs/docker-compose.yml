@@ -1,0 +1,149 @@
+# 族谱管理系统 — 阿里云 ECS 部署栈（单机 docker compose）
+#
+# 与仓库根 docker-compose.yml 的关系：根文件面向 8GB 宿主与 ghcr 镜像，本文件的配额面向
+# 2 vCPU / 1870MiB 的 ecs.e-c1m1.large（实例已于 2026-11-22 变配为 ecs.e-c1m2.large / 3563MiB，
+# 下面的上限属于保守值，放宽请改 .env 的 *_MEM_LIMIT 并重跑 ecs-setup.sh data app）。两者共存，不要互相覆盖。
+#
+# 首次部署与升级统一走 ./ecs-setup.sh（见 README 式用法：脚本无参数会打印阶段列表）。
+#
+# 本文件针对小内存宿主的 8 处改动，理由都写在对应位置，改动前请先读：
+#   1. 不用 compose profiles —— 数据库形态改由一个变量决定（SPRING_PROFILES_ACTIVE=mysql,ecs
+#      为默认，h2,ecs 备用，见 .env.example「数据库切换」）。容器集合不随形态增减，
+#      否则 ecs-setup.sh 的 data/import/app/backup 阶段（都按 mysql 写死）会和 compose profiles 打架。
+#   2. 内存配额 app 768m / mysql 512m / redis 96m（根文件的 1536+1024+128=2688m 在当年 1870MiB 的机器上会 OOM）
+#   3. mysql 关 performance_schema + innodb_buffer_pool_size=128M + max-connections=100
+#   4. redis 限 maxmemory + volatile-lru（只淘汰带 TTL 的会话键，不会误删登录锁定计数）
+#   5. 8090 只绑 127.0.0.1 —— 对外一律经宿主 nginx，应用端口不暴露公网
+#   6. 去掉 alpine/curl healthcheck sidecar —— 存活检查改由 ecs-setup.sh 在宿主 curl
+#   7. 全部数据落宿主目录（不用命名卷）：./data/mysql、./data/redis、./data/photos、./logs
+#   8. SPRING_PROFILES_ACTIVE 默认 mysql,ecs —— 加载 application-ecs.yml（对外形态与小机型配额）；
+#      换 h2,ecs 即切到 H2 文件库，redis 仍在（会话外置去不掉），mysql 容器需手工 stop
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: family-tree-mysql
+    restart: unless-stopped
+    # 仅回环暴露，供宿主机备份/调试，不对公网与局域网开放
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3308}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-family_tree}
+      - MYSQL_USER=${DB_USERNAME:-family_tree_app}
+      - MYSQL_PASSWORD=${DB_PASSWORD}
+    volumes:
+      # 数据一律落宿主目录，不用命名卷：docker compose down -v 不再能毁掉生产数据，
+      # 备份/排查/换机直接对着 ./data 操作。首次切换用 ./ecs-setup.sh tobind 搬存量。
+      # 目录属主必须是 uid 999（镜像里的 mysql/redis 用户），data 阶段会建目录并 chown。
+      # 只挂各自的子目录而不是整个 ./data：否则照片与日志要和数据库共用一套属主权限，
+      # 一次误删或 chmod -R 就能同时带走照片和 InnoDB 文件。
+      - ./data/mysql:/var/lib/mysql
+    mem_limit: ${MYSQL_MEM_LIMIT:-512m}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --performance-schema=OFF
+      - --innodb-buffer-pool-size=128M
+      - --max-connections=100
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  redis:
+    image: redis:8.8.0
+    container_name: family-tree-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6381}:6379"
+    volumes:
+      # appendonlydir 直接落在宿主，便于看一眼会话是否在持久化；redis 官方镜像同样以 uid 999 运行
+      - ./data/redis:/data
+    mem_limit: ${REDIS_MEM_LIMIT:-96m}
+    # Spring Session 与登录锁定计数都带 TTL，volatile-lru 只动它们，不会误淘汰无 TTL 键
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 64mb
+      - --maxmemory-policy
+      - volatile-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  family-tree:
+    # 默认沿用根 compose 的 ghcr 口径；ECS 实际部署在 .env 里用 FT_IMAGE 锁定本地
+    # docker load 进来的镜像（如 family-tree:v71-local），避免依赖 ghcr 标签与代码的对应关系
+    image: ${FT_IMAGE:-ghcr.io/mouhinu/family-tree:${IMAGE_TAG:-latest}}
+    container_name: family-tree-app
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${APP_PORT:-8090}:8090"
+    volumes:
+      - ./data/photos:/app/data/photos
+      # H2 形态的库文件目录（family_tree.mv.db / .trace.db）。只在 SPRING_PROFILES_ACTIVE=h2,ecs 时用到，
+      # mysql 形态下是空目录、不写一个字节。app 容器以 root 运行（Dockerfile 无 USER 指令，
+      # docker inspect 的 User=0），所以这里不像 mysql/redis 那样需要 chown 999。
+      - ./data/h2:/app/data/h2
+      - ./logs:/app/logs
+    environment:
+      # 用 mysql,ecs 而不是镜像默认的 prod：prod 的 cookie.secure=true 会让浏览器在明文 HTTP
+      # 下不回传 SESSION Cookie，实测表现为「登录成功、下一个请求就未登录」。
+      # ecs profile 的定义在 family-tree-web/src/main/resources/application-ecs.yml（随镜像打包），
+      # 从打包了该文件的镜像版本起生效；对不含它的旧镜像（如 ecs 环境当前跑的 v71）指定 ecs 不报错，只是没有额外配置可加载。
+      # 启用 HTTPS 后把默认值改成 mysql,prod，并在本文件 443 块补 301 与 HSTS。
+      #
+      # 数据库切换：.env 里写 SPRING_PROFILES_ACTIVE=h2,ecs 就换成 H2 文件库（数据源定义在
+      # application-h2.yml，迁移脚本走 db/migration/h2）。两条注意：
+      #   1) H2 与 MySQL 之间没有数据搬运路径 —— 切过去是从零建一套空 schema（40 条 h2 迁移跑完），
+      #      不是把现有 family_tree 库读出来；要留数据就别切，或者自己导 dump。
+      #   2) 依赖里 mysql 是 service_healthy 才放行，所以 h2 形态要绕过健康门：
+      #      docker compose stop mysql && docker compose up -d --no-deps family-tree
+      #      直接 `up -d` 会把 mysql 又拉起来，配额白省。
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-mysql,ecs}
+      - DB_URL=jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-family_tree}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai
+      # h2 形态才生效：application-h2.yml 不读 DB_URL，只认这个路径（容器内固定 /app/data/h2/...）
+      - H2_DATA_PATH=${H2_DATA_PATH:-/app/data/h2/family_tree}
+      - DB_USERNAME=${DB_USERNAME:-family_tree_app}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      # 平台管理员白名单（逗号分隔登录名，与家族角色无关；为空则 /api/admin 全部拒绝）
+      - PLATFORM_ADMIN_USERNAMES=${PLATFORM_ADMIN_USERNAMES:-admin}
+      - FAMILY_TREE_PHOTO_DIR=${FAMILY_TREE_PHOTO_DIR:-/app/data/photos}
+      # 注意：镜像的 ENTRYPOINT 是 exec 形式且把 -XX:MaxRAMPercentage=75.0 写死了，
+      # 这个变量实际不生效（根 compose 同样如此，仅为口径一致保留）。
+      # 实际生效的堆上限 = mem_limit × 75%，即 768m → 约 576Mi；要调 JVM 参数只能重建镜像。
+      - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
+    mem_limit: ${APP_MEM_LIMIT:-768m}
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+        compress: "true"
+
+# 无顶层 volumes 段：所有持久化都是宿主 bind 挂载（./data/... 与 ./logs）。
+# 好处是 down -v 毁不掉生产数据，代价是首次切换要先把命名卷里的存量搬出来，见 ecs-setup.sh tobind。

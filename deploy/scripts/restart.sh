@@ -30,6 +30,17 @@ fi
 APP_PORT="${APP_PORT:-8090}"
 APP_URL="http://localhost:${APP_PORT}"
 TIMEOUT="${STOP_TIMEOUT:-30}"
+# 根 compose 的两个应用服务分别挂在 --profile h2 / --profile mysql 上：不带 --profile 时
+# `docker compose restart` 会报服务不在启用集合里（或对着没起的旧块空转），默认按 MySQL 形态走。
+COMPOSE_PROFILE="${FT_COMPOSE_PROFILE:-${COMPOSE_PROFILES:-mysql}}"
+# --profile h2 → 应用服务 family-tree；--profile mysql → family-tree-mysql（容器名 family-tree-app）
+if [ "$COMPOSE_PROFILE" = "mysql" ]; then
+    APP_SERVICE="family-tree-mysql"
+    APP_CONTAINER="family-tree-app"
+else
+    APP_SERVICE="family-tree"
+    APP_CONTAINER="family-tree"
+fi
 
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
@@ -76,13 +87,13 @@ restart_docker() {
 
     cd "$PROJECT_DIR"
 
-    # 记录当前运行版本
+    # 记录当前运行版本（容器名按形态不同：mysql → family-tree-app，h2 → family-tree）
     local current_image
-    current_image=$(docker inspect --format='{{.Config.Image}}' family-tree 2>/dev/null || echo "unknown")
+    current_image=$(docker inspect --format='{{.Config.Image}}' "$APP_CONTAINER" 2>/dev/null || echo "unknown")
     log "当前镜像: ${current_image}"
 
     log "重启应用容器..."
-    docker compose restart family-tree
+    docker compose --profile "$COMPOSE_PROFILE" restart "$APP_SERVICE"
 
     if [ "$FORCE" -eq 1 ]; then
         log "强制重启完成（跳过健康检查）"
@@ -94,7 +105,7 @@ restart_docker() {
     fi
 
     log "错误: 应用在 60 秒内未通过健康检查"
-    log "查看日志: docker compose logs --tail=50 family-tree"
+    log "查看日志: docker compose --profile $COMPOSE_PROFILE logs --tail=50 $APP_SERVICE"
     log "回滚: ${SCRIPT_DIR}/rollback.sh <上一版本号>"
     return 1
 }
