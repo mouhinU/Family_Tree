@@ -141,6 +141,25 @@ unzip -p /tmp/check.jar BOOT-INF/classes/db/migration/mysql/V7__add_widowed_flag
 
 `.dockerignore` 里 `target/` 是被排除的，所以路线二**不能**拿仓库根当构建上下文（`COPY target/*.jar` 会拷不到东西）；上面单独开了 `/tmp/ft-build` 当上下文就是这个原因。
 
+**路线三（基座断链，2026-11-24 已验证可行）**：路线二的链式继承让 v76→v80 每个镜像都依赖前序镜像不被 prune。为验证可断链，把链底镜像的文件系统整体导出、重打为单层基座，再叠 jar：
+
+```bash
+# ① 导出 v74-local（链底，本身即官方 Dockerfile 完整构建物）扁平文件系统为单层基座；
+#    docker import 不继承原 Config，须用 --change 逐字补齐 ENTRYPOINT/ENV(PATH/SSL_CERT_FILE/LANG/JAVA_OPTS/SPRING_PROFILES_ACTIVE)/WORKDIR/EXPOSE
+C=$(docker create family-tree:v74-local); docker export $C > /tmp/base-v74.tar; docker rm $C >/dev/null
+docker import --change 'ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]' \
+  --change 'EXPOSE 8090' --change 'ENV PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin' \
+  --change 'ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt' --change 'ENV LANG=C.UTF-8' \
+  --change 'ENV SPRING_PROFILES_ACTIVE=prod' --change 'ENV JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0' \
+  --change 'WORKDIR /app' /tmp/base-v74.tar family-tree:v74-baseexport
+# ② FROM v74-baseexport COPY app.jar（v80 jar）→ family-tree:v80-rebased
+# ③ 对照：docker export 两镜像 tar -tvf|sort 逐条 diff = 2329 条目全等，仅 app.jar/COPY 层时间戳差异
+# ④ 实跑：临时容器接生产同网同 env（含 .sms.env）与同卷，55s 起、health 200、/api/auth/config 与 login.js?v 同生产、" ERROR " 0 条，验毕即删
+```
+
+结论：**后续发版可 `FROM family-tree:v74-baseexport` 建 jar 层，不再依赖 v75~v79 链镜像**；`v74-baseexport` 与 `v80-rebased` 已留存实例。偏差记账：baseexport 是扁平单层（5 个历史 jar 层叠加被 export 拍平，无 whiteout 残留，tar 序 diff 已证内容等价）；将来若 gcr 通路恢复，优先回到官方 `gcr.io/distroless/java21-debian12` 全量重建。v75~v79 链镜像的 prune 自此**技术上可安全**，但仍属破坏性操作，必须点名后才执行（执行前用路线三对当前在任版本再各验一次）。
+
+
 ## 5. 这一版要不要 `repair`
 
 规则只有一条：**`db/migration/mysql/` 里「已经被应用过的」文件内容变了没有**（新增 V41 不算，那走正常 migrate）。变了就必须在起新镜像前 `repair`，否则新容器启动即 `Migration checksum mismatch`，`validate-on-migrate` 直接把应用拦死。
