@@ -25,15 +25,23 @@
     // 注册短信验证开关：登录页打开时从公开接口拉取，开启时手机号与验证码转为必填；
     // 拉取失败退回可选口径，最终仍由注册链路后端校验兜底
     var registerSmsVerify = false;
+    // 短信登录开关：关闭时隐藏"短信验证码登录"切换入口；拉取失败维持现状（入口保留，点击仍由后端拒绝）
+    var smsLoginEnabled = true;
     fetch('/api/auth/config')
         .then(function (res) {
             return res.json();
         })
         .then(function (data) {
-            if (data.code === 200 && data.data && data.data.registerSmsVerify) {
-                registerSmsVerify = true;
-                document.getElementById('reg-phone-hint').textContent = '（必填，11位大陆手机号）';
-                document.getElementById('reg-code-hint').textContent = '（必填，6位短信验证码）';
+            if (data.code === 200 && data.data) {
+                if (data.data.registerSmsVerify) {
+                    registerSmsVerify = true;
+                    document.getElementById('reg-phone-hint').textContent = '（必填，11位大陆手机号）';
+                    document.getElementById('reg-code-hint').textContent = '（必填，6位短信验证码）';
+                }
+                if (data.data.smsLoginEnabled === false) {
+                    smsLoginEnabled = false;
+                    loginModeToggle.style.display = 'none';
+                }
             }
         })
         .catch(function () {
@@ -76,7 +84,7 @@
         var smsMode = mode === 'sms';
         loginForm.style.display = smsMode ? 'none' : 'block';
         smsLoginForm.style.display = smsMode ? 'block' : 'none';
-        loginModeToggle.style.display = 'block';
+        loginModeToggle.style.display = smsLoginEnabled ? 'block' : 'none';
         switchLoginMode.textContent = smsMode ? '密码登录' : '短信验证码登录';
     }
 

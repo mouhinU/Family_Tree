@@ -272,4 +272,13 @@ class SmsCodeApplicationServiceTest {
         assertTrue(service.isRegisterVerifyEnabled());
         assertFalse(service.isRegisterVerifyEnabled());
     }
+
+    @Test
+    void isSmsLoginEnabledDelegatesToPlatformSetting() {
+        when(platformSettingService.isEnabled(PlatformSettingKeyEnum.SMS_LOGIN_ENABLED))
+                .thenReturn(true).thenReturn(false);
+
+        assertTrue(service.isSmsLoginEnabled());
+        assertFalse(service.isSmsLoginEnabled());
+    }
 }

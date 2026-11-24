@@ -219,6 +219,15 @@ public class SmsCodeApplicationService {
         return platformSettingService.isEnabled(PlatformSettingKeyEnum.SMS_VERIFY_ENABLED);
     }
 
+    /**
+     * 短信登录开关是否开启（前端据此决定"短信验证码登录"入口显隐）
+     *
+     * @return 开启返回 true
+     */
+    public boolean isSmsLoginEnabled() {
+        return platformSettingService.isEnabled(PlatformSettingKeyEnum.SMS_LOGIN_ENABLED);
+    }
+
     private String generateCode() {
         return String.valueOf(CODE_NUMERIC_FLOOR + SECURE_RANDOM.nextInt(CODE_NUMERIC_RANGE));
     }
