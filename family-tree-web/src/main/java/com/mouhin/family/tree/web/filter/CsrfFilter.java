@@ -71,8 +71,9 @@ public class CsrfFilter implements Filter {
 
         String path = httpReq.getRequestURI();
 
-        // 豁免路径：登录、注册（此时尚无 Session）
-        if (path.equals("/api/auth/login") || path.equals("/api/auth/register")) {
+        // 豁免路径：登录、注册、短信验证码与短信登录（此时尚无 Session）
+        if (path.equals("/api/auth/login") || path.equals("/api/auth/register")
+                || path.equals("/api/auth/login-sms") || path.equals("/api/auth/sms/send-code")) {
             chain.doFilter(request, response);
             return;
         }

@@ -31,6 +31,29 @@
             <button class="btn-primary" type="submit">登 录</button>
         </form>
 
+        <div class="login-mode-toggle" id="login-mode-toggle" style="text-align:center;margin:8px 0 0;">
+            <a href="javascript:void(0)" id="switch-login-mode" style="font-size:13px;color:#666;">短信验证码登录</a>
+        </div>
+
+        <!-- 短信验证码登录表单 -->
+        <form class="login-form" id="sms-login-form" style="display:none;">
+            <div class="form-group">
+                <label for="sms-phone">手机号</label>
+                <input id="sms-phone" maxlength="11" name="phone" placeholder="11位大陆手机号" required
+                       type="tel" inputmode="numeric">
+            </div>
+            <div class="form-group">
+                <label for="sms-code">短信验证码</label>
+                <div style="display:flex;gap:8px;">
+                    <input id="sms-code" maxlength="6" name="code" placeholder="6位短信验证码" required
+                           type="text" inputmode="numeric" style="flex:1;">
+                    <button class="btn-sms-send" id="btn-sms-login-send" type="button"
+                            style="flex-shrink:0;white-space:nowrap;padding:0 14px;border:none;border-radius:4px;background:var(--cinnabar);color:#f7f1e0;font-size:14px;font-family:var(--font-kai);cursor:pointer;">发送验证码</button>
+                </div>
+            </div>
+            <button class="btn-primary" type="submit">登 录</button>
+        </form>
+
         <!-- 注册表单 -->
         <form class="login-form" id="register-form" style="display:none;">
             <div class="form-group">
@@ -48,9 +71,19 @@
                 <input id="reg-email" maxlength="100" name="email" placeholder="请输入邮箱" type="email">
             </div>
             <div class="form-group">
-                <label for="reg-phone">手机号 <span
+                <label for="reg-phone">手机号 <span id="reg-phone-hint"
                         style="color:#999;font-size:12px">（可选，可用于登录）</span></label>
                 <input id="reg-phone" maxlength="20" name="phone" placeholder="11位大陆手机号" type="tel">
+            </div>
+            <div class="form-group">
+                <label for="reg-phone-code">短信验证码 <span id="reg-code-hint"
+                        style="color:#999;font-size:12px">（开启短信验证注册时必填）</span></label>
+                <div style="display:flex;gap:8px;">
+                    <input id="reg-phone-code" maxlength="6" name="phoneCode" placeholder="6位短信验证码"
+                           type="text" inputmode="numeric" style="flex:1;">
+                    <button class="btn-sms-send" id="btn-sms-reg-send" type="button"
+                            style="flex-shrink:0;white-space:nowrap;padding:0 14px;border:none;border-radius:4px;background:var(--cinnabar);color:#f7f1e0;font-size:14px;font-family:var(--font-kai);cursor:pointer;">发送验证码</button>
+                </div>
             </div>
             <div class="form-group">
                 <label for="reg-invite-code">家族邀请码 <span
@@ -81,6 +114,6 @@
     </div>
 </div>
 
-<script src="/js/ft/login.js?v=20261117b"></script>
+<script src="/js/ft/login.js?v=20261124b"></script>
 </body>
 </html>

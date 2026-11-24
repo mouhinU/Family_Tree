@@ -20,6 +20,16 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
 
+    /**
+     * 免登录公开接口路径：口令登录/注册与短信验证码/短信登录，及登录页读取公开开关的配置接口，
+     * 三个拦截器共用同一份排除名单，避免逐处维护漂移
+     */
+    private static final String[] PUBLIC_API_PATHS = {
+            "/api/auth/login", "/api/auth/register",
+            "/api/auth/login-sms", "/api/auth/sms/send-code",
+            "/api/auth/config"
+    };
+
     private final LoginInterceptor loginInterceptor;
     private final RateLimitInterceptor rateLimitInterceptor;
     private final FamilyStatusInterceptor familyStatusInterceptor;
@@ -36,17 +46,17 @@ public class WebMvcConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(loginInterceptor)
                 .addPathPatterns("/api/**")
-                .excludePathPatterns("/api/auth/login", "/api/auth/register");
+                .excludePathPatterns(PUBLIC_API_PATHS);
 
         // 家族冻结 / 归档治理（在登录认证之后、限流之前执行）
         registry.addInterceptor(familyStatusInterceptor)
                 .addPathPatterns("/api/**")
-                .excludePathPatterns("/api/auth/login", "/api/auth/register");
+                .excludePathPatterns(PUBLIC_API_PATHS);
 
         // 写接口限流（在登录认证之后执行）
         registry.addInterceptor(rateLimitInterceptor)
                 .addPathPatterns("/api/**")
-                .excludePathPatterns("/api/auth/login", "/api/auth/register");
+                .excludePathPatterns(PUBLIC_API_PATHS);
     }
 
     /**

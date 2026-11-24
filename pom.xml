@@ -37,6 +37,8 @@
         <lunar.version>1.7.8</lunar.version>
         <!-- H2 2.4 移除了 DATETIME 类型，会破坏存量迁移脚本，固定在已验证的 2.3.232 -->
         <h2.version>2.3.232</h2.version>
+        <!-- 阿里云短信认证服务 Dypnsapi V2 SDK（SendSmsVerifyCode 验证码短信，赠送签名/模板仅支持该服务） -->
+        <aliyun-dypnsapi.version>1.2.3</aliyun-dypnsapi.version>
         <family-tree.version>1.0.0-SNAPSHOT</family-tree.version>
     </properties>
 
@@ -104,6 +106,13 @@
                 <groupId>com.google.zxing</groupId>
                 <artifactId>javase</artifactId>
                 <version>3.5.3</version>
+            </dependency>
+
+            <!-- 阿里云短信认证服务（Dypnsapi 2017-05-25，V2 SDK） -->
+            <dependency>
+                <groupId>com.aliyun</groupId>
+                <artifactId>dypnsapi20170525</artifactId>
+                <version>${aliyun-dypnsapi.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

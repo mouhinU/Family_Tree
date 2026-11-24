@@ -86,7 +86,25 @@ public enum PlatformSettingKeyEnum {
     MAX_FAMILY_PER_USER("MAX_FAMILY_PER_USER", "每账号家族数上限", SettingValueTypeEnum.INTEGER,
             "2", 1, 100, null,
             "单个账号可归属的家族数上限，默认 2 即本家加配偶家族；离异再婚等需归属 3 个及以上家族的情形，"
-                    + "由平台管理员调大后已在册成员即可再创建或加入家族，并在过渡页切换当前家族");
+                    + "由平台管理员调大后已在册成员即可再创建或加入家族，并在过渡页切换当前家族"),
+
+    /**
+     * 注册短信验证码开关：平台独有配置，无家族覆盖层。
+     * 依赖阿里云短信凭据（aliyun.sms.*），凭据未配置时验证码仅落日志，请先配好再开启
+     */
+    SMS_VERIFY_ENABLED("SMS_VERIFY_ENABLED", "注册短信验证码", SettingValueTypeEnum.BOOLEAN,
+            "false", null, null, null,
+            "开启后真人注册必须填写手机号并通过短信验证码校验，关闭时注册沿用现有流程；"
+                    + "开启前提是已配置阿里云短信凭据，否则验证码只在日志可见、真人无法收取"),
+
+    /**
+     * 短信验证码登录开关：平台独有配置，无家族覆盖层。
+     * 依赖阿里云短信凭据（aliyun.sms.*），凭据未配置时验证码仅落日志，请先配好再开启
+     */
+    SMS_LOGIN_ENABLED("SMS_LOGIN_ENABLED", "短信验证码登录", SettingValueTypeEnum.BOOLEAN,
+            "false", null, null, null,
+            "开启后支持已绑定手机号的账号凭短信验证码登录（仅自动开通且未填手机号的账号不可用），密码登录不受影响；"
+                    + "开启前提是已配置阿里云短信凭据");
 
     /**
      * 配置键编码，落库值与接口入参均使用该编码

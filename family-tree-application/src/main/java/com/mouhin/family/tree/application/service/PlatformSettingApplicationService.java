@@ -167,6 +167,16 @@ public class PlatformSettingApplicationService {
     }
 
     /**
+     * 查询平台独有开关当前是否开启（不抛异常，供编排层做分支判定）
+     *
+     * @param key 平台独有开关键
+     * @return 生效值为开启时返回 true
+     */
+    public boolean isEnabled(PlatformSettingKeyEnum key) {
+        return settingDomainService.isEnabled(effectiveSettings(), key);
+    }
+
+    /**
      * 断言全平台家族总数尚未达到配置的上限
      */
     public void assertFamilyQuotaAvailable() {

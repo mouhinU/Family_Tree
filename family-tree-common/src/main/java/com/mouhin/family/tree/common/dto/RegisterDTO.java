@@ -40,6 +40,11 @@ public class RegisterDTO {
     private String phone;
 
     /**
+     * 手机号短信验证码（REGISTER 场景下发；平台开启注册短信验证时必填并强校验手机号）
+     */
+    private String phoneCode;
+
+    /**
      * 家族邀请码（可选，注册时直接加入已有家族）
      */
     private String inviteCode;

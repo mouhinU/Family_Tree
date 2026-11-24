@@ -133,6 +133,15 @@ services:
       # 平台管理员白名单（逗号分隔登录名，与家族角色无关；为空则 /api/admin 全部拒绝）
       - PLATFORM_ADMIN_USERNAMES=${PLATFORM_ADMIN_USERNAMES:-admin}
       - FAMILY_TREE_PHOTO_DIR=${FAMILY_TREE_PHOTO_DIR:-/app/data/photos}
+      # 阿里云短信认证服务（Dypnsapi）：配置项定义在 application.yml 的 aliyun.sms.*。
+      # enabled=false 或留空时走 LoggingSmsGateway（验证码只落 INFO 日志），不影响现有登录。
+      # Secret 只在实例上的 .env 里（0600），不要写进本文件、不要提交、不要出现在终端历史。
+      - ALIYUN_SMS_ENABLED=${ALIYUN_SMS_ENABLED:-false}
+      - ALIYUN_SMS_ACCESS_KEY_ID=${ALIYUN_SMS_ACCESS_KEY_ID:-}
+      - ALIYUN_SMS_ACCESS_KEY_SECRET=${ALIYUN_SMS_ACCESS_KEY_SECRET:-}
+      - ALIYUN_SMS_SIGN_NAME=${ALIYUN_SMS_SIGN_NAME:-}
+      - ALIYUN_SMS_TEMPLATE_CODE=${ALIYUN_SMS_TEMPLATE_CODE:-}
+      - ALIYUN_SMS_ENDPOINT=${ALIYUN_SMS_ENDPOINT:-dypnsapi.aliyuncs.com}
       # 注意：镜像的 ENTRYPOINT 是 exec 形式且把 -XX:MaxRAMPercentage=75.0 写死了，
       # 这个变量实际不生效（根 compose 同样如此，仅为口径一致保留）。
       # 实际生效的堆上限 = mem_limit × 75%，即 768m → 约 576Mi；要调 JVM 参数只能重建镜像。

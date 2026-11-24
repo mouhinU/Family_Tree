@@ -6,7 +6,9 @@ import com.mouhin.family.tree.common.dto.ChangePasswordDTO;
 import com.mouhin.family.tree.common.dto.LoginDTO;
 import com.mouhin.family.tree.common.dto.ProfileUpdateDTO;
 import com.mouhin.family.tree.common.dto.RegisterDTO;
+import com.mouhin.family.tree.common.dto.SmsLoginDTO;
 import com.mouhin.family.tree.common.enums.PlatformSettingKeyEnum;
+import com.mouhin.family.tree.common.enums.SmsSceneEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.domain.entity.User;
 import com.mouhin.family.tree.domain.repository.UserRepository;
@@ -53,6 +55,9 @@ class UserAuthApplicationServiceTest {
     @Mock
     private PlatformSettingApplicationService platformSettingService;
 
+    @Mock
+    private SmsCodeApplicationService smsCodeService;
+
     /**
      * 假 Redis 存储：让 mock 具备 INCR/GET/DEL 语义，否则失败计数永远为 0、锁定链路测不到
      */
@@ -91,7 +96,8 @@ class UserAuthApplicationServiceTest {
     }
 
     private UserAuthApplicationService createService(LoginAttemptService loginAttemptService) {
-        return new UserAuthApplicationService(userRepository, loginAttemptService, platformSettingService);
+        return new UserAuthApplicationService(userRepository, loginAttemptService, platformSettingService,
+                smsCodeService);
     }
 
     @Test
@@ -649,5 +655,138 @@ class UserAuthApplicationServiceTest {
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
         assertTrue(captor.getValue().getMustChangePassword(), "自动开通账号应标记首登强制改密");
+    }
+
+    // ========== 注册短信验证分支 ==========
+
+    @Test
+    void registerRejectsMissingPhoneWhenSmsVerifyEnabled() {
+        when(smsCodeService.isRegisterVerifyEnabled()).thenReturn(true);
+        RegisterDTO dto = registerDto("smsnewbie");
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service().register(dto));
+
+        assertTrue(ex.getMessage().contains("请填写11位大陆手机号"));
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void registerRejectsOccupiedPhoneBeforeConsumingSmsCodeWhenSmsVerifyEnabled() {
+        when(smsCodeService.isRegisterVerifyEnabled()).thenReturn(true);
+        RegisterDTO dto = registerDto("smsnewbie");
+        dto.setPhone("13800138000");
+        dto.setPhoneCode("123456");
+        User other = userWithHash("x");
+        other.setId(9L);
+        when(userRepository.findByPhone("13800138000")).thenReturn(other);
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service().register(dto));
+
+        assertTrue(ex.getMessage().contains("该手机号已被其他账号使用"));
+        // 唯一性检查前置：失败不应消耗一次性验证码
+        verify(smsCodeService, never()).verifyCode(any(), anyString(), anyString());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void registerVerifiesSmsCodeThenPersistsPhoneWhenSmsVerifyEnabled() {
+        when(smsCodeService.isRegisterVerifyEnabled()).thenReturn(true);
+        RegisterDTO dto = registerDto("smsnewbie");
+        dto.setPhone("13800138000");
+        dto.setPhoneCode("123456");
+        when(userRepository.findByPhone("13800138000")).thenReturn(null);
+        when(userRepository.findByUsername("smsnewbie")).thenReturn(null);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User saved = invocation.getArgument(0);
+            saved.setId(11L);
+            return saved;
+        });
+
+        assertEquals(11L, service().register(dto));
+
+        verify(smsCodeService).verifyCode(SmsSceneEnum.REGISTER, "13800138000", "123456");
+        ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(captor.capture());
+        assertEquals("13800138000", captor.getValue().getPhone());
+    }
+
+    @Test
+    void registerThrowsAndDoesNotPersistWhenSmsCodeInvalid() {
+        when(smsCodeService.isRegisterVerifyEnabled()).thenReturn(true);
+        RegisterDTO dto = registerDto("smsnewbie");
+        dto.setPhone("13800138000");
+        dto.setPhoneCode("000000");
+        when(userRepository.findByPhone("13800138000")).thenReturn(null);
+        doThrow(new BusinessException("验证码不正确"))
+                .when(smsCodeService).verifyCode(SmsSceneEnum.REGISTER, "13800138000", "000000");
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> service().register(dto));
+
+        assertTrue(ex.getMessage().contains("验证码不正确"));
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    // ========== 短信验证码登录 ==========
+
+    private SmsLoginDTO smsLoginDto(String phone, String code) {
+        SmsLoginDTO dto = new SmsLoginDTO();
+        dto.setPhone(phone);
+        dto.setCode(code);
+        return dto;
+    }
+
+    @Test
+    void loginBySmsRejectedWhenSwitchClosed() {
+        doThrow(new BusinessException("功能已被平台管理员关闭"))
+                .when(platformSettingService).assertEnabled(PlatformSettingKeyEnum.SMS_LOGIN_ENABLED);
+
+        assertThrows(BusinessException.class,
+                () -> service().loginBySms(smsLoginDto("13800138000", "123456")));
+        verify(smsCodeService, never()).verifyCode(any(), anyString(), anyString());
+    }
+
+    @Test
+    void loginBySmsReturnsUserIdAndClearsFailureCount() {
+        User user = userWithHash("x");
+        user.setPhone("13800138000");
+        when(userRepository.findByPhone("13800138000")).thenReturn(user);
+        LoginAttemptService loginAttemptService = createLoginAttemptService();
+        loginAttemptService.recordFailure("13800138000");
+
+        UserAuthApplicationService service = createService(loginAttemptService);
+        assertEquals(1L, service.loginBySms(smsLoginDto("13800138000", "123456")));
+
+        verify(smsCodeService).verifyCode(SmsSceneEnum.LOGIN, "13800138000", "123456");
+        assertNull(attemptStore.get("login:attempt:13800138000"), "成功登录应清空失败计数");
+    }
+
+    @Test
+    void loginBySmsWrongCodeRecordsFailureSharedWithPasswordLockout() {
+        LoginAttemptService loginAttemptService = createLoginAttemptService();
+        doThrow(new BusinessException("验证码不正确"))
+                .when(smsCodeService).verifyCode(eq(SmsSceneEnum.LOGIN), eq("13800138000"), anyString());
+
+        UserAuthApplicationService service = createService(loginAttemptService);
+        for (int i = 0; i < LoginSecurityConsts.MAX_FAILED_ATTEMPTS; i++) {
+            BusinessException ex = assertThrows(BusinessException.class,
+                    () -> service.loginBySms(smsLoginDto("13800138000", "000000")));
+            assertTrue(ex.getMessage().contains("验证码不正确"));
+        }
+
+        // 验证码错误计入手机号锁定防线：达上限后即使验证码正确也被拦截
+        BusinessException locked = assertThrows(BusinessException.class,
+                () -> service.loginBySms(smsLoginDto("13800138000", "123456")));
+        assertTrue(locked.getMessage().contains("登录失败次数过多"));
+    }
+
+    @Test
+    void loginBySmsUnknownPhoneThrowsAfterValidCode() {
+        when(userRepository.findByPhone("13800138000")).thenReturn(null);
+
+        UserAuthApplicationService service = createService(createLoginAttemptService());
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.loginBySms(smsLoginDto("13800138000", "123456")));
+
+        assertTrue(ex.getMessage().contains("该手机号未绑定账号"));
     }
 }

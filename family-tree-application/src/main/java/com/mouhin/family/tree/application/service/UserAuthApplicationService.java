@@ -2,14 +2,18 @@ package com.mouhin.family.tree.application.service;
 
 import com.mouhin.family.tree.common.constant.AccountConsts;
 import com.mouhin.family.tree.common.constant.LoginSecurityConsts;
+import com.mouhin.family.tree.common.constant.SmsConsts;
 import com.mouhin.family.tree.common.dto.ChangePasswordDTO;
 import com.mouhin.family.tree.common.dto.LoginDTO;
 import com.mouhin.family.tree.common.dto.ProfileUpdateDTO;
 import com.mouhin.family.tree.common.dto.RegisterDTO;
+import com.mouhin.family.tree.common.dto.SmsLoginDTO;
 import com.mouhin.family.tree.common.dto.UserProfileDTO;
 import com.mouhin.family.tree.common.enums.BirthCalendarEnum;
 import com.mouhin.family.tree.common.enums.PlatformSettingKeyEnum;
+import com.mouhin.family.tree.common.enums.SmsSceneEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
+import com.mouhin.family.tree.common.util.DesensitizeUtils;
 import com.mouhin.family.tree.common.util.LunarSolarUtil;
 import com.mouhin.family.tree.common.util.OneTimePasswordUtils;
 import com.mouhin.family.tree.domain.entity.User;
@@ -26,6 +30,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 /**
  * 用户认证与个人信息应用服务
@@ -48,16 +53,24 @@ public class UserAuthApplicationService {
      */
     private static final String EMAIL_AT_SYMBOL = "@";
 
+    /**
+     * 短信场景手机号格式（预编译，注册短信验证强校验用）
+     */
+    private static final Pattern SMS_PHONE_PATTERN = Pattern.compile(SmsConsts.PHONE_STRICT_REGEXP);
+
     private final UserRepository userRepository;
     private final LoginAttemptService loginAttemptService;
     private final PlatformSettingApplicationService platformSettingService;
+    private final SmsCodeApplicationService smsCodeService;
 
     public UserAuthApplicationService(UserRepository userRepository,
                                       LoginAttemptService loginAttemptService,
-                                      PlatformSettingApplicationService platformSettingService) {
+                                      PlatformSettingApplicationService platformSettingService,
+                                      SmsCodeApplicationService smsCodeService) {
         this.userRepository = userRepository;
         this.loginAttemptService = loginAttemptService;
         this.platformSettingService = platformSettingService;
+        this.smsCodeService = smsCodeService;
     }
 
     /**
@@ -77,9 +90,20 @@ public class UserAuthApplicationService {
         }
 
         String username = dto.getUsername().trim();
+        String phone = normalizePhone(dto.getPhone());
+        if (smsCodeService.isRegisterVerifyEnabled()) {
+            if (phone == null || !SMS_PHONE_PATTERN.matcher(phone).matches()) {
+                throw new BusinessException("当前开启短信验证注册，请填写11位大陆手机号");
+            }
+            if (userRepository.findByPhone(phone) != null) {
+                throw new BusinessException("该手机号已被其他账号使用");
+            }
+            smsCodeService.verifyCode(SmsSceneEnum.REGISTER, phone, dto.getPhoneCode());
+        }
+
         User user = buildUser(username, dto.getPassword(), username);
         user.setEmail(normalizeEmail(dto.getEmail()));
-        user.setPhone(normalizePhone(dto.getPhone()));
+        user.setPhone(phone);
         return persistNewUser(user).getId();
     }
 
@@ -153,6 +177,44 @@ public class UserAuthApplicationService {
         }
 
         logger.info("User logged in: id={} username={}", user.getId(), user.getUsername());
+        return user.getId();
+    }
+
+    /**
+     * 短信验证码登录：凭已注册手机号 + LOGIN 场景验证码换取用户ID
+     *
+     * <p>口令校验由一次性验证码替代，会话建立与口令登录完全同口径；
+     * 验证码错误次数由验证码服务限流，同时按手机号复用登录失败锁定计数，
+     * 自动开通且未填写手机号的账号无法使用本通道。</p>
+     *
+     * @param dto 短信登录请求（手机号 + 验证码）
+     * @return 登录成功的用户ID
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public Long loginBySms(SmsLoginDTO dto) {
+        platformSettingService.assertEnabled(PlatformSettingKeyEnum.SMS_LOGIN_ENABLED);
+        String phone = dto.getPhone().trim();
+        if (loginAttemptService.isLocked(phone)) {
+            logger.warn("SMS login blocked due to lockout: phone={}", DesensitizeUtils.maskPhone(phone));
+            throw new BusinessException("登录失败次数过多，请 "
+                    + LoginSecurityConsts.LOCK_MINUTES + " 分钟后再试");
+        }
+
+        try {
+            smsCodeService.verifyCode(SmsSceneEnum.LOGIN, phone, dto.getCode());
+        } catch (BusinessException e) {
+            // 验证码错误同样计入手机号维度的登录失败锁定，与口令登录同一防线
+            loginAttemptService.recordFailure(phone);
+            throw e;
+        }
+        User user = userRepository.findByPhone(phone);
+        if (user == null) {
+            loginAttemptService.recordFailure(phone);
+            throw new BusinessException("该手机号未绑定账号");
+        }
+
+        loginAttemptService.recordSuccess(phone);
+        logger.info("User logged in by SMS code: id={} username={}", user.getId(), user.getUsername());
         return user.getId();
     }
 

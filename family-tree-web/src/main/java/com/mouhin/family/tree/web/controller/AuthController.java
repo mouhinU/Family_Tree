@@ -3,10 +3,12 @@ package com.mouhin.family.tree.web.controller;
 import com.mouhin.family.tree.application.service.FamilyApplicationService;
 import com.mouhin.family.tree.application.service.FamilyUserNodeApplicationService;
 import com.mouhin.family.tree.application.service.PlatformAdminApplicationService;
+import com.mouhin.family.tree.application.service.SmsCodeApplicationService;
 import com.mouhin.family.tree.application.service.UserAuthApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.*;
 import com.mouhin.family.tree.common.dto.UserProfileDTO;
+import com.mouhin.family.tree.common.enums.SmsSceneEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.common.result.Result;
 import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
@@ -38,17 +40,32 @@ public class AuthController extends BaseController {
     private final FamilyApplicationService familyService;
     private final FamilyUserNodeApplicationService familyUserNodeService;
     private final PlatformAdminApplicationService platformAdminService;
+    private final SmsCodeApplicationService smsCodeService;
     private final ApplicationEventPublisher eventPublisher;
 
     public AuthController(UserAuthApplicationService userService, FamilyApplicationService familyService,
                           FamilyUserNodeApplicationService familyUserNodeService,
                           PlatformAdminApplicationService platformAdminService,
+                          SmsCodeApplicationService smsCodeService,
                           ApplicationEventPublisher eventPublisher) {
         this.userService = userService;
         this.familyService = familyService;
         this.familyUserNodeService = familyUserNodeService;
         this.platformAdminService = platformAdminService;
+        this.smsCodeService = smsCodeService;
         this.eventPublisher = eventPublisher;
+    }
+
+    /**
+     * 登录/注册页公开配置：注册短信验证开关，供前端在登录前决定手机号与验证码是否必填
+     *
+     * @return 配置项集合
+     */
+    @GetMapping("/config")
+    public Result<Map<String, Object>> config() {
+        Map<String, Object> data = new HashMap<>(2);
+        data.put("registerSmsVerify", smsCodeService.isRegisterVerifyEnabled());
+        return Result.success(data);
     }
 
     @PostMapping("/register")
@@ -91,6 +108,60 @@ public class AuthController extends BaseController {
             throw e;
         }
 
+        return establishLoginSession(userId, "用户登录", request, ip);
+    }
+
+    /**
+     * 短信验证码登录：换取用户ID后与会话口令登录同口径建立会话
+     */
+    @PostMapping("/login-sms")
+    public Result<Map<String, Object>> loginBySms(@Valid @RequestBody SmsLoginDTO dto, HttpServletRequest request) {
+        String ip = getClientIp(request);
+        String phone = dto.getPhone().trim();
+
+        Long userId;
+        try {
+            userId = userService.loginBySms(dto);
+        } catch (BusinessException e) {
+            eventPublisher.publishEvent(OperationPerformedEvent.of(null, phone, "LOGIN_FAIL",
+                    "短信登录失败: " + e.getMessage(), "user", null, null, ip));
+            throw e;
+        }
+
+        return establishLoginSession(userId, "短信验证码登录", request, ip);
+    }
+
+    /**
+     * 发送短信验证码：REGISTER 走注册验证前置检查，LOGIN 走已绑定账号检查
+     */
+    @PostMapping("/sms/send-code")
+    public Result<Void> sendSmsCode(@Valid @RequestBody SendSmsCodeDTO dto, HttpServletRequest request) {
+        SmsSceneEnum scene = SmsSceneEnum.parse(dto.getScene());
+        if (scene == null) {
+            throw new BusinessException("不支持的验证码场景");
+        }
+        String phone = dto.getPhone().trim();
+        String ip = getClientIp(request);
+        if (scene == SmsSceneEnum.REGISTER) {
+            smsCodeService.sendRegisterCode(phone, ip);
+        } else {
+            smsCodeService.sendLoginCode(phone, ip);
+        }
+        return Result.success();
+    }
+
+    /**
+     * 口令登录与短信登录共用的会话建立编排：防会话固定重建 Session、
+     * 写入用户/家族会话属性、记录登录日志、签发 CSRF Token 并组装响应
+     *
+     * @param userId   登录成功的用户ID
+     * @param logDesc  操作日志描述（区分口令登录与短信登录）
+     * @param request  HTTP 请求
+     * @param ip       客户端 IP
+     * @return 登录响应数据
+     */
+    private Result<Map<String, Object>> establishLoginSession(Long userId, String logDesc,
+                                                              HttpServletRequest request, String ip) {
         String nickname = userService.getNickname(userId);
 
         // 重建会话，防止会话固定攻击（Session Fixation）
@@ -108,7 +179,7 @@ public class AuthController extends BaseController {
             session.setAttribute(FamilyTreeConsts.SESSION_FAMILY_ID, family.getId());
         }
 
-        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "LOGIN", "用户登录",
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, nickname, "LOGIN", logDesc,
                 "user", userId, family != null ? family.getId() : null, ip));
 
         // 生成 CSRF Token 并写入响应
