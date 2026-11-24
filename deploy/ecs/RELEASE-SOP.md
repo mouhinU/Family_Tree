@@ -159,6 +159,8 @@ docker import --change 'ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:Max
 
 结论：**后续发版可 `FROM family-tree:v74-baseexport` 建 jar 层，不再依赖 v75~v79 链镜像**；`v74-baseexport` 与 `v80-rebased` 已留存实例。偏差记账：baseexport 是扁平单层（5 个历史 jar 层叠加被 export 拍平，无 whiteout 残留，tar 序 diff 已证内容等价）；将来若 gcr 通路恢复，优先回到官方 `gcr.io/distroless/java21-debian12` 全量重建。v75~v79 链镜像的 prune 自此**技术上可安全**，但仍属破坏性操作，必须点名后才执行（执行前用路线三对当前在任版本再各验一次）。
 
+**2026-11-24 断链清理执行记录（用户点名"执行，清理历史镜像"）**：验证（当日路线三全绿）后，先把链上历史 jar 抽出归档 `/opt/family-tree/backup/jars-pre-prune-20261124/`（v75 `5328a640…` / v76 `40198b82…` / v77 `04613e14…` / v78 `c5cbe5eb…` / v79 `650a602a…`，sha 与历次发版登记逐一吻合），再 `docker rmi` 删除 v74~v78-local 五个标签。**保留**：v79-local（回滚锚）、v80-local（在任）、v74-baseexport+v80-rebased（断链基座与等价实证）。此后回滚 v79 仍走 FT_IMAGE 回切；回滚更早版本 = 取归档 jar 重建镜像层。清理后 v74~v78 独有 jar 层释放，链底层仍被 v79/v80 共享占用；磁盘 44%（22G 余，因新增 baseexport/rebased 与 jar 归档，净增约 0.7G）。下次发版基座改用 `FROM family-tree:v74-baseexport`。
+
 
 ## 5. 这一版要不要 `repair`
 
