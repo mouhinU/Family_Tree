@@ -10,10 +10,16 @@ import com.mouhin.family.tree.web.security.RequireFamilyManager;
 import com.mouhin.family.tree.web.security.RequireNodeAccess;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.util.StringUtils;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * AI 助手控制器
@@ -30,10 +36,32 @@ public class AiController extends BaseController {
     private final AiApplicationService aiApplicationService;
     private final FamilySettingApplicationService settingService;
 
+    /**
+     * AI 功能总开关（env AI_LLM_ENABLED），未开启即视为未配置
+     */
+    @Value("${ai.llm.enabled:false}")
+    private boolean llmEnabled;
+
+    /**
+     * 大模型接入密钥（env AI_API_KEY），空值视为未配置
+     */
+    @Value("${spring.ai.openai.api-key:}")
+    private String openaiApiKey;
+
     public AiController(AiApplicationService aiApplicationService,
                         FamilySettingApplicationService settingService) {
         this.aiApplicationService = aiApplicationService;
         this.settingService = settingService;
+    }
+
+    /**
+     * AI 配置状态：总开关开启且密钥已配置才算已配置，前端据此决定 AI 助手入口显隐
+     */
+    @GetMapping("/status")
+    public Result<Map<String, Object>> status() {
+        Map<String, Object> data = new HashMap<>(2);
+        data.put("configured", llmEnabled && StringUtils.hasText(openaiApiKey));
+        return Result.success(data);
     }
 
     /**

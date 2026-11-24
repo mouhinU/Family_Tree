@@ -111,6 +111,15 @@
                 showIfPresent('btn-admin', 'inline-block');
                 showIfPresent('drawer-btn-admin', 'flex');
             }
+            // AI 助手入口按服务端配置显隐：未配置大模型（开关关或缺密钥）时不出现机器人按钮
+            try {
+                const aiRes = await FT.api('/api/ai/status');
+                if (aiRes.code === 200 && aiRes.data && !aiRes.data.configured) {
+                    hideIfPresent('btn-ai');
+                }
+            } catch (e) {
+                // 查询失败维持现状：按钮保留，点击后仍由后端拒绝
+            }
         } catch (e) {
             window.location.href = '/login.html';
             return;
