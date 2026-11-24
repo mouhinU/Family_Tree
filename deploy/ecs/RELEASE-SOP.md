@@ -1,6 +1,6 @@
 # ECS 发版 SOP（阿里云单机形态）
 
-> 适用范围：阿里云 ECS `i-uf62f6628at8ehgwonbg`（cn-shanghai，`8.153.176.50`）上 `/opt/family-tree/` 的 compose 三容器栈。
+> 适用范围：阿里云 ECS `i-uf62f6628at8ehgwonbg`（cn-shanghai，`8.153.176.50`）。**2026-11-24 起有两个部署面**：compose 栈（`/opt/family-tree/`）只跑 MySQL(:3308)/Redis(:6381) 数据面，应用层在单机 k3s 蓝绿双槽（蓝 :8091 / 绿 :8092，见 §11）。发版第 1~5 步（预检/备份/迁移判断）两个面共用，第 6 步起分岔。
 > **不适用于**本机 Docker Desktop k8s 那套（术语叫 `prod`；ECS 这套叫 `ecs` 环境）。两边数据从同一份 dump 分叉，切流量前必须先冻结写入再重新 dump/restore，见「数据与备份」。
 >
 > 首次部署（建 `.env`、装 nginx、导数据）看 [`README.md`](README.md)；本文件只讲**已有一台在跑、要换新镜像**的重复性动作。
@@ -25,10 +25,12 @@ workbench exec -i <i-xxx> -r cn-shanghai --timeout 120 -c 'bash /tmp/ft-prefligh
 
 必须逐条落纸，否则后面的「验收」没有对照物：
 
-1. **在跑的是哪个镜像、compose 是哪种存储形态**：`docker ps` 的 tag + `docker volume ls`。形态决定第 5 步能不能传 compose（见第 0 节）。
-2. **Flyway 基线**：`SELECT version, checksum FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 3;`、表数、关键表行数（本例 `29 表 / family 9 / account 166`）。行数是第 7 步的对照，**不是**「不该变」——真实用户写入会让它涨。
-3. **最近一次备份**：`ls -lt /opt/family-tree/backups | head`，必须是今天的，否则先补第 2 步。
-4. **镜像 tar 的落点与磁盘余量**：`/root/ft-migrate/`，`df -h /`（177MB 的 tar + load 后的 500MB 镜像层）。
+> **预检脚本本身在 2026-11-24 之前是骗人的**（k3s 接管后暴露，仓库版已修）：`set -e` 让它在 curl 连不上时中途静默退出，后半截（镜像/cron）根本不打印，会被读成「没有历史镜像」；Flyway 顶部版本用 `max(version)`，而 version 是 VARCHAR，字符串序 `'9' > '40'`，永远报 `schema_version=9`；取中文的查询缺 `--default-character-set=utf8mb4`，中文全变 `????`，会被 §7 误判成生产数据坏了；应用端口写死 8090，compose app 退役后恒为 `000`。现在脚本按「compose app 是否 Running」自适应形态，k3s 侧的应用端口从 nginx 反代实际指向的 `127.0.0.1:809x` 现取（**注意取法**：`uniq -c` 的行是「计数 端口」，`tr -dc '0-9'` 会把计数粘成 `68091` 这种假端口，必须 `awk '{print $2}'`）。
+
+1. **在跑的是哪个镜像、compose 是哪种存储形态**：`docker ps` 的 tag + `docker volume ls`；k3s 侧另看 `-n prod get deploy/pods`（在任槽位 + 镜像 tag）。形态决定第 5 步能不能传 compose（见第 0 节）。
+2. **Flyway 基线**：`SELECT version, checksum FROM flyway_schema_history ORDER BY installed_rank DESC LIMIT 3;`、表数、关键表行数（2026-11-24 实测 `29 表 / family 9 / account 167 / has_phone 1`）。行数是第 7 步的对照，**不是**「不该变」——真实用户写入会让它涨；`has_phone` 是短信登录可用性的真实前置（开关已双开，但没有手机号的用户走不了短信路）。
+3. **最近一次备份**：`ls -lt /opt/family-tree/backups | head`（cron 自动备份）与 `ls -lt /opt/family-tree/backup | head`（发版前手工快照 `family_tree-pre-vNN-*.sql`、归档 jar 目录），自动备份必须是今天的，否则先补第 2 步。
+4. **镜像 tar 的落点与磁盘余量**：`/root/ft-migrate/`，`df -h /`（177MB 的 tar + load 后的 500MB 镜像层）。**k3s 侧还要看 containerd**：`k3s ctr -n k8s.io images list | grep family-tree`，清单是 `imagePullPolicy: Never`，只导 docker 不导 containerd 会让 pod 卡 `ImageNeverPull`。
 
 ## 2. 备份快照
 
@@ -81,7 +83,14 @@ firewall-cmd --permanent --zone=trusted --change-interface=br-<...>   # 写 /etc
 systemctl list-timers ft-firewall-guard.timer # 开机 60s 后首跑，之后每 5min 一次；journalctl -u ft-firewall-guard.service 看历史
 ```
 
-`/opt/family-tree/ft-sentinel.sh` = 第 3、6、7 步的机器可读版本：mysql/redis 的 TCP 可达（从 app 命名空间）、`/actuator/health` = 200、登录接口 25s 内返回。任一项失败退出码 1。
+`/opt/family-tree/ft-sentinel.sh` = 第 3、6、7 步的机器可读版本：mysql/redis 的 TCP 可达、`/actuator/health` = 200、登录接口 25s 内返回。任一项失败退出码 1。
+
+**2026-11-24 重写，两件事必须记住**：
+
+1. **它按形态自适应**。compose app 在任时 `nsenter` 进 app 容器 netns 量（在宿主上另起临时容器属于另一个网络，ARP 都不通，量出来是假阳性），地址按容器名现查；compose app 退役后走 k3s 分支——pod 是 `hostNetwork`，它的 netns 就是宿主，所以直接量宿主发布端口 mysql `127.0.0.1:3308` / redis `127.0.0.1:6381`，应用端口从 nginx 反代现取，**不写死槽位**（蓝绿在任会随发版交替）。第一版输出会打印 `mode=compose|k3s base=...`，判读前先确认这行是不是当前拓扑。
+2. **旧版有两个「假通过」**，已修：容器已停时 `docker inspect -f {{.State.Pid}}` 返回 **0**，`nsenter -t 0 -n` 等于在宿主跑探针，compose 网络被拦也照样报 OK（现在按 `State.Running` 判形态，compose 模式要求 PID 非 0）；连接被拒时 curl 立刻返回且 `http_code` 为空/000，旧脚本只量耗时，于是把「根本没连上」判成「0s 返回，OK」（现在必须同时拿到非 000 的 HTTP 码）。
+
+> 反面教材：k3s 接管当天，这份旧哨兵在**健康的生产上**报 3 行 FAIL、`rc=1`——不是应用坏了，是闸门本身过时了。**闸门红先判闸门，别直接回滚**（用 `/opt/family-tree/ft-sentinel.sh.bak-20261124` 这类备份件对照，或手工 curl 复核）。旧版在 `/opt` 一直用到 2026-11-24，之后仓库 = 实例 = 同一份自适应脚本。
 
 ## 4. 本机构建 → 上传 → 导入
 
@@ -222,7 +231,7 @@ sed -i.bak "s/^FT_IMAGE=.*/FT_IMAGE=family-tree:vNNN-local/" .env && rm -f .env.
 ## 7. 验收电池（顺序跑，任一项红就回滚，别边修边收工）
 
 ```bash
-/opt/family-tree/ft-sentinel.sh          # 期望三行 OK，rc=0
+/opt/family-tree/ft-sentinel.sh          # 期望首行 mode 与当前拓扑一致 + 四行 OK，rc=0
 ```
 
 再加四条业务侧读数，全部与第 1 步的基线对照：
@@ -239,9 +248,13 @@ curl -s -o /dev/null -w "nginx80=%{http_code}\n" http://127.0.0.1/
 ls -lt /opt/family-tree/logs | head -3   # 日志在往前走，且没有 ERROR 刷屏
 ```
 
+> k3s 形态下别拿 `./ecs-setup.sh status` 当应用状态：compose app 已退役，它恒显示 app 停。应用侧看 `k3s kubectl -n prod get deploy,pods -o wide` + `logs deploy/family-tree-app-<在任槽>`；`/opt/family-tree/logs` 仍是有效证据（pod 把 hostPath 同一目录挂进 `/app/logs`）。日志时间戳是 **UTC**，nginx access.log 是 **CST**，差 8 小时。
+
 浏览器侧还有一项脚本量不到的：**真的登录一次、开一次族谱树**。会话在 redis 上，切镜像不该登出；若「登录成功、下一个请求就未登录」，那是 Cookie 属性（`Secure`）问题，见第 0 节 profile 行。
 
 ## 8. 回滚
+
+> 本节是 **compose 应用面**的回滚路线（2026-11-24 起应用面在 k3s，见 §11.3）。它仍然管用的是因为 `.env` + `ecs-setup.sh app` 这条链没拆——但要注意实例上只剩 `v81-local` 与 `v74-baseexport` 两个 tag，回滚到更早版本得先用归档 jar 重建镜像（§9 末行）。
 
 改回 `FT_IMAGE` 再 `./ecs-setup.sh app` 就行——**但第 5 步做过 `repair` 的话，旧镜像对不上被改写后的历史表，回滚同样是「起不来」**。所以：
 
@@ -261,10 +274,10 @@ ls -lt /opt/family-tree/logs | head -3   # 日志在往前走，且没有 ERROR 
 | 2026-11-24 | `family-tree:v77-local` | HEAD `2e2f74f` + 未提交短信认证批次（dypns 发码/短信登录/注册验证码，`ALIYUN_SMS_ENABLED` 默认 false，生产未启用）；本机 `./mvnw -B clean package` 全量单测绿；4b 换 jar 层（基座继承 v76-local，jar sha `04613e14…` 四处一致） | 否（迁移目录未动，最高 V40，历史表顶 `40`） | 上传仅 jar（避 save 761MB）；`.env` FT_IMAGE 切 `v77-local`，回滚锚 v76-local 镜像在实例保留；哨兵四行 OK rc=0；读数 29 表/9 族/167 账号/flyway 顶 40，最新家族名 UTF-8 正常（罗氏/胡氏/李氏）；公网 `/login.html` 200、实例内 nginx80=200、`/actuator/health` 外部 403（预期，仅本机 200）；启动后日志 `ERROR` 级 0 条（判定用 `grep " ERROR "` 匹配级别列，直接 `grep ERROR` 会被 `BIZ_ERROR` 业务文案污染）；login 页短信表单元素与 `login.js?v=20261123` 已出。仓库版 compose/.env.example 未上传（§0 空库陷阱） |
 | 2026-11-24 | `family-tree:v78-local` | HEAD `2e2f74f` + 工作区（v77 全部内容 + 公开开关端点 `GET /api/auth/config`、注册页手机号/验证码按开关转必填、密码登录框手机号自动带入短信登录，`login.js?v=20261124b`）；本机 `./mvnw -B clean package` 全量单测绿；4b 换 jar 层（基座继承 v77-local，jar sha `c5cbe5eb…` 本地/实例/镜像内/运行容器四处一致） | 否（无迁移变化，历史表顶 `40`） | 发版前备份 `/opt/family-tree/backup/family_tree-pre-v78-20261124-082327.sql`（381K，backup 目录本次首建；容器名是 `family-tree-mysql` 非 `ft-mysql`，mysqldump 无 `--skip-lock-wait` 选项）；`.env` FT_IMAGE 切 `v78-local`（sed 留 `.bak-pre-v78`），回滚锚 v77-local 保留；哨兵四行 OK rc=0；`/api/auth/config` 返回 `registerSmsVerify:true`（生产 `SMS_VERIFY_ENABLED` 开，注册页已按必填口径显示）；读数 29 表/9 族/167 账号、flyway 顶 40；实例 nginx80=200、公网根 200、`/login.html` 已带 `?v=20261124b`；启动后 ` ERROR ` 仅 2 条且均为公网扫描器打 `/webui/`、`/favicon.ico` 的静态资源噪音（对应门控项 #203 未知路径语义），应用侧无异常。仓库版 compose/.env.example 仍未上传（§0 空库陷阱） |
 | 2026-11-24 | `family-tree:v79-local` | HEAD `2e2f74f` + 工作区（v78 全部内容 + AI 配置状态端点 `GET /api/ai/status`（`ai.llm.enabled && AI_API_KEY 非空` 才 configured，需登录）、main.js 初始化按状态隐藏 `#btn-ai` 机器人浮动按钮（查询失败维持现状），`main.js?v=20261124a`；新增 AiControllerTest 4 用例）；本机 `./mvnw -B clean package` 全量单测绿；实例上 4b 换 jar 层（基座继承 v78-local，jar sha `650a602a…` 本地/上传件/镜像内/运行容器四处一致） | 否（无迁移变化，历史表顶 `40`） | 发版前备份 `/opt/family-tree/backup/family_tree-pre-v79-20261124-085123.sql`（390K/29 表）；`.env` FT_IMAGE 切 `v79-local`（sed 留 `.bak-pre-v79`），回滚锚 v78-local 保留；08:52:23 停 app → 08:53:12 `200 OK`（约 49s）；哨兵四行 OK rc=0；读数 29 表/9 族/167 账号、flyway 顶 40、最新家族「罗氏家族」UTF-8 正常；`/api/ai/status` 未登录 401（公网与实例内一致，端点已注册且受登录保护）；实例 nginx80=200、公网根 200、`/index.html` 已带 `?v=20261124a`；v79 启动窗口 ` ERROR ` 0 条。生产未配 `AI_LLM_ENABLED/AI_API_KEY` → AI 未配置态，前端机器人按钮应隐藏。仓库版 compose/.env.example 仍未上传（§0 空库陷阱） |
-| 2026-11-24 | `family-tree:v81-local` | HEAD `8395f3b`（commit+push 前置）——首登强制改密自助绑定手机号（`login.html` 改密表单增选填手机号，`login.js` 先 `PUT /api/auth/profile` 绑定、失败可改正/留空重试，再提交改密）+ 短信发码防连点（点击即禁用、限流类拒绝进 60s 冷却）；本机 `./mvnw clean package` 全量单测绿；jar sha `5652347a…` 本地/上传件/镜像内/运行容器四处一致 | 否（无迁移变化，历史表顶 `40`） | **路线三首战**：实例上 `docker build FROM family-tree:v74-baseexport`（不再链式继承上一版镜像，Config 继承 baseexport 正确、层数 2）；发版前备份 `/opt/family-tree/backup/family_tree-pre-v81-20261124-132756.sql`（478,869B）；`.env` FT_IMAGE 切 `v81-local`（留 `.bak-pre-v81`），回滚锚 v80-local；13:29:05 停 app → 13:29:53 `200 OK`（约 48s）；哨兵四行 OK rc=0；`/api/auth/config`=`{smsLoginEnabled:true, registerSmsVerify:true}`；读数 29 表/9 族/167 账号/flyway 40；`login.html` 已带 `?v=20261124d` 且 `change-phone` 字段已出（实例内与公网 IP 双侧）；启动窗口 `" ERROR "` 0 条（注：`family-tree.log` 为跨版本累计文件，整文件 grep 会得到历史计数，判级必须按启动窗口时间戳切片，时间为 UTC）；nginx80=200、公网根 200 |
 | 2026-11-24 | `family-tree:v80-local` | HEAD `98018fe`（已 commit+push，发版前置项已按新约定收口：v77~v80 全部代码在库）——v79 全部内容 + 短信登录开关下发前端：`SmsCodeApplicationService.isSmsLoginEnabled` 读 `SMS_LOGIN_ENABLED`，公开端点 `/api/auth/config` 增 `smsLoginEnabled` 字段，`login.js` 拉取为 false 时隐藏「短信验证码登录」切换入口（字段缺失/拉取失败维持现状），`login.js?v=20261124c`；本机 `./mvnw -B clean package` 全量单测绿；实例上 4b 换 jar 层（基座继承 v79-local，jar sha `c39e9763…` 本地/上传件/镜像内/运行容器四处一致） | 否（无迁移变化，历史表顶 `40`） | 发版前备份 `/opt/family-tree/backup/family_tree-pre-v80-20261124-122717.sql`（390,497B/29 表）；`.env` FT_IMAGE 切 `v80-local`（sed 留 `.bak-pre-v80`），回滚锚 v79-local 保留；12:29:24 停 app → 12:30:13 `200 OK`（约 49s）；`/api/auth/config` 返回 `{smsLoginEnabled:true, registerSmsVerify:true}`；`/login.html` 已带 `?v=20261124c`；哨兵四行 OK rc=0；启动窗口 ` ERROR ` 0 条；实例 nginx80=200。生产两开关均开，短信登录入口保持显示。仓库版 compose/.env.example 仍未上传（§0 空库陷阱） |
-
-| 2026-11-24 | `family-tree:v81-local`（k3s 蓝绿演练，同镜像） | 无新代码（HEAD 不变，`1d2ae02` 登记在途）；机制验证=§11 全流程首跑：绿槽 8092 在任 → 蓝槽 8091 旁路拉起（87s Ready）→ 旁路验收全绿 → nginx 切流 8092→8091（reload 零中断）→ 绿槽缩 0 → 绿槽唤回演练（rollout OK、8092 health UP、期间蓝槽持续 200）→ 复归休眠锚 | 否（同镜像无迁移变化） | 切流后入口复验：root80=200、config 双开关 true、`?v=20261124d`、公网 200；蓝槽 stdout `" ERROR "` 0 条；内存 avail 切流后 ~1.8G；conf 备份 `.bak.pre-k3s-*`（8090 版）与 `.bak.pre-blue-*`（8092 版）两级回滚链完整。compose app 仍 Up 未动（退役待点名） |
+| 2026-11-24 | `family-tree:v81-local` | HEAD `8395f3b`（commit+push 前置）——首登强制改密自助绑定手机号（`login.html` 改密表单增选填手机号，`login.js` 先 `PUT /api/auth/profile` 绑定、失败可改正/留空重试，再提交改密）+ 短信发码防连点（点击即禁用、限流类拒绝进 60s 冷却）；本机 `./mvnw clean package` 全量单测绿；jar sha `5652347a…` 本地/上传件/镜像内/运行容器四处一致 | 否（无迁移变化，历史表顶 `40`） | **路线三首战**：实例上 `docker build FROM family-tree:v74-baseexport`（不再链式继承上一版镜像，Config 继承 baseexport 正确、层数 2）；发版前备份 `/opt/family-tree/backup/family_tree-pre-v81-20261124-132756.sql`（478,869B）；`.env` FT_IMAGE 切 `v81-local`（留 `.bak-pre-v81`），回滚锚 v80-local；13:29:05 停 app → 13:29:53 `200 OK`（约 48s）；哨兵四行 OK rc=0；`/api/auth/config`=`{smsLoginEnabled:true, registerSmsVerify:true}`；读数 29 表/9 族/167 账号/flyway 40；`login.html` 已带 `?v=20261124d` 且 `change-phone` 字段已出（实例内与公网 IP 双侧）；启动窗口 `" ERROR "` 0 条（注：`family-tree.log` 为跨版本累计文件，整文件 grep 会得到历史计数，判级必须按启动窗口时间戳切片，时间为 UTC）；nginx80=200、公网根 200 |
+| 2026-11-24 | `family-tree:v81-local`（k3s 蓝绿演练，同镜像） | 无新代码（HEAD 不变，`1d2ae02` 登记在途）；机制验证=§11 全流程首跑：绿槽 8092 在任 → 蓝槽 8091 旁路拉起（87s Ready）→ 旁路验收全绿 → nginx 切流 8092→8091（reload 零中断）→ 绿槽缩 0 → 绿槽唤回演练（rollout OK、8092 health UP、期间蓝槽持续 200）→ 复归休眠锚 | 否（同镜像无迁移变化） | 切流后入口复验：root80=200、config 双开关 true、`?v=20261124d`、公网 200；蓝槽 stdout `" ERROR "` 0 条；内存 avail 切流后 ~1.8G；conf 备份 `.bak.pre-k3s-*`（8090 版）与 `.bak.pre-blue-*`（8092 版）两级回滚链完整。compose app 本次仍 Up（同日稍后退役，见下一行） |
+| 2026-11-24 | （无新代码）compose app 退役 + 历史镜像清理 | HEAD 不变；实例侧动作：`docker stop family-tree-app`（容器保留、`Exited (143)`，镜像 tag 已是 `family-tree:v81-local`），在任应用改由 k3s 蓝槽 :8091 承载；mysql/redis 与命名卷不动（§0） | 否 | 清理前把历史 jar 归档 `/opt/family-tree/backup/jars-pre-retire-20261124/`（与 13:12 的 `jars-pre-prune-20261124/` 两份）。实例现存镜像仅 `family-tree:v81-local`（455MB；containerd 侧同 sha256 `c502bea6…`）+ `family-tree:v74-baseexport`（318MB）——**v79/v80 镜像已不在实例上**，上一行写的「回滚锚 v80-local」自此只等于归档 jar，回滚更早版本 = 取 jar 走路线三重建 |
 
 > **v74 数据订正附注（蒙斌/胡兰亲族案例，两库同口径）**：`family_node_link` 补 `1:54↔39:296`（手工链，ECS 缺）、`1:12↔40:305`、`1:21↔39:298`、`1:21↔40:328`、`1:56↔39:304`（`link_type=1`，`source=1 ACCOUNT`，ECS 首条为 `source=2/confirmed_by=1`）；`family_relation` 补 family 1 母边 `12→20`、`12→21`、`54→56`（`relation_type=1`，`user_id=1`）。回滚镜像不回滚这份数据（多行数据新代码不依赖旧行为，旧代码读到也只是多显示亲族行，不报错）。
 
@@ -297,12 +310,14 @@ v73 一层的实测数（下次发版拿它当对照，别看旧文档里的数�
 | `ops/ft-release-check.sh` | `/tmp/` | 发版过程中的状态复查（容器/镜像、Flyway 读数、业务基线、`is_widowed`、80/443 健康、日志尾部） |
 | `ops/ft-firewall-guard.sh` | `/usr/local/sbin/` | 网桥自愈 |
 | `ops/ft-firewall-guard.{service,timer}` | `/etc/systemd/system/` | guard 的开机/定时触发 |
-| `ops/ft-sentinel.sh` | `/opt/family-tree/` | 验收哨兵 |
+| `ops/ft-sentinel.sh` | `/opt/family-tree/` | 验收哨兵（2026-11-24 重写为形态自适应；实例上旧 compose-only 版留 `/opt/family-tree/ft-sentinel.sh.bak-20261124`，`md5 10d5ab9a…`，重装后实例 md5 = 仓库 `e9d7c6f2…`） |
 | `ops/ft-v7-checksum-fix.sh` | `/tmp/` | 第 5 节的 SQL 兜底（带旧值守卫，只对 V7 这一行） |
 
 ## 11. ECS 单机 k3s 蓝绿发版（2026-11-24 起新增部署面）
 
-ECS 上另装了单机 k3s v1.30.14（cgroup v1 主机锁 1.30；严禁升 1.31+）。compose 栈继续承担 MySQL(:3308)/Redis(:6381) 数据面；应用层在 k3s 蓝绿双槽（蓝 :8091 / 绿 :8092）间零停机互切。当前在任=**蓝槽 8091**，绿槽 replicas=0 休眠锚。**compose app 已于 2026-11-24 退役**（容器 Exited 保留、`family-tree:v81-local` 镜像保留，急回滚=`docker start family-tree-app` + nginx 切回 8090，约 50s+秒级）。
+ECS 上另装了单机 k3s v1.30.14（cgroup v1 主机锁 1.30；严禁升 1.31+）。compose 栈继续承担 MySQL(:3308)/Redis(:6381) 数据面；应用层在 k3s 蓝绿双槽（蓝 :8091 / 绿 :8092）间零停机互切。当前在任=**蓝槽 8091**，绿槽 replicas=0 休眠锚。**compose app 已于 2026-11-24 退役**（容器 Exited 保留、镜像保留）。
+
+> ⚠️ 退役后的 compose app **不是版本回滚锚**：它的镜像已经是 `family-tree:v81-local`，`docker start family-tree-app` + nginx 切回 8090 只是把「应用跑在哪个面」换回去（拓扑回滚），代码版本仍是当前版。要回旧版本得按 §9 的镜像/jar 记录重建（v79/v80 镜像已 prune，只有归档 jar）。
 
 ### 11.1 一次性环境（已就绪，重建实例才需要重跑）
 
@@ -324,9 +339,10 @@ ECS 上另装了单机 k3s v1.30.14（cgroup v1 主机锁 1.30；严禁升 1.31+
 
 - 秒级：nginx 反向 sed（或 `cp` 最近一份 `.bak.pre-*-<ts>`）+ reload 回旧槽。
 - 旧槽已休眠：`scale --replicas=1`（冷启 ≤2min，实测 rollout OK 后探针 UP）再切回。
-- 终极兜底：compose app :8090 已退役但可随时复活（`docker start family-tree-app` 等 ~50s health，再切回 `.bak.pre-k3s-*` conf + reload）。
+- 终极兜底：compose app :8090 已退役但可随时复活（`docker start family-tree-app` 等 ~50s health，再切回 `.bak.pre-k3s-*` conf + reload）。**注意这是拓扑回滚不是版本回滚**——它的镜像 tag 跟着最后一次 compose 发版走（现在是 `v81-local`），复活后跑的还是当前版本；真要退版本得改 `.env` 的 `FT_IMAGE` 指向旧镜像，而旧镜像可能已被 prune（见 §9 末行），此时只能取归档 jar 走路线三重建。
+- 切流/回滚之后一律重跑 `/opt/family-tree/ft-sentinel.sh`（自适应形态，期望首行 `mode=k3s` + 四行 OK、`rc=0`）。它报 FAIL 时**先确认闸门本身是否与拓扑匹配**，再动生产（§3 的反面教材）。
 - **含破坏性 Flyway 迁移的版本禁用蓝绿重叠**（新槽跑迁移时旧槽还在写），走 §6 停机换版路线。
 
 ### 11.4 已知挂起项
 
-metrics-server 0/1（pod 网段打不到宿主 10250，不影响发布链）；overlay 无 SNAT 不修；`v74-baseexport` 单副本待 `docker save` 异备份；compose app 退役需点名。
+metrics-server 0/1（pod 网段打不到宿主 10250，不影响发布链）；overlay 无 SNAT 不修；`v74-baseexport` 单副本待 `docker save` 异备份；compose app 已于 2026-11-24 退役（容器仍在，见 §11.3 关于它不是版本锚的说明）。
