@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: family-tree-app-green
+  namespace: prod
+  labels:
+    app: family-tree-green
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: family-tree-green
+  template:
+    metadata:
+      labels:
+        app: family-tree-green
+    spec:
+      hostNetwork: true
+      dnsPolicy: Default
+      containers:
+        - name: family-tree-app
+          image: docker.io/library/family-tree:v81-local
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8092
+          env:
+            - name: SERVER_PORT
+              value: "8092"
+          envFrom:
+            - secretRef:
+                name: ft-app-env
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 768Mi
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8092
+            initialDelaySeconds: 40
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8092
+            initialDelaySeconds: 180
+            periodSeconds: 10
+            failureThreshold: 6
+          volumeMounts:
+            - name: photos
+              mountPath: /app/data/photos
+            - name: logs
+              mountPath: /app/logs
+      volumes:
+        - name: photos
+          hostPath:
+            path: /opt/family-tree/data/photos
+            type: Directory
+        - name: logs
+          hostPath:
+            path: /opt/family-tree/logs
+            type: Directory

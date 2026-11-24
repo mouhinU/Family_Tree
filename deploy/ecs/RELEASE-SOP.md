@@ -264,6 +264,8 @@ ls -lt /opt/family-tree/logs | head -3   # 日志在往前走，且没有 ERROR 
 | 2026-11-24 | `family-tree:v81-local` | HEAD `8395f3b`（commit+push 前置）——首登强制改密自助绑定手机号（`login.html` 改密表单增选填手机号，`login.js` 先 `PUT /api/auth/profile` 绑定、失败可改正/留空重试，再提交改密）+ 短信发码防连点（点击即禁用、限流类拒绝进 60s 冷却）；本机 `./mvnw clean package` 全量单测绿；jar sha `5652347a…` 本地/上传件/镜像内/运行容器四处一致 | 否（无迁移变化，历史表顶 `40`） | **路线三首战**：实例上 `docker build FROM family-tree:v74-baseexport`（不再链式继承上一版镜像，Config 继承 baseexport 正确、层数 2）；发版前备份 `/opt/family-tree/backup/family_tree-pre-v81-20261124-132756.sql`（478,869B）；`.env` FT_IMAGE 切 `v81-local`（留 `.bak-pre-v81`），回滚锚 v80-local；13:29:05 停 app → 13:29:53 `200 OK`（约 48s）；哨兵四行 OK rc=0；`/api/auth/config`=`{smsLoginEnabled:true, registerSmsVerify:true}`；读数 29 表/9 族/167 账号/flyway 40；`login.html` 已带 `?v=20261124d` 且 `change-phone` 字段已出（实例内与公网 IP 双侧）；启动窗口 `" ERROR "` 0 条（注：`family-tree.log` 为跨版本累计文件，整文件 grep 会得到历史计数，判级必须按启动窗口时间戳切片，时间为 UTC）；nginx80=200、公网根 200 |
 | 2026-11-24 | `family-tree:v80-local` | HEAD `98018fe`（已 commit+push，发版前置项已按新约定收口：v77~v80 全部代码在库）——v79 全部内容 + 短信登录开关下发前端：`SmsCodeApplicationService.isSmsLoginEnabled` 读 `SMS_LOGIN_ENABLED`，公开端点 `/api/auth/config` 增 `smsLoginEnabled` 字段，`login.js` 拉取为 false 时隐藏「短信验证码登录」切换入口（字段缺失/拉取失败维持现状），`login.js?v=20261124c`；本机 `./mvnw -B clean package` 全量单测绿；实例上 4b 换 jar 层（基座继承 v79-local，jar sha `c39e9763…` 本地/上传件/镜像内/运行容器四处一致） | 否（无迁移变化，历史表顶 `40`） | 发版前备份 `/opt/family-tree/backup/family_tree-pre-v80-20261124-122717.sql`（390,497B/29 表）；`.env` FT_IMAGE 切 `v80-local`（sed 留 `.bak-pre-v80`），回滚锚 v79-local 保留；12:29:24 停 app → 12:30:13 `200 OK`（约 49s）；`/api/auth/config` 返回 `{smsLoginEnabled:true, registerSmsVerify:true}`；`/login.html` 已带 `?v=20261124c`；哨兵四行 OK rc=0；启动窗口 ` ERROR ` 0 条；实例 nginx80=200。生产两开关均开，短信登录入口保持显示。仓库版 compose/.env.example 仍未上传（§0 空库陷阱） |
 
+| 2026-11-24 | `family-tree:v81-local`（k3s 蓝绿演练，同镜像） | 无新代码（HEAD 不变，`1d2ae02` 登记在途）；机制验证=§11 全流程首跑：绿槽 8092 在任 → 蓝槽 8091 旁路拉起（87s Ready）→ 旁路验收全绿 → nginx 切流 8092→8091（reload 零中断）→ 绿槽缩 0 → 绿槽唤回演练（rollout OK、8092 health UP、期间蓝槽持续 200）→ 复归休眠锚 | 否（同镜像无迁移变化） | 切流后入口复验：root80=200、config 双开关 true、`?v=20261124d`、公网 200；蓝槽 stdout `" ERROR "` 0 条；内存 avail 切流后 ~1.8G；conf 备份 `.bak.pre-k3s-*`（8090 版）与 `.bak.pre-blue-*`（8092 版）两级回滚链完整。compose app 仍 Up 未动（退役待点名） |
+
 > **v74 数据订正附注（蒙斌/胡兰亲族案例，两库同口径）**：`family_node_link` 补 `1:54↔39:296`（手工链，ECS 缺）、`1:12↔40:305`、`1:21↔39:298`、`1:21↔40:328`、`1:56↔39:304`（`link_type=1`，`source=1 ACCOUNT`，ECS 首条为 `source=2/confirmed_by=1`）；`family_relation` 补 family 1 母边 `12→20`、`12→21`、`54→56`（`relation_type=1`，`user_id=1`）。回滚镜像不回滚这份数据（多行数据新代码不依赖旧行为，旧代码读到也只是多显示亲族行，不报错）。
 
 v73 一层的实测数（下次发版拿它当对照，别看旧文档里的数）：
@@ -297,3 +299,34 @@ v73 一层的实测数（下次发版拿它当对照，别看旧文档里的数�
 | `ops/ft-firewall-guard.{service,timer}` | `/etc/systemd/system/` | guard 的开机/定时触发 |
 | `ops/ft-sentinel.sh` | `/opt/family-tree/` | 验收哨兵 |
 | `ops/ft-v7-checksum-fix.sh` | `/tmp/` | 第 5 节的 SQL 兜底（带旧值守卫，只对 V7 这一行） |
+
+## 11. ECS 单机 k3s 蓝绿发版（2026-11-24 起新增部署面）
+
+ECS 上另装了单机 k3s v1.30.14（cgroup v1 主机锁 1.30；严禁升 1.31+）。compose 栈继续承担 MySQL(:3308)/Redis(:6381) 数据面，应用层可在 compose(:8090) 与 k3s 蓝绿双槽（蓝 :8091 / 绿 :8092）间零停机互切。当前在任=**蓝槽 8091**，绿槽 replicas=0 休眠锚，compose app 在跑未接流。
+
+### 11.1 一次性环境（已就绪，重建实例才需要重跑）
+
+- k3s 安装：本机下载二进制+sha256 校验→workbench upload→`INSTALL_K3S_SKIP_DOWNLOAD=true INSTALL_K3S_SKIP_SELINUX_RPM=true INSTALL_K3S_EXEC="--disable=traefik --disable=servicelb --write-kubeconfig-mode=644"`；系统镜像走 `/etc/rancher/k3s/registries.yaml` daocloud 镜像。
+- namespace `prod`；secret：`k3s kubectl -n prod create secret generic ft-app-env --from-env-file=/opt/family-tree/k8s/green.env`（env 源自 `docker inspect family-tree-app`，改写 DB→`127.0.0.1:3308`、Redis→`127.0.0.1:6381`，**删掉裸 `-XX:` 行否则 key 名非法**；green.env chmod 600，严禁入库）。
+- 清单入库：本目录 [`k8s/`](k8s)（`deployment-green.yaml`/`deployment-blue.yaml`/`app-env.keys.txt` 仅键名），实例落位 `/opt/family-tree/k8s/`。
+- 网络约束（实测）：pod overlay 无 SNAT、pod→宿主 eth0 端口不通 → app pod 必须 `hostNetwork: true + dnsPolicy: Default`；镜像 `imagePullPolicy: Never`，每版需导入 containerd。
+
+### 11.2 每次发版（蓝绿互切，零停机）
+
+1. 第 1~4 步照旧（预检/备份/jar 路线三 `FROM v74-baseexport` 构建 `family-tree:vNN-local`）。
+2. 导入 k3s：`docker save family-tree:vNN-local | k3s ctr -n k8s.io images import -`
+3. 起**空闲槽**（当前在任的反面）：`sed 's/green/blue/g; s/8092/8091/g' deployment-green.yaml > deployment-blue.yaml`（反向同理），改 image tag 后 `k3s kubectl -n prod apply -f` + `rollout status --timeout=180s`（实测 ~87s）。
+4. 旁路验收打空闲槽端口（8091/8092）：health UP、`/api/auth/config`、`login.html ?v=`、读数、`k3s kubectl logs` stdout `" ERROR "`=0。
+5. 切流：备份 conf → `sed -i 's|127.0.0.1:809X|127.0.0.1:809Y|g' /etc/nginx/conf.d/family-tree.conf`（6 处全量）→ `nginx -t && systemctl reload nginx` → 入口复验（root80/config/login.html/公网）。会话在 Redis，切流不掉线。
+6. 旧槽 `scale --replicas=0` 转休眠锚（内存即回 ~700MB）。compose 数据面全程不动。
+
+### 11.3 回滚
+
+- 秒级：nginx 反向 sed（或 `cp` 最近一份 `.bak.pre-*-<ts>`）+ reload 回旧槽。
+- 旧槽已休眠：`scale --replicas=1`（冷启 ≤2min，实测 rollout OK 后探针 UP）再切回。
+- 兜底仍在：compose app :8090（切回 `.bak.pre-k3s-*` 那份 conf 即可）。
+- **含破坏性 Flyway 迁移的版本禁用蓝绿重叠**（新槽跑迁移时旧槽还在写），走 §6 停机换版路线。
+
+### 11.4 已知挂起项
+
+metrics-server 0/1（pod 网段打不到宿主 10250，不影响发布链）；overlay 无 SNAT 不修；`v74-baseexport` 单副本待 `docker save` 异备份；compose app 退役需点名。
