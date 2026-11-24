@@ -302,7 +302,7 @@ v73 一层的实测数（下次发版拿它当对照，别看旧文档里的数�
 
 ## 11. ECS 单机 k3s 蓝绿发版（2026-11-24 起新增部署面）
 
-ECS 上另装了单机 k3s v1.30.14（cgroup v1 主机锁 1.30；严禁升 1.31+）。compose 栈继续承担 MySQL(:3308)/Redis(:6381) 数据面，应用层可在 compose(:8090) 与 k3s 蓝绿双槽（蓝 :8091 / 绿 :8092）间零停机互切。当前在任=**蓝槽 8091**，绿槽 replicas=0 休眠锚，compose app 在跑未接流。
+ECS 上另装了单机 k3s v1.30.14（cgroup v1 主机锁 1.30；严禁升 1.31+）。compose 栈继续承担 MySQL(:3308)/Redis(:6381) 数据面；应用层在 k3s 蓝绿双槽（蓝 :8091 / 绿 :8092）间零停机互切。当前在任=**蓝槽 8091**，绿槽 replicas=0 休眠锚。**compose app 已于 2026-11-24 退役**（容器 Exited 保留、`family-tree:v81-local` 镜像保留，急回滚=`docker start family-tree-app` + nginx 切回 8090，约 50s+秒级）。
 
 ### 11.1 一次性环境（已就绪，重建实例才需要重跑）
 
@@ -324,7 +324,7 @@ ECS 上另装了单机 k3s v1.30.14（cgroup v1 主机锁 1.30；严禁升 1.31+
 
 - 秒级：nginx 反向 sed（或 `cp` 最近一份 `.bak.pre-*-<ts>`）+ reload 回旧槽。
 - 旧槽已休眠：`scale --replicas=1`（冷启 ≤2min，实测 rollout OK 后探针 UP）再切回。
-- 兜底仍在：compose app :8090（切回 `.bak.pre-k3s-*` 那份 conf 即可）。
+- 终极兜底：compose app :8090 已退役但可随时复活（`docker start family-tree-app` 等 ~50s health，再切回 `.bak.pre-k3s-*` conf + reload）。
 - **含破坏性 Flyway 迁移的版本禁用蓝绿重叠**（新槽跑迁移时旧槽还在写），走 §6 停机换版路线。
 
 ### 11.4 已知挂起项
