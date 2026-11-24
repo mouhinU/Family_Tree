@@ -121,12 +121,16 @@
         }, 1000);
     }
 
+    var SEND_QUOTA_PATTERN = /过于频繁|次数已达上限/;
+
     async function sendSmsCode(btn, phone, scene) {
         if (!PHONE_STRICT_PATTERN.test(phone)) {
             messageEl.textContent = '请先输入正确的11位大陆手机号';
             messageEl.className = 'message error';
             return;
         }
+        // 点击即禁用：等响应回来再禁用挡不住同一秒内的连点，而服务端按请求占用重发间隔并按条计费
+        btn.disabled = true;
         try {
             var res = await fetch('/api/auth/sms/send-code', {
                 method: 'POST',
@@ -139,12 +143,20 @@
                 messageEl.className = 'message success';
                 startResendCountdown(btn, '发送验证码');
             } else {
-                messageEl.textContent = data.message || '验证码发送失败';
+                var failMsg = data.message || '验证码发送失败';
+                messageEl.textContent = failMsg;
                 messageEl.className = 'message error';
+                if (SEND_QUOTA_PATTERN.test(failMsg)) {
+                    // 限流类拒绝说明本次请求已消耗额度，冷却期内重试没有意义
+                    startResendCountdown(btn, '发送验证码');
+                } else {
+                    btn.disabled = false;
+                }
             }
         } catch (err) {
             messageEl.textContent = '网络错误，请重试';
             messageEl.className = 'message error';
+            btn.disabled = false;
         }
     }
 
@@ -297,6 +309,7 @@
         e.preventDefault();
         var newPwd = document.getElementById('change-new-password').value;
         var confirmPwd = document.getElementById('change-confirm-password').value;
+        var phone = document.getElementById('change-phone').value.trim();
         if (newPwd.length < 6) {
             messageEl.textContent = '新密码长度不能少于6位';
             messageEl.className = 'message error';
@@ -307,7 +320,29 @@
             messageEl.className = 'message error';
             return;
         }
+        if (phone && !PHONE_STRICT_PATTERN.test(phone)) {
+            messageEl.textContent = '手机号须为11位大陆号码';
+            messageEl.className = 'message error';
+            return;
+        }
         try {
+            // 手机号先于改密提交：改密后本表单无法重复提交（原口令已失效），把可纠正的失败放在前面
+            if (phone) {
+                var bindRes = await fetch('/api/auth/profile', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': sessionStorage.getItem('csrfToken') || ''
+                    },
+                    body: JSON.stringify({phone: phone})
+                });
+                var bindData = await bindRes.json();
+                if (bindData.code !== 200) {
+                    messageEl.textContent = bindData.message || '手机号绑定失败，可留空重试或稍后在「我的资料」补填';
+                    messageEl.className = 'message error';
+                    return;
+                }
+            }
             var res = await fetch('/api/auth/password', {
                 method: 'POST',
                 headers: {
