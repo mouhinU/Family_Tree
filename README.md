@@ -193,6 +193,18 @@ AI 能力（智能录入、自然语言问答、家族故事、OCR 解析）基�
 AI_LLM_ENABLED=true AI_API_KEY=sk-xxx ./mvnw spring-boot:run -pl family-tree-web
 ```
 
+### 前端动态配置项
+
+前端按服务端下发的配置决定入口显隐与表单必填，不由页面自行判断。当前被前端消费的开关如下：
+
+| 配置项 | 配置方式 | 前端读取途径 | 前端行为 |
+|------------------------|----------------------|---------------------------|--------------------------------------------------------------|
+| `ai.llm.enabled` + `spring.ai.openai.api-key`（环境变量 `AI_LLM_ENABLED` / `AI_API_KEY`，两者齐备才算已配置） | 环境变量，改后需重启 | `GET /api/ai/status`（需登录；查询失败时按钮维持现状） | 未配置大模型时隐藏 AI 机器人浮动按钮 `#btn-ai`（`main.js`） |
+| `SMS_VERIFY_ENABLED`（代码默认 `false`，经 `platform_setting` 覆盖生效） | 平台管理页「平台配置」页签 | `GET /api/auth/config`（公开，`registerSmsVerify` 字段） | 开启后注册表单手机号与验证码转必填（`login.js`）；关闭时沿用普通注册 |
+| `PLATFORM_ADMIN_USERNAMES`（平台管理员白名单） | 环境变量，改后需重启 | `GET /api/auth/me`（`isSystemAdmin` 字段） | 命中白名单才显示平台管理入口 `btn-admin`（隐藏仅为体验优化，服务端另有校验） |
+
+未被前端读取、仅由服务端裁决的相关配置：`SMS_LOGIN_ENABLED`（短信登录 Tab 恒显示，关闭时后端拒绝 `/api/auth/login-sms` 与 LOGIN 场景发码）、`AI_FEATURE_ENABLED`（家族级覆盖，逐请求拦截 `/api/ai/*`，与按钮显隐无关）、`MAX_FAMILY_PER_USER` / `MAX_FAMILY_MEMBERS` 等上限项（写入时校验）。
+
 ## 数据库模型
 
 共 28 张表，通过 40 个 Flyway 迁移版本管理：
