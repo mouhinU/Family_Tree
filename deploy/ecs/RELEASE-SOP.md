@@ -310,7 +310,7 @@ v73 一层的实测数（下次发版拿它当对照，别看旧文档里的数�
 | `ops/ft-release-check.sh` | `/tmp/` | 发版过程中的状态复查（容器/镜像、Flyway 读数、业务基线、`is_widowed`、80/443 健康、日志尾部） |
 | `ops/ft-firewall-guard.sh` | `/usr/local/sbin/` | 网桥自愈 |
 | `ops/ft-firewall-guard.{service,timer}` | `/etc/systemd/system/` | guard 的开机/定时触发 |
-| `ops/ft-sentinel.sh` | `/opt/family-tree/` | 验收哨兵（2026-11-24 重写为形态自适应；实例上旧 compose-only 版留 `/opt/family-tree/ft-sentinel.sh.bak-20261124`，`md5 10d5ab9a…`，重装后实例 md5 = 仓库 `e9d7c6f2…`） |
+| `ops/ft-sentinel.sh` | `/opt/family-tree/` | 验收哨兵（2026-11-24 重写为形态自适应，入库 `681d974`；实例上旧 compose-only 版留 `/opt/family-tree/ft-sentinel.sh.bak-20261124`，`md5 10d5ab9a…`，重装后实例 md5 = 仓库 `e9d7c6f2…`） |
 | `ops/ft-v7-checksum-fix.sh` | `/tmp/` | 第 5 节的 SQL 兜底（带旧值守卫，只对 V7 这一行） |
 
 ## 11. ECS 单机 k3s 蓝绿发版（2026-11-24 起新增部署面）
