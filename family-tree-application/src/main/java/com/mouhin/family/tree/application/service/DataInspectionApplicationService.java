@@ -5,7 +5,9 @@ import com.mouhin.family.tree.common.dto.InspectionReportVO;
 import com.mouhin.family.tree.common.dto.InspectionSampleVO;
 import com.mouhin.family.tree.common.enums.InspectionCheckEnum;
 import com.mouhin.family.tree.common.enums.InspectionSeverityEnum;
+import com.mouhin.family.tree.common.enums.PlatformSettingKeyEnum;
 import com.mouhin.family.tree.domain.entity.InspectionFinding;
+import com.mouhin.family.tree.domain.entity.InspectionQuota;
 import com.mouhin.family.tree.domain.entity.InspectionSample;
 import com.mouhin.family.tree.domain.repository.PlatformInspectionRepository;
 import org.springframework.stereotype.Service;
@@ -35,8 +37,12 @@ public class DataInspectionApplicationService {
 
     private final PlatformInspectionRepository inspectionRepository;
 
-    public DataInspectionApplicationService(PlatformInspectionRepository inspectionRepository) {
+    private final PlatformSettingApplicationService platformSettingService;
+
+    public DataInspectionApplicationService(PlatformInspectionRepository inspectionRepository,
+                                            PlatformSettingApplicationService platformSettingService) {
         this.inspectionRepository = inspectionRepository;
+        this.platformSettingService = platformSettingService;
     }
 
     /**
@@ -52,8 +58,13 @@ public class DataInspectionApplicationService {
             totalsBySeverity.put(severity, 0L);
         }
         int problemCheckCount = 0;
+        InspectionQuota quota = new InspectionQuota(
+                platformSettingService.getInt(PlatformSettingKeyEnum.MAX_NODE_COUNT),
+                platformSettingService.getInt(PlatformSettingKeyEnum.MAX_FAMILY_MEMBERS));
         for (InspectionCheckEnum check : checks) {
-            InspectionFinding finding = inspectionRepository.findFinding(check, SAMPLE_LIMIT);
+            InspectionFinding finding = check == InspectionCheckEnum.QUOTA_EXCEEDED
+                    ? inspectionRepository.findFinding(check, SAMPLE_LIMIT, quota)
+                    : inspectionRepository.findFinding(check, SAMPLE_LIMIT);
             InspectionItemVO item = toItemVO(check, finding);
             items.add(item);
             if (finding.getTotal() > 0L) {

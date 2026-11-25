@@ -64,6 +64,50 @@ public enum InspectionCheckEnum {
 
     AUTO_ACCOUNT_PLACEHOLDER("AUTO_ACCOUNT_PLACEHOLDER", "代开账号昵称为占位符",
             "系统代开账号的昵称由 * 或 ? 占位，源于早期导入的乱码姓名",
+            InspectionSeverityEnum.LOW),
+
+    LINK_ORPHAN("LINK_ORPHAN", "跨族亲族链失效",
+            "亲族链端点指向已删除节点，或链上记录的家族与节点实际归属不一致，详情亲族区块会指向错误家族",
+            InspectionSeverityEnum.HIGH),
+
+    RELATION_DUPLICATE_ACROSS_CREATOR("RELATION_DUPLICATE_ACROSS_CREATOR", "同对节点重复关系边",
+            "同一对节点间存在多条同类型关系；关系表唯一键含创建人，不同成员可重复登记同一条边，树与关系路径会出现平行双线",
+            InspectionSeverityEnum.HIGH),
+
+    PARENT_CYCLE("PARENT_CYCLE", "亲子关系成环",
+            "沿亲子边可从某节点回到自身（祖先链回指），树构建与世代深度计算会陷入循环",
+            InspectionSeverityEnum.HIGH),
+
+    RELATION_FAMILY_MISMATCH("RELATION_FAMILY_MISMATCH", "关系家族与节点家族不一致",
+            "关系行冗余记录的家族ID与两端节点的实际家族不一致，多为节点迁移或数据订正后的漂移",
+            InspectionSeverityEnum.HIGH),
+
+    NODE_FIELD_INVALID("NODE_FIELD_INVALID", "节点字段值非法",
+            "节点姓名为空、性别不在枚举值域或出生日期晚于今天，多为界面年份误输或历史脏数据",
+            InspectionSeverityEnum.HIGH),
+
+    QUOTA_EXCEEDED("QUOTA_EXCEEDED", "家族规模超出配额",
+            "家族节点数或成员数已超出当前生效的上限；收紧配额只拦新增不清存量，需巡检暴露存量超限家族",
+            InspectionSeverityEnum.HIGH),
+
+    AUTO_ACCOUNT_ORPHAN("AUTO_ACCOUNT_ORPHAN", "代开账号无节点绑定",
+            "系统代开账号在绑定表中没有任何记录，本人无法通过该账号定位到族谱节点",
+            InspectionSeverityEnum.MEDIUM),
+
+    RELATION_FLAG_DATE_MISMATCH("RELATION_FLAG_DATE_MISMATCH", "婚姻标志与日期矛盾",
+            "离异标志与离婚日期互相矛盾，或标记丧偶但配偶节点没有卒年，婚姻状态展示会自相矛盾",
+            InspectionSeverityEnum.MEDIUM),
+
+    ATTACHED_ORPHAN("ATTACHED_ORPHAN", "附属记录外键孤儿",
+            "照片、私聊、论坛回复指向已删除的账号、家族或主题，级联清理上线前的历史脏行",
+            InspectionSeverityEnum.MEDIUM),
+
+    SETTING_UNKNOWN_KEY("SETTING_UNKNOWN_KEY", "配置表存在未登记键",
+            "平台或家族配置表里出现枚举白名单之外的键，写入侧有白名单校验，主要防手工订正数据库引入的漂移",
+            InspectionSeverityEnum.LOW),
+
+    LUNAR_SOLAR_MISMATCH("LUNAR_SOLAR_MISMATCH", "农历生日与阳历不符",
+            "节点登记了阳历出生日期，但农历串与按阳历重算的结果不一致，农历优先展示会显示错误日期",
             InspectionSeverityEnum.LOW);
 
     /**

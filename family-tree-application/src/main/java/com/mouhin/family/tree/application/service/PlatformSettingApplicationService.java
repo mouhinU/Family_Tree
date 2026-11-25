@@ -177,6 +177,16 @@ public class PlatformSettingApplicationService {
     }
 
     /**
+     * 读取数值型配置的平台生效值（默认值被平台覆盖行覆盖后的结果）
+     *
+     * @param key 平台配置键
+     * @return 生效数值；取值非法时回落默认值
+     */
+    public int getInt(PlatformSettingKeyEnum key) {
+        return settingDomainService.getInt(effectiveSettings(), key);
+    }
+
+    /**
      * 断言全平台家族总数尚未达到配置的上限
      */
     public void assertFamilyQuotaAvailable() {

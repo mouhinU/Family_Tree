@@ -2,13 +2,17 @@ package com.mouhin.family.tree.application.service;
 
 import com.mouhin.family.tree.common.dto.InspectionItemVO;
 import com.mouhin.family.tree.common.dto.InspectionReportVO;
+import com.mouhin.family.tree.common.dto.InspectionSampleVO;
 import com.mouhin.family.tree.common.enums.InspectionCheckEnum;
 import com.mouhin.family.tree.common.enums.InspectionSeverityEnum;
+import com.mouhin.family.tree.common.enums.PlatformSettingKeyEnum;
 import com.mouhin.family.tree.domain.entity.InspectionFinding;
+import com.mouhin.family.tree.domain.entity.InspectionQuota;
 import com.mouhin.family.tree.domain.entity.InspectionSample;
 import com.mouhin.family.tree.domain.repository.PlatformInspectionRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -37,18 +41,35 @@ class DataInspectionApplicationServiceTest {
     private static final Long REF_ID = 88L;
     private static final String SUBJECT = "mengziyu(蒙子羽)";
     private static final String DETAIL = "current_family_id=3 已无成员关系";
+    private static final int QUOTA_NODE_COUNT = 5000;
+    private static final int QUOTA_FAMILY_MEMBERS = 50;
 
     @Mock
     private PlatformInspectionRepository inspectionRepository;
 
+    @Mock
+    private PlatformSettingApplicationService platformSettingService;
+
     private DataInspectionApplicationService service() {
-        return new DataInspectionApplicationService(inspectionRepository);
+        return new DataInspectionApplicationService(inspectionRepository, platformSettingService);
+    }
+
+    /**
+     * 除配额项外的常规探测一律返回空结论
+     */
+    private void stubEmptyFindings() {
+        when(inspectionRepository.findFinding(any(InspectionCheckEnum.class), anyInt()))
+                .thenReturn(InspectionFinding.empty());
+        when(inspectionRepository.findFinding(any(InspectionCheckEnum.class), anyInt(), any(InspectionQuota.class)))
+                .thenReturn(InspectionFinding.empty());
     }
 
     @Test
     void inspectAll_cleanDatabase_reportsEveryCheckPassed() {
-        when(inspectionRepository.findFinding(any(InspectionCheckEnum.class), anyInt()))
-                .thenReturn(InspectionFinding.empty());
+        stubEmptyFindings();
+        when(platformSettingService.getInt(PlatformSettingKeyEnum.MAX_NODE_COUNT)).thenReturn(QUOTA_NODE_COUNT);
+        when(platformSettingService.getInt(PlatformSettingKeyEnum.MAX_FAMILY_MEMBERS))
+                .thenReturn(QUOTA_FAMILY_MEMBERS);
 
         InspectionReportVO report = service().inspectAll();
 
@@ -62,7 +83,12 @@ class DataInspectionApplicationServiceTest {
         assertEquals(EXPECTED_SAMPLE_LIMIT, report.getSampleLimit().intValue());
         assertNotNull(report.getGeneratedTime());
         for (InspectionCheckEnum check : checks) {
-            verify(inspectionRepository).findFinding(check, EXPECTED_SAMPLE_LIMIT);
+            if (check == InspectionCheckEnum.QUOTA_EXCEEDED) {
+                verify(inspectionRepository).findFinding(eq(check), eq(EXPECTED_SAMPLE_LIMIT),
+                        any(InspectionQuota.class));
+            } else {
+                verify(inspectionRepository).findFinding(check, EXPECTED_SAMPLE_LIMIT);
+            }
         }
         InspectionItemVO first = report.getItems().get(0);
         assertEquals(InspectionCheckEnum.ACCOUNT_FAMILY_MISMATCH.getCode(), first.getCode());
@@ -72,9 +98,23 @@ class DataInspectionApplicationServiceTest {
     }
 
     @Test
+    void inspectAll_quotaCheck_receivesEffectivePlatformQuota() {
+        stubEmptyFindings();
+        when(platformSettingService.getInt(PlatformSettingKeyEnum.MAX_NODE_COUNT)).thenReturn(6000);
+        when(platformSettingService.getInt(PlatformSettingKeyEnum.MAX_FAMILY_MEMBERS)).thenReturn(60);
+
+        service().inspectAll();
+
+        ArgumentCaptor<InspectionQuota> captor = ArgumentCaptor.forClass(InspectionQuota.class);
+        verify(inspectionRepository).findFinding(eq(InspectionCheckEnum.QUOTA_EXCEEDED),
+                eq(EXPECTED_SAMPLE_LIMIT), captor.capture());
+        assertEquals(6000, captor.getValue().getMaxNodeCount());
+        assertEquals(60, captor.getValue().getMaxFamilyMembers());
+    }
+
+    @Test
     void inspectAll_mixedFindings_tallyBySeverityAndMarkTruncated() {
-        when(inspectionRepository.findFinding(any(InspectionCheckEnum.class), anyInt()))
-                .thenReturn(InspectionFinding.empty());
+        stubEmptyFindings();
         when(inspectionRepository.findFinding(eq(InspectionCheckEnum.ACCOUNT_FAMILY_MISMATCH), anyInt()))
                 .thenReturn(new InspectionFinding(12L, List.of(new InspectionSample(REF_ID, SUBJECT, DETAIL))));
         when(inspectionRepository.findFinding(eq(InspectionCheckEnum.AUTO_ACCOUNT_PLACEHOLDER), anyInt()))
@@ -104,8 +144,7 @@ class DataInspectionApplicationServiceTest {
 
     @Test
     void inspectAll_mediumOnlyFinding_countedIntoMediumBucketOnly() {
-        when(inspectionRepository.findFinding(any(InspectionCheckEnum.class), anyInt()))
-                .thenReturn(InspectionFinding.empty());
+        stubEmptyFindings();
         when(inspectionRepository.findFinding(eq(InspectionCheckEnum.RELATION_SELF_LOOP), anyInt()))
                 .thenReturn(new InspectionFinding(3L, List.of()));
 
