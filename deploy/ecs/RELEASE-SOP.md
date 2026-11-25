@@ -168,7 +168,7 @@ docker import --change 'ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:Max
 
 结论：**后续发版可 `FROM family-tree:v74-baseexport` 建 jar 层，不再依赖 v75~v79 链镜像**；`v74-baseexport` 与 `v80-rebased` 已留存实例。**（2026-11-25 更正：这两个 tag 后来都不在实例上了，`docker images` 只剩在任的 `v81-local`；本段配方仍然可用，但要先照本节从任一完整镜像重做基座，否则按 §4c 链式继承在任镜像。）**偏差记账：baseexport 是扁平单层（5 个历史 jar 层叠加被 export 拍平，无 whiteout 残留，tar 序 diff 已证内容等价）；将来若 gcr 通路恢复，优先回到官方 `gcr.io/distroless/java21-debian12` 全量重建。v75~v79 链镜像的 prune 自此**技术上可安全**，但仍属破坏性操作，必须点名后才执行（执行前用路线三对当前在任版本再各验一次）。
 
-**2026-11-24 断链清理执行记录（用户点名"执行，清理历史镜像"）**：验证（当日路线三全绿）后，先把链上历史 jar 抽出归档 `/opt/family-tree/backup/jars-pre-prune-20261124/`（v75 `5328a640…` / v76 `40198b82…` / v77 `04613e14…` / v78 `c5cbe5eb…` / v79 `650a602a…`，sha 与历次发版登记逐一吻合），再 `docker rmi` 删除 v74~v78-local 五个标签。**保留**：v79-local（回滚锚）、v80-local（在任）、v74-baseexport+v80-rebased（断链基座与等价实证）。此后回滚 v79 仍走 FT_IMAGE 回切；回滚更早版本 = 取归档 jar 重建镜像层。清理后 v74~v78 独有 jar 层释放，链底层仍被 v79/v80 共享占用；磁盘 44%（22G 余，因新增 baseexport/rebased 与 jar 归档，净增约 0.7G）。下次发版基座改用 `FROM family-tree:v74-baseexport`。
+**2026-11-24 断链清理执行记录（用户点名"执行，清理历史镜像"）**：验证（当日路线三全绿）后，先把链上历史 jar 抽出归档 `/opt/family-tree/backup/jars-pre-prune-20261124/`（v75 `5328a640…` / v76 `40198b82…` / v77 `04613e14…` / v78 `c5cbe5eb…` / v79 `650a602a…`，sha 与历次发版登记逐一吻合），再 `docker rmi` 删除 v74~v78-local 五个标签。**保留**：v79-local（回滚锚）、v80-local（在任）、v74-baseexport+v80-rebased（断链基座与等价实证）。此后回滚 v79 仍走 FT_IMAGE 回切；回滚更早版本 = 取归档 jar 重建镜像层。清理后 v74~v78 独有 jar 层释放，链底层仍被 v79/v80 共享占用；磁盘 44%（22G 余，因新增 baseexport/rebased 与 jar 归档，净增约 0.7G）。下次发版基座改用 `FROM family-tree:v74-baseexport`。**（2026-11-25 更正：baseexport 后已不在实例上，此句作废；现基座为 `family-tree:app-base`，见 §4c。）**
 
 
 ### 4c. 本机 Docker 起不来时：直接在实例侧换 jar 层（2026-11-25 发 v82 用的就是这条）
@@ -183,12 +183,12 @@ shasum -a 256 /tmp/ft-build/app.jar
 workbench upload /tmp/ft-build/app.jar /root/ft-build/ --instance-id <i-xxx> --region cn-shanghai -f   # 131.5MB，比 tar.gz 少 45MB，约 1 分钟
 
 # 实例：dash 单行；先确认 sha 与本机逐字相同再 build
-workbench exec -i <i-xxx> -r cn-shanghai --timeout 600 -c 'cd /root/ft-build && sha256sum app.jar && printf "FROM family-tree:vNNN-1-local\nCOPY app.jar /app/app.jar\n" > Dockerfile && docker build -t family-tree:vNNN-local . 2>&1 | tail -4'
+workbench exec -i <i-xxx> -r cn-shanghai --timeout 600 -c 'cd /root/ft-build && sha256sum app.jar && printf "FROM family-tree:app-base\nCOPY app.jar /app/app.jar\n" > Dockerfile && docker build -t family-tree:vNNN-local . 2>&1 | tail -4'
 ```
 
 §4b 的三条自检照旧（Config 逐字对照、`docker history` 层数 = 上一版 + 1、`docker create` + `docker cp` 把镜像里的 jar 掏出来比 sha），另加两条实例侧专属：
 
-- **基座只能取实例上还在的那个 tag**。v82 时发现 `family-tree:v74-baseexport` 已经不在实例上了（`docker images` 只剩 `family-tree:v81-local`，§9 的 11-24 清理行写的是「保留 baseexport」——写错了），所以只能 `FROM family-tree:v81-local` 链式继承，链深度 +1。**链式的代价**：新镜像依赖上一版不被 prune。下次发版前若还想断链，用 §4b 路线三的 `docker export` + `docker import --change` 从当前完整镜像重做一个单层基座。
+- **基座 = `family-tree:app-base`（2026-11-25 建成，发版不再链式继承）**。此前 §4c 只能 `FROM 上一版` 链式（v81→v82→v83，每版 +138MB 且互相依赖 prune）。现按 §4b 路线三从链底 `v81-local` 重做了无 jar 单层基座：`docker create + export + tar --delete app/app.jar + import --change`（ENTRYPOINT/ENV×5/WORKDIR/EXPOSE 逐字照抄 v81 Config），**192MB 单层**（`1b81a990d958`）。验证：基座导出清单 0 条 `app/app.jar`；`FROM app-base + COPY v83 jar` = `v83-basecheck` **330MB**、镜像内 jar sha 与在任 v83 逐字一致；该验证镜像 8099 旁路实跑全绿（health UP、config 三开关、`?v=20261125a`，阅后即焚）。**自 v84 起每版体积恒定 ~330MB**，且新镜像只依赖 app-base——v81~v83 链镜像不再被发版链绑定（prune 仍属破坏性操作需点名）。基座防误删：`docker save | gzip` 已落 `/opt/family-tree/backup/family-tree-app-base-20261125.tar.gz`（63MB，`gzip -t` 过，sha256 `7419cdca…`；⚠仍在同盘，异机副本挂 §11.4）。重建配方细节见 `/root/ft-build/ft-make-base.sh`（已随基座完成而使命结束，留档可参考）。
 - 构建完**必须**补 `docker save family-tree:vNNN-local | k3s ctr -n k8s.io images import -`：k3s 不读 docker 的镜像库（`imagePullPolicy: Never`，漏导就 `ImageNeverPull`）。导完用 `k3s ctr -n k8s.io images list | grep family-tree` 复确认（会顺带打 CRI `v1alpha2` deprecation warning，无害）。
 
 ## 5. 这一版要不要 `repair`
@@ -396,7 +396,7 @@ ECS 上另装了单机 k3s v1.30.14（cgroup v1 主机锁 1.30；严禁升 1.31+
 
 ### 11.2 每次发版（蓝绿互切，零停机）
 
-1. 第 1~4 步照旧（预检/备份/jar 路线三 `FROM v74-baseexport` 构建 `family-tree:vNN-local`）。
+1. 第 1~4 步照旧（预检/备份/jar 按 §4c `FROM family-tree:app-base` 构建 `family-tree:vNN-local`，体积恒定 ~330MB）。
 2. 导入 k3s：`docker save family-tree:vNN-local | k3s ctr -n k8s.io images import -`
 3. 起**空闲槽**（当前在任的反面）：`sed 's/green/blue/g; s/8092/8091/g' deployment-green.yaml > deployment-blue.yaml`（反向同理），改 image tag 后 `k3s kubectl -n prod apply -f` + `rollout status --timeout=180s`（实测 ~87s）。
 4. 旁路验收打空闲槽端口（8091/8092）：health UP、`/api/auth/config`、`login.html ?v=`、读数。日志按 §9 的口径读**宿主文件**（`/opt/family-tree/logs/family-tree-error.log` 切启动时间戳之后的切片），**不要用 `k3s kubectl logs` 的 stdout 判 ERROR**——profile 是 `mysql`，stdout 里只有启动横幅，`grep " ERROR "` 恒 0 属假绿。
@@ -413,4 +413,4 @@ ECS 上另装了单机 k3s v1.30.14（cgroup v1 主机锁 1.30；严禁升 1.31+
 
 ### 11.4 已知挂起项
 
-metrics-server 0/1（pod 网段打不到宿主 10250，不影响发布链）；overlay 无 SNAT 不修；~~`v74-baseexport` 单副本待 `docker save` 异备份~~（**2026-11-25 复核：baseexport 已不在实例上，无从备份**，下次要断链得按 §4b 路线三从在任镜像重做基座）；compose app 已于 2026-11-24 退役（容器仍在，见 §11.3 关于它不是版本锚的说明）。
+metrics-server 0/1（pod 网段打不到宿主 10250，不影响发布链）；overlay 无 SNAT 不修；~~`v74-baseexport` 单副本待 `docker save` 异备份~~（baseexport 已断链作废，**2026-11-25 由 `family-tree:app-base` 接替**，其实例本地 gzip 备份已落 `/opt/family-tree/backup/family-tree-app-base-20261125.tar.gz`——⚠仍与镜像库同盘同机，误删实例/整盘故障时无异地副本，异机落点待点名）；compose app 已于 2026-11-24 退役（容器仍在，见 §11.3 关于它不是版本锚的说明）。
