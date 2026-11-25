@@ -27,12 +27,21 @@
     var registerSmsVerify = false;
     // 短信登录开关：关闭时隐藏"短信验证码登录"切换入口；拉取失败维持现状（入口保留，点击仍由后端拒绝）
     var smsLoginEnabled = true;
+    // 开放注册开关：关闭时隐藏注册入口；拉取失败维持现状（入口保留，提交仍由后端拒绝）
+    var registerEnabled = true;
     fetch('/api/auth/config')
         .then(function (res) {
             return res.json();
         })
         .then(function (data) {
             if (data.code === 200 && data.data) {
+                if (data.data.registerEnabled === false) {
+                    registerEnabled = false;
+                    tabRegister.style.display = 'none';
+                    if (registerForm.style.display !== 'none') {
+                        tabLogin.click();
+                    }
+                }
                 if (data.data.registerSmsVerify) {
                     registerSmsVerify = true;
                     document.getElementById('reg-phone-hint').textContent = '（必填，11位大陆手机号）';

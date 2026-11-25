@@ -73,6 +73,32 @@ public class FamilySettingApplicationService {
     }
 
     /**
+     * 判断指定家族的开关型配置生效值是否为开启（不抛异常，供入口显隐等分支判定）
+     *
+     * @param familyId 家族ID
+     * @param key      开关型配置键
+     * @return 开启返回 true
+     */
+    public boolean isEnabled(Long familyId, FamilySettingKeyEnum key) {
+        return settingDomainService.isEnabled(effectiveSettings(familyId), key);
+    }
+
+    /**
+     * 断言家族节点配额按预计总数尚未超限：覆盖式导入按导入量、追加式按存量加导入量口径调用，
+     * 与 {@link #assertNodeQuotaAvailable(Long)} 的单节点新增口径互补
+     *
+     * @param familyId      家族ID
+     * @param projectedTotal 预计节点总数
+     */
+    public void assertNodeQuotaWithin(Long familyId, long projectedTotal) {
+        int maxNodeCount = settingDomainService.getInt(effectiveSettings(familyId),
+                FamilySettingKeyEnum.MAX_NODE_COUNT);
+        if (projectedTotal > maxNodeCount) {
+            throw new BusinessException("族谱节点总数将超过上限" + maxNodeCount + "，请联系平台管理员调整");
+        }
+    }
+
+    /**
      * 断言家族节点总数尚未达到平台配置的上限
      *
      * @param familyId 家族ID

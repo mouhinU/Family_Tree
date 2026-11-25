@@ -61,6 +61,7 @@ public class GedcomApplicationService {
     private final FamilyRepository familyRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final GenerationRepairApplicationService generationRepairService;
+    private final FamilySettingApplicationService settingService;
 
     public GedcomApplicationService(GedcomParserDomainService gedcomParserDomainService,
                                     GedcomGeneratorDomainService gedcomGeneratorDomainService,
@@ -69,7 +70,8 @@ public class GedcomApplicationService {
                                     FamilyUserNodeRepository familyUserNodeRepository,
                                     FamilyRepository familyRepository,
                                     ApplicationEventPublisher eventPublisher,
-                                    GenerationRepairApplicationService generationRepairService) {
+                                    GenerationRepairApplicationService generationRepairService,
+                                    FamilySettingApplicationService settingService) {
         this.gedcomParserDomainService = gedcomParserDomainService;
         this.gedcomGeneratorDomainService = gedcomGeneratorDomainService;
         this.familyNodeRepository = familyNodeRepository;
@@ -78,6 +80,7 @@ public class GedcomApplicationService {
         this.familyRepository = familyRepository;
         this.eventPublisher = eventPublisher;
         this.generationRepairService = generationRepairService;
+        this.settingService = settingService;
     }
 
     /**
@@ -164,6 +167,11 @@ public class GedcomApplicationService {
         if (data.getIndividuals().isEmpty()) {
             throw new BusinessException("GEDCOM 文件中未找到个人记录");
         }
+
+        // 节点上限按导入后预计总数校验：覆盖式清空后只剩导入量，追加式需叠加存量
+        long projectedTotal = overwrite ? data.getIndividuals().size()
+                : familyNodeRepository.countByFamilyId(familyId) + data.getIndividuals().size();
+        settingService.assertNodeQuotaWithin(familyId, projectedTotal);
 
         // 覆盖模式：清空现有数据
         if (overwrite) {

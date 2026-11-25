@@ -204,6 +204,7 @@ public class SmsCodeApplicationService {
      */
     public void assertSceneEnabled(SmsSceneEnum scene) {
         if (scene == SmsSceneEnum.REGISTER) {
+            platformSettingService.assertEnabled(PlatformSettingKeyEnum.REGISTER_ENABLED);
             platformSettingService.assertEnabled(PlatformSettingKeyEnum.SMS_VERIFY_ENABLED);
         } else {
             platformSettingService.assertEnabled(PlatformSettingKeyEnum.SMS_LOGIN_ENABLED);

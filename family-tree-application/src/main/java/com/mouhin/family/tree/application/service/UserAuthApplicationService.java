@@ -74,6 +74,15 @@ public class UserAuthApplicationService {
     }
 
     /**
+     * 开放注册开关是否开启（登录页据此决定注册入口显隐）
+     *
+     * @return 开启返回 true
+     */
+    public boolean isRegisterEnabled() {
+        return platformSettingService.isEnabled(PlatformSettingKeyEnum.REGISTER_ENABLED);
+    }
+
+    /**
      * 用户注册
      *
      * @param dto 注册请求

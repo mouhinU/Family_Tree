@@ -66,6 +66,9 @@ class GedcomApplicationServiceTest {
     @Mock
     private GenerationRepairApplicationService generationRepairService;
 
+    @Mock
+    private FamilySettingApplicationService settingService;
+
     @InjectMocks
     private GedcomApplicationService gedcomApplicationService;
 
@@ -155,6 +158,19 @@ class GedcomApplicationServiceTest {
         BusinessException exception = assertThrows(BusinessException.class,
                 () -> gedcomApplicationService.importGedcom(FAMILY_ID, USER_ID, "测试用户", "127.0.0.1", emptyGedcom));
         assertTrue(exception.getMessage().contains("未找到个人记录"));
+    }
+
+    @Test
+    void importGedcom_quotaExceeded_throwsBeforeClearingData() {
+        doThrow(new BusinessException("族谱节点总数将超过上限"))
+                .when(settingService).assertNodeQuotaWithin(eq(FAMILY_ID), anyLong());
+
+        assertThrows(BusinessException.class,
+                () -> gedcomApplicationService.importGedcom(FAMILY_ID, USER_ID, "测试用户", "127.0.0.1", SAMPLE_GEDCOM));
+
+        // 配额断言必须先于清空：超限导入不得损坏现有族谱
+        verify(familyNodeRepository, never()).removeByFamilyId(FAMILY_ID);
+        verify(familyUserNodeRepository, never()).removeByFamilyId(FAMILY_ID);
     }
 
     @Test

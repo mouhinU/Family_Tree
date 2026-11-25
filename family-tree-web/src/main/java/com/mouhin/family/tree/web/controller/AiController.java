@@ -2,6 +2,7 @@ package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.AiApplicationService;
 import com.mouhin.family.tree.application.service.FamilySettingApplicationService;
+import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.*;
 import com.mouhin.family.tree.common.enums.FamilySettingKeyEnum;
 import com.mouhin.family.tree.common.result.Result;
@@ -55,12 +56,13 @@ public class AiController extends BaseController {
     }
 
     /**
-     * AI 配置状态：总开关开启且密钥已配置才算已配置，前端据此决定 AI 助手入口显隐
+     * AI 配置状态：yml 前提成立且当前家族 AI 开关生效为开才算已配置，
+     * 前端据此决定 AI 助手入口显隐，与功能端点的 {@link #assertAiEnabled(Long)} 同一口径
      */
     @GetMapping("/status")
-    public Result<Map<String, Object>> status() {
+    public Result<Map<String, Object>> status(HttpSession session) {
         Map<String, Object> data = new HashMap<>(2);
-        data.put("configured", llmEnabled && StringUtils.hasText(openaiApiKey));
+        data.put("configured", llmEnabled && StringUtils.hasText(openaiApiKey) && aiEnabledForSession(session));
         return Result.success(data);
     }
 
@@ -110,6 +112,14 @@ public class AiController extends BaseController {
         assertAiEnabled(familyId);
         AiSmartEntryVO vo = aiApplicationService.ocrParse(familyId, dto);
         return Result.success(vo);
+    }
+
+    /**
+     * 当前会话家族的 AI 开关是否生效为开；未选择家族时视为不可用（功能端点同样要求家族上下文）
+     */
+    private boolean aiEnabledForSession(HttpSession session) {
+        Long familyId = (Long) session.getAttribute(FamilyTreeConsts.SESSION_FAMILY_ID);
+        return familyId != null && settingService.isEnabled(familyId, FamilySettingKeyEnum.AI_FEATURE_ENABLED);
     }
 
     /**

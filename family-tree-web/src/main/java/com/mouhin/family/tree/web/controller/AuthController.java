@@ -59,14 +59,15 @@ public class AuthController extends BaseController {
     }
 
     /**
-     * 登录/注册页公开配置：注册短信验证与短信登录开关，供前端在登录前决定
-     * 手机号/验证码是否必填、是否展示"短信验证码登录"入口
+     * 登录/注册页公开配置：注册开关、注册短信验证与短信登录开关，供前端在登录前决定
+     * 注册入口显隐、手机号/验证码是否必填、是否展示"短信验证码登录"入口
      *
      * @return 配置项集合
      */
     @GetMapping("/config")
     public Result<Map<String, Object>> config() {
         Map<String, Object> data = new HashMap<>(4);
+        data.put("registerEnabled", userService.isRegisterEnabled());
         data.put("registerSmsVerify", smsCodeService.isRegisterVerifyEnabled());
         data.put("smsLoginEnabled", smsCodeService.isSmsLoginEnabled());
         return Result.success(data);
