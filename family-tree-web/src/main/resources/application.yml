@@ -33,6 +33,10 @@ spring:
       port: ${REDIS_PORT:6381}
       password: ${REDIS_PASSWORD:}
       database: ${REDIS_DATABASE:0}
+      # 显式超时：默认命令超时 60s，Redis 黑洞时单个登录请求会占住线程 >45s（实测），
+      # 线程池被拖满后整站不可用；收紧到 500ms 让降级路径秒级生效（本机回环 O(1) 命令足够宽裕）
+      timeout: 500ms
+      connect-timeout: 500ms
       lettuce:
         pool:
           max-active: 16

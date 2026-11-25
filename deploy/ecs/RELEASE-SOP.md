@@ -11,7 +11,7 @@
 |---|---|---|
 | `docker compose up/down`、改 `.env` 的 `FT_IMAGE`、`repair` | 本 SOP 内，照做 | 就是发版本身 |
 | `./ecs-setup.sh tobind`（命名卷 → 宿主 bind 目录） | **暂缓，需点名授权** | 实例上 compose 仍是命名卷（`family-tree_mysql-data` / `family-tree_redis-data`）。仓库版 compose 已改 bind 挂载，**直接传上去 = mysql 挂到空目录 = 安静建一套空 schema 并正常启动**（V7 修好后连报错都没有），等于把生产库换成空库还看不出来 |
-| 把 `SPRING_PROFILES_ACTIVE` 从 `mysql` 切到 `mysql,ecs` / `mysql,prod` | **暂缓** | `prod` 在明文 HTTP 下下发 `Secure` Cookie → 登录 200 但下一个请求就 401；`ecs` 会打开 `forward-headers-strategy`，而 nginx 的 XFF / 内网白名单口径还没复核，有误锁公网用户的风险 |
+| 把 `SPRING_PROFILES_ACTIVE` 从 `mysql` 切到 `mysql,ecs` / `mysql,prod` | **暂缓** | `prod` 在明文 HTTP 下下发 `Secure` Cookie → 登录 200 但下一个请求就 401；`ecs`/`prod` 都打开 `forward-headers-strategy: framework`，改的是 **Tomcat 侧**的 remoteAddr 口径——应用自己的 IP 口径已在 `8395f3b` 之后由 [`ClientIpResolver`](../../family-tree-web/src/main/java/com/mouhin/family/tree/web/util/ClientIpResolver.java) 复核落定（仅本机直连对端采信代理头、取 XFF 最右段），但 framework 策略会按 XFF **最左**段重写 `getRemoteAddr()`（客户端自带 XFF 即可再次自选来源，按 IP 的限流/短信额度又回到可绕过），与 resolver 的「非环回对端不信头部」相反，且 logback 日志里的 IP 也会随之改写 → 切 profile 时仍需单独复核，别顺手带 |
 | 安全组、DNS、备案、宝塔面板 | **不碰** | 由用户在控制台操作 |
 | `git commit` / `push` | **不做** | 需用户点名 |
 
@@ -166,10 +166,30 @@ docker import --change 'ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:Max
 # ④ 实跑：临时容器接生产同网同 env（含 .sms.env）与同卷，55s 起、health 200、/api/auth/config 与 login.js?v 同生产、" ERROR " 0 条，验毕即删
 ```
 
-结论：**后续发版可 `FROM family-tree:v74-baseexport` 建 jar 层，不再依赖 v75~v79 链镜像**；`v74-baseexport` 与 `v80-rebased` 已留存实例。偏差记账：baseexport 是扁平单层（5 个历史 jar 层叠加被 export 拍平，无 whiteout 残留，tar 序 diff 已证内容等价）；将来若 gcr 通路恢复，优先回到官方 `gcr.io/distroless/java21-debian12` 全量重建。v75~v79 链镜像的 prune 自此**技术上可安全**，但仍属破坏性操作，必须点名后才执行（执行前用路线三对当前在任版本再各验一次）。
+结论：**后续发版可 `FROM family-tree:v74-baseexport` 建 jar 层，不再依赖 v75~v79 链镜像**；`v74-baseexport` 与 `v80-rebased` 已留存实例。**（2026-11-25 更正：这两个 tag 后来都不在实例上了，`docker images` 只剩在任的 `v81-local`；本段配方仍然可用，但要先照本节从任一完整镜像重做基座，否则按 §4c 链式继承在任镜像。）**偏差记账：baseexport 是扁平单层（5 个历史 jar 层叠加被 export 拍平，无 whiteout 残留，tar 序 diff 已证内容等价）；将来若 gcr 通路恢复，优先回到官方 `gcr.io/distroless/java21-debian12` 全量重建。v75~v79 链镜像的 prune 自此**技术上可安全**，但仍属破坏性操作，必须点名后才执行（执行前用路线三对当前在任版本再各验一次）。
 
 **2026-11-24 断链清理执行记录（用户点名"执行，清理历史镜像"）**：验证（当日路线三全绿）后，先把链上历史 jar 抽出归档 `/opt/family-tree/backup/jars-pre-prune-20261124/`（v75 `5328a640…` / v76 `40198b82…` / v77 `04613e14…` / v78 `c5cbe5eb…` / v79 `650a602a…`，sha 与历次发版登记逐一吻合），再 `docker rmi` 删除 v74~v78-local 五个标签。**保留**：v79-local（回滚锚）、v80-local（在任）、v74-baseexport+v80-rebased（断链基座与等价实证）。此后回滚 v79 仍走 FT_IMAGE 回切；回滚更早版本 = 取归档 jar 重建镜像层。清理后 v74~v78 独有 jar 层释放，链底层仍被 v79/v80 共享占用；磁盘 44%（22G 余，因新增 baseexport/rebased 与 jar 归档，净增约 0.7G）。下次发版基座改用 `FROM family-tree:v74-baseexport`。
 
+
+### 4c. 本机 Docker 起不来时：直接在实例侧换 jar 层（2026-11-25 发 v82 用的就是这条）
+
+本机 Docker 守护进程没跑（这台 Mac 上 Docker Desktop 未启动，`docker info` 直接失败）时，第 4 节「build → save 177MB → upload → load」整条链断掉。实例上本来就有基座镜像（在任版本），只传 jar 反而更省：
+
+```bash
+# 本机：测试必须先跑过（Dockerfile 侧不跑测试），再打 fat jar
+./mvnw -B test && ./mvnw -B -o -DskipTests package
+mkdir -p /tmp/ft-build && cp family-tree-web/target/family-tree-web-*.jar /tmp/ft-build/app.jar
+shasum -a 256 /tmp/ft-build/app.jar
+workbench upload /tmp/ft-build/app.jar /root/ft-build/ --instance-id <i-xxx> --region cn-shanghai -f   # 131.5MB，比 tar.gz 少 45MB，约 1 分钟
+
+# 实例：dash 单行；先确认 sha 与本机逐字相同再 build
+workbench exec -i <i-xxx> -r cn-shanghai --timeout 600 -c 'cd /root/ft-build && sha256sum app.jar && printf "FROM family-tree:vNNN-1-local\nCOPY app.jar /app/app.jar\n" > Dockerfile && docker build -t family-tree:vNNN-local . 2>&1 | tail -4'
+```
+
+§4b 的三条自检照旧（Config 逐字对照、`docker history` 层数 = 上一版 + 1、`docker create` + `docker cp` 把镜像里的 jar 掏出来比 sha），另加两条实例侧专属：
+
+- **基座只能取实例上还在的那个 tag**。v82 时发现 `family-tree:v74-baseexport` 已经不在实例上了（`docker images` 只剩 `family-tree:v81-local`，§9 的 11-24 清理行写的是「保留 baseexport」——写错了），所以只能 `FROM family-tree:v81-local` 链式继承，链深度 +1。**链式的代价**：新镜像依赖上一版不被 prune。下次发版前若还想断链，用 §4b 路线三的 `docker export` + `docker import --change` 从当前完整镜像重做一个单层基座。
+- 构建完**必须**补 `docker save family-tree:vNNN-local | k3s ctr -n k8s.io images import -`：k3s 不读 docker 的镜像库（`imagePullPolicy: Never`，漏导就 `ImageNeverPull`）。导完用 `k3s ctr -n k8s.io images list | grep family-tree` 复确认（会顺带打 CRI `v1alpha2` deprecation warning，无害）。
 
 ## 5. 这一版要不要 `repair`
 
@@ -252,9 +272,54 @@ ls -lt /opt/family-tree/logs | head -3   # 日志在往前走，且没有 ERROR 
 
 浏览器侧还有一项脚本量不到的：**真的登录一次、开一次族谱树**。会话在 redis 上，切镜像不该登出；若「登录成功、下一个请求就未登录」，那是 Cookie 属性（`Secure`）问题，见第 0 节 profile 行。
 
+### 7b. 登录 IP 限流的验收（仅带 `@RateLimit` / `RateLimiter` 的版本起）
+
+限流现在由 Controller 上的 `@RateLimit` 声明驱动（`/api/auth/login`、`/login-sms`、`/register` 各挂 60s/30 与 600s/120 两条），计数**本地 Caffeine 窗口 + Redis `INCR` 双写、判定取大**：Redis 挂了不再放开限制（旧口径是 fail-open），重启或双槽并行则由 Redis 账本补回额度。
+
+用 TEST-NET 假 IP 当靶子，**不要用真实账号当探针用户名**（会锁住该标识 10 分钟），也不要打 `/api/auth/sms/send-code`（测试短信照常收费）：
+
+```bash
+# dash 兼容，直连在任槽端口；直连对端是环回，resolver 才会采信代理头
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31; do \
+  code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'Content-Type: application/json' \
+    -H 'X-Forwarded-For: 203.0.113.250' -d '{"username":"__probe__","password":"x"}' http://127.0.0.1:8091/api/auth/login); done
+echo "throttle_last=$code"   # 期望 429（第 31 次起）；若一直是 200 = 限流没生效
+# 反证限流桶用的是解析后的 IP 而不是别的：换一个假 IP 立刻恢复可用
+curl -s -o /dev/null -w "other_ip=%{http_code}\n" -X POST -H 'Content-Type: application/json' \
+  -H 'X-Forwarded-For: 203.0.113.251' -d '{"username":"__probe__","password":"x"}' http://127.0.0.1:8091/api/auth/login   # 期望非 429
+# Redis 侧账本（redis 无 requirepass）：应看到短窗/长窗两个 key 且带 TTL，值等于打进去的次数
+docker exec family-tree-redis redis-cli --scan --pattern 'rate:limit:auth-ip:203.0.113.250:*'
+docker exec family-tree-redis redis-cli ttl "$(docker exec family-tree-redis redis-cli --scan --pattern 'rate:limit:auth-ip:203.0.113.250:*' | head -1)"
+```
+
+> 想立刻复白名单（把探针 IP 的额度清掉）只 `DEL` Redis key **不够**——本地 Caffeine 那份还在，判定取大。清不动就等 60 秒窗口翻篇，或滚动重启在任槽。
+> 判据只看 **HTTP 状态**：业务失败（口令错、账号不存在）经全局异常处理照样回 HTTP 200，错误码在响应体 `code` 里；只有被限流才回 `429`。本机 2026-11-25 实测（H2 profile、Redis 故意指向空端口）：同一 XFF 连打 30 次全 200，第 31–33 次 `429 + Retry-After: 27` + 体 `{"code":429,"message":"登录尝试过于频繁…"}`，换 `203.0.113.251` 立即恢复 200——顺带证伪了「Redis 不可用就放开限流」的旧口径。
+> 副作用：这会往 `operation_log` 灌 31 行 `LOGIN_FAIL`（target 为 `__probe__`、IP 为 `203.0.113.250`），并把标识 `__probe__` 自身锁 10 分钟——都不影响真实用户，正好也验证了「按 IP 的额度是各自独立的」。发版当天可用 `SELECT COUNT(*) FROM family_tree.operation_log WHERE username='__probe__'` 数一下。
+> 顺带一条真流量证据：发版后新产生的 `operation_log.ip_address` 应是用户公网 IP，不再是清一色 `127.0.0.1`——这同时证明 nginx 那条链路把 `X-Real-IP`/XFF 传到了应用。
+> redis 侧 `--maxmemory 64mb` + `volatile-lru` 只淘汰带 TTL 的 key，限流键正在其列：内存吃紧时账本可能先掉限流键，这时靠本地窗口兜底——双写的意义之一。
+
+补三条 2026-11-25 发 v82 时踩到的口径：
+
+- **TTL 不是窗口长度，是「窗口 + 60」**（`RateLimiter.remoteCount` 首次自增时留跨界余量）。60s 窗口的 key 观测到 `ttl=117` 属正常，别当 bug 报。
+- **抓 `Retry-After` 必须和 flood 在同一条 exec 里连着打**。`workbench exec` 一次调用几十秒，60s 窗口在两次调用之间就翻篇了——实测第一轮 flood 完（第 31–32 次已 `429`），隔约 90s 再打同一个 IP 回到 200：那不是限流失效，是 `rate:limit:auth-ip:<ip>:<slot>` 的 slot 换了（`--scan` 能看到相邻两个 slot 的 key 并存）。
+- 宿主上没有 `mysql` 客户端（`mysql: command not found`），查库要 `docker exec family-tree-mysql sh -c "mysql -uroot -p\"\$MYSQL_ROOT_PASSWORD\" -N --default-character-set=utf8mb4 -e \"…\""`；`operation_log` 的时间列是 **`create_time`**（不是 `created_at`），值是 **UTC**。生产实测一轮：同一 `X-Real-IP` 连打 34 次按窗口放行，第 35 次 `429 + Retry-After: 39`，账本值 35，换 IP 立即恢复；`operation_log.ip_address` 记的就是解析后的来源 IP（探针为 TEST-NET 段、真实用户为公网 IP）。
+
+### 7c. Redis 失联时的降级验收（本机就能演，别拿生产 redis 试手）
+
+起一版本机 jar 把 Redis 指到没人听的端口即可：`REDIS_HOST=127.0.0.1 REDIS_PORT=16399 java -jar family-tree-web/target/family-tree-web-1.0.0-SNAPSHOT.jar --spring.profiles.active=h2 --server.port=8126`。
+
+**形态一：端口拒连（进程被停 / 容器没了）——这是线上最常见的那种，降级是成立的。** 2026-11-25 本机实测：
+
+- `/api/auth/login` 口令错回 `{"code":400,…,"message":"用户名或密码错误"}`，**不再是 `{"code":500,"系统内部错误"}`**（改前 `LoginAttemptService` 的 `INCR`/`GET` 直接抛未捕获异常）；单请求 30ms（首个 1.4s 是 Lettuce 建连尝试）
+- 同一 XFF 连打 33 次：30×200 → 第 31–33 次 `429`，换新 IP 立刻 200 —— Redis 账本缺席时本地 Caffeine 窗口独立守住额度
+
+**形态二：黑洞（TCP 握手成功但永不回包，如 redis 进程假死、中间被 DROP）——限流管不了，别宣称已兜住。** 实测 40 并发下只有 10 个 `429`、30 个连接直接无响应，随后连不碰 Redis 的 `/api/auth/config` 都要 20s 不回。`jstack` 给的原因：请求线程停在 `io.lettuce.core.DefaultConnectionFuture.get()`（`StandaloneConnectionProvider.getConnection`），即**连接握手阶段没有超时**——`spring.data.redis.timeout` / `connect-timeout` 只管「已建立连接上的命令」和 socket 连接本身，命令在握手完成前根本没写出去，超时自然不触发；且它排在 `LettuceConnectionFactory` 的共享连接锁里，会连带卡住其它请求。要真收敛这条得用 `spring.data.redis.client-type: pool` + `ClientOptions/TimeoutOptions`（需要 Java 配置类，yml 配不出来），**属未做项**；眼下黑洞形态的正确处置是直接把该槽重启（§11.3），而不是指望降级。
+
+> 演练时别用日志判定降级：`h2` profile 下 logback root 没挂 appender（§11.2 那条老坑），`LoginAttemptService` 的「Redis 不可用」WARN 在 h2 里看不到。生产 profile（`mysql` / `ecs` / `prod` 都是 root=WARN → FILE/CONSOLE）才会落盘，「日志没打」不等于「没降级」——判据用 HTTP 码和响应体。
+
 ## 8. 回滚
 
-> 本节是 **compose 应用面**的回滚路线（2026-11-24 起应用面在 k3s，见 §11.3）。它仍然管用的是因为 `.env` + `ecs-setup.sh app` 这条链没拆——但要注意实例上只剩 `v81-local` 与 `v74-baseexport` 两个 tag，回滚到更早版本得先用归档 jar 重建镜像（§9 末行）。
+> 本节是 **compose 应用面**的回滚路线（2026-11-24 起应用面在 k3s，见 §11.3）。它仍然管用的是因为 `.env` + `ecs-setup.sh app` 这条链没拆——但要注意实例上的 docker 镜像现在只有 `v82-local`（在任）与 `v81-local`（回滚锚），`v74-baseexport` 与更早版本都已不在，回滚到 v81 之前得先用归档 jar 重建镜像（§9 末行 + §4c）。
 
 改回 `FT_IMAGE` 再 `./ecs-setup.sh app` 就行——**但第 5 步做过 `repair` 的话，旧镜像对不上被改写后的历史表，回滚同样是「起不来」**。所以：
 
@@ -277,7 +342,9 @@ ls -lt /opt/family-tree/logs | head -3   # 日志在往前走，且没有 ERROR 
 | 2026-11-24 | `family-tree:v80-local` | HEAD `98018fe`（已 commit+push，发版前置项已按新约定收口：v77~v80 全部代码在库）——v79 全部内容 + 短信登录开关下发前端：`SmsCodeApplicationService.isSmsLoginEnabled` 读 `SMS_LOGIN_ENABLED`，公开端点 `/api/auth/config` 增 `smsLoginEnabled` 字段，`login.js` 拉取为 false 时隐藏「短信验证码登录」切换入口（字段缺失/拉取失败维持现状），`login.js?v=20261124c`；本机 `./mvnw -B clean package` 全量单测绿；实例上 4b 换 jar 层（基座继承 v79-local，jar sha `c39e9763…` 本地/上传件/镜像内/运行容器四处一致） | 否（无迁移变化，历史表顶 `40`） | 发版前备份 `/opt/family-tree/backup/family_tree-pre-v80-20261124-122717.sql`（390,497B/29 表）；`.env` FT_IMAGE 切 `v80-local`（sed 留 `.bak-pre-v80`），回滚锚 v79-local 保留；12:29:24 停 app → 12:30:13 `200 OK`（约 49s）；`/api/auth/config` 返回 `{smsLoginEnabled:true, registerSmsVerify:true}`；`/login.html` 已带 `?v=20261124c`；哨兵四行 OK rc=0；启动窗口 ` ERROR ` 0 条；实例 nginx80=200。生产两开关均开，短信登录入口保持显示。仓库版 compose/.env.example 仍未上传（§0 空库陷阱） |
 | 2026-11-24 | `family-tree:v81-local` | HEAD `8395f3b`（commit+push 前置）——首登强制改密自助绑定手机号（`login.html` 改密表单增选填手机号，`login.js` 先 `PUT /api/auth/profile` 绑定、失败可改正/留空重试，再提交改密）+ 短信发码防连点（点击即禁用、限流类拒绝进 60s 冷却）；本机 `./mvnw clean package` 全量单测绿；jar sha `5652347a…` 本地/上传件/镜像内/运行容器四处一致 | 否（无迁移变化，历史表顶 `40`） | **路线三首战**：实例上 `docker build FROM family-tree:v74-baseexport`（不再链式继承上一版镜像，Config 继承 baseexport 正确、层数 2）；发版前备份 `/opt/family-tree/backup/family_tree-pre-v81-20261124-132756.sql`（478,869B）；`.env` FT_IMAGE 切 `v81-local`（留 `.bak-pre-v81`），回滚锚 v80-local；13:29:05 停 app → 13:29:53 `200 OK`（约 48s）；哨兵四行 OK rc=0；`/api/auth/config`=`{smsLoginEnabled:true, registerSmsVerify:true}`；读数 29 表/9 族/167 账号/flyway 40；`login.html` 已带 `?v=20261124d` 且 `change-phone` 字段已出（实例内与公网 IP 双侧）；启动窗口 `" ERROR "` 0 条（注：`family-tree.log` 为跨版本累计文件，整文件 grep 会得到历史计数，判级必须按启动窗口时间戳切片，时间为 UTC）；nginx80=200、公网根 200 |
 | 2026-11-24 | `family-tree:v81-local`（k3s 蓝绿演练，同镜像） | 无新代码（HEAD 不变，`1d2ae02` 登记在途）；机制验证=§11 全流程首跑：绿槽 8092 在任 → 蓝槽 8091 旁路拉起（87s Ready）→ 旁路验收全绿 → nginx 切流 8092→8091（reload 零中断）→ 绿槽缩 0 → 绿槽唤回演练（rollout OK、8092 health UP、期间蓝槽持续 200）→ 复归休眠锚 | 否（同镜像无迁移变化） | 切流后入口复验：root80=200、config 双开关 true、`?v=20261124d`、公网 200；~~蓝槽 stdout `" ERROR "` 0 条~~（当日登记原文，**19:50 更正为假绿**：profile `mysql` 下 stdout 只有启动横幅，业务日志一条不在里面。改按 §9 末条口径读文件，实数 = 演练窗口 08:00–09:00 UTC 切片 `family-tree-error.log` **2 条**、当日（UTC）累计 **150 条**，`No static resource` 计数同为 150 → **扫描器未知路径噪音 100%，应用异常 0 条**）；内存 avail 切流后 ~1.8G；conf 备份 `.bak.pre-k3s-*`（8090 版）与 `.bak.pre-blue-*`（8092 版）两级回滚链完整。compose app 本次仍 Up（同日稍后退役，见下一行） |
-| 2026-11-24 | （无新代码）compose app 退役 + 历史镜像清理 | HEAD 不变；实例侧动作：`docker stop family-tree-app`（容器保留、`Exited (143)`，镜像 tag 已是 `family-tree:v81-local`），在任应用改由 k3s 蓝槽 :8091 承载；mysql/redis 与命名卷不动（§0） | 否 | 清理前把历史 jar 归档 `/opt/family-tree/backup/jars-pre-retire-20261124/`（与 13:12 的 `jars-pre-prune-20261124/` 两份）。实例现存镜像仅 `family-tree:v81-local`（455MB；containerd 侧同 sha256 `c502bea6…`）+ `family-tree:v74-baseexport`（318MB）——**v79/v80 镜像已不在实例上**，上一行写的「回滚锚 v80-local」自此只等于归档 jar，回滚更早版本 = 取 jar 走路线三重建 |
+| 2026-11-24 | （无新代码）compose app 退役 + 历史镜像清理 | HEAD 不变；实例侧动作：`docker stop family-tree-app`（容器保留、`Exited (143)`，镜像 tag 已是 `family-tree:v81-local`），在任应用改由 k3s 蓝槽 :8091 承载；mysql/redis 与命名卷不动（§0） | 否 | 清理前把历史 jar 归档 `/opt/family-tree/backup/jars-pre-retire-20261124/`（与 13:12 的 `jars-pre-prune-20261124/` 两份）。实例现存镜像仅 `family-tree:v81-local`（455MB；containerd 侧同 sha256 `c502bea6…`）+ `family-tree:v74-baseexport`（318MB）——**v79/v80 镜像已不在实例上**，上一行写的「回滚锚 v80-local」自此只等于归档 jar，回滚更早版本 = 取 jar 走路线三重建。**（2026-11-25 发 v82 时复核：`v74-baseexport` 也已不在实例上，`docker images` 只剩 `v81-local` 一个 tag，路线三的基座断链随之失效，见 §4c）** |
+
+| 2026-11-25 | `family-tree:v82-local` | HEAD `c1517ef` + **工作区 21 个文件未 commit 就上生产**（注解式限流 `@RateLimit`+`RateLimiter`（Caffeine 本地窗口与 Redis 账本双写、判定取大）、`ClientIpResolver` 口径修正并被 `BaseController.getClientIp`/`CsrfFilter` 采用、`LoginAttemptService` Redis 容错、`application.yml` 新增 `spring.data.redis.timeout`/`connect-timeout=500ms`、web 模块引入 caffeine、新增 3 个测试类 24 用例）；本机 `./mvnw -B test` = **417（application）+ 95（web）全绿** | 否（本版未动迁移，jar 内 `db/migration/mysql` 顶版 V40 == 历史表顶 `40`、`success=1`） | **实例侧构建（§4c，本机 Docker daemon 没起）**：只传 jar（137,878,209B / sha256 `e896a563…`，本地＝实例 `/root/ft-build/app.jar`＝镜像内 `/app/app.jar` 三处一致）→ `FROM family-tree:v81-local` 换 jar 层，镜像 `b0ff143c…`、层数 2→3、Entrypoint/Env/WorkDir/Expose 与 v81 逐字同 → `docker save \| k3s ctr -n k8s.io images import -`（containerd `a30a9aed…`，567MiB）；绿槽 apply→rollout ~90s；20:48:04 备份 conf `.bak.pre-v82-20261125_204804` → sed 6 处 8091→8092（`left_8091=0`）→ `nginx -t` OK → reload 零中断；蓝槽 `scale 0` 转休眠锚（v81 镜像 docker+containerd 双在 = 回滚锚）；哨兵 `mode=k3s base=http://127.0.0.1:8092` 四行 OK rc=0；入口复验 root80=200、`/api/auth/config` 双开关 true、`login.html` 200（`login.js?v=20261124d` 未变，本版无前端改动）、公网 `8.153.176.50` 200；日志切片按 **UTC** `12:44` 之后 `" ERROR "` **0 条**（线程名 `http-nio-8092` 仅 6 行，全是本次探针）；**§7b 限流首上生产即实测**：同一 `X-Real-IP: 203.0.113.242` 连打 34 次全按窗口计，第 35 次 `429 + Retry-After: 39` + 体 `{"code":429,"message":"登录尝试过于频繁，请稍后再试"}`，Redis 侧 `rate:limit:auth-ip:203.0.113.242:29926847` 值 35、`ttl=117`；换 IP 立即恢复；`operation_log` 里本版真实 LOGIN 的 `ip_address` 仍是真实公网（117.154.99.118 / 223.104.121.31）→ 环回对端采信 `X-Real-IP` 的链在 nginx 后成立。**偏差记账**：① 代码未 commit（用户只点名"部署"），v82 镜像与任何 commit 都不可复现，事后需补 commit 才能对上；② §4b 留存的 `v74-baseexport` 已不在实例上（见 §10 更正），本版退回链式继承 `v81-local`；③ 切流「不掉线」这一项今晚量不到——最后一次真实 LOGIN 是 09:45 CST、会话 TTL 30m，`spring:session:*` 键数 0 属空闲而非丢会话，需用户浏览器实测（§7 末段那条人工验收）；④ 探针在 `operation_log` 留下 123 行 `LOGIN_FAIL`（`__probe__`/`__probe2`/`__probe3`，IP 为 TEST-NET 段）不清理，保留审计原样；短窗 `rate:limit:auth-ip:203.0.113.2*` 与 `login:attempt:__probe*` 已 DEL，长窗 `auth-ip-slow:*` 故意留着（删了等于把刚建立的 10 分钟额度放回去） |
 
 > **v74 数据订正附注（蒙斌/胡兰亲族案例，两库同口径）**：`family_node_link` 补 `1:54↔39:296`（手工链，ECS 缺）、`1:12↔40:305`、`1:21↔39:298`、`1:21↔40:328`、`1:56↔39:304`（`link_type=1`，`source=1 ACCOUNT`，ECS 首条为 `source=2/confirmed_by=1`）；`family_relation` 补 family 1 母边 `12→20`、`12→21`、`54→56`（`relation_type=1`，`user_id=1`）。回滚镜像不回滚这份数据（多行数据新代码不依赖旧行为，旧代码读到也只是多显示亲族行，不报错）。
 
@@ -315,7 +382,7 @@ v73 一层的实测数（下次发版拿它当对照，别看旧文档里的数�
 
 ## 11. ECS 单机 k3s 蓝绿发版（2026-11-24 起新增部署面）
 
-ECS 上另装了单机 k3s v1.30.14（cgroup v1 主机锁 1.30；严禁升 1.31+）。compose 栈继续承担 MySQL(:3308)/Redis(:6381) 数据面；应用层在 k3s 蓝绿双槽（蓝 :8091 / 绿 :8092）间零停机互切。当前在任=**蓝槽 8091**，绿槽 replicas=0 休眠锚。**compose app 已于 2026-11-24 退役**（容器 Exited 保留、镜像保留）。
+ECS 上另装了单机 k3s v1.30.14（cgroup v1 主机锁 1.30；严禁升 1.31+）。compose 栈继续承担 MySQL(:3308)/Redis(:6381) 数据面；应用层在 k3s 蓝绿双槽（蓝 :8091 / 绿 :8092）间零停机互切。当前在任=**绿槽 8092（`v82-local`，2026-11-25 20:48 切流）**，蓝槽 `v81-local` replicas=0 休眠锚兼回滚镜像（docker 与 containerd 两侧都在）。**compose app 已于 2026-11-24 退役**（容器 Exited 保留、镜像保留）。
 
 > ⚠️ 退役后的 compose app **不是版本回滚锚**：它的镜像已经是 `family-tree:v81-local`，`docker start family-tree-app` + nginx 切回 8090 只是把「应用跑在哪个面」换回去（拓扑回滚），代码版本仍是当前版。要回旧版本得按 §9 的镜像/jar 记录重建（v79/v80 镜像已 prune，只有归档 jar）。
 
@@ -332,7 +399,7 @@ ECS 上另装了单机 k3s v1.30.14（cgroup v1 主机锁 1.30；严禁升 1.31+
 2. 导入 k3s：`docker save family-tree:vNN-local | k3s ctr -n k8s.io images import -`
 3. 起**空闲槽**（当前在任的反面）：`sed 's/green/blue/g; s/8092/8091/g' deployment-green.yaml > deployment-blue.yaml`（反向同理），改 image tag 后 `k3s kubectl -n prod apply -f` + `rollout status --timeout=180s`（实测 ~87s）。
 4. 旁路验收打空闲槽端口（8091/8092）：health UP、`/api/auth/config`、`login.html ?v=`、读数。日志按 §9 的口径读**宿主文件**（`/opt/family-tree/logs/family-tree-error.log` 切启动时间戳之后的切片），**不要用 `k3s kubectl logs` 的 stdout 判 ERROR**——profile 是 `mysql`，stdout 里只有启动横幅，`grep " ERROR "` 恒 0 属假绿。
-5. 切流：备份 conf → `sed -i 's|127.0.0.1:809X|127.0.0.1:809Y|g' /etc/nginx/conf.d/family-tree.conf`（6 处全量）→ `nginx -t && systemctl reload nginx` → 入口复验（root80/config/login.html/公网）。会话在 Redis，切流不掉线。
+5. 切流：备份 conf → `sed -i 's|127.0.0.1:809X|127.0.0.1:809Y|g' /etc/nginx/conf.d/family-tree.conf`（6 处全量，sed 后要拿 `grep -c 127.0.0.1:809X` 复确认 =0、新端口 =6）→ `nginx -t && systemctl reload nginx` → 入口复验（root80/config/login.html/公网）。会话在 Redis，切流不掉线——**但这条要能验才有意义**：`docker exec family-tree-redis redis-cli --scan --pattern "spring:session:sessions:*" | wc -l` 得 >0 才有活会话可对照；用户空闲（会话 TTL 30m）时键数本来就是 0，既不能当证据也不能当反证，那种窗口只能靠「流量确实落到新槽」间接判：`grep -oE "http-nio-809[12]" /opt/family-tree/logs/family-tree.log | tail -400 | sort | uniq -c` 看线程名（2026-11-25 20:48 那次切流即属此类：入口四项 200、末 400 行里 351 行是 `8092`，`spring:session` 0 键是因为最后一次真实 LOGIN 在 09:45 CST）。
 6. 旧槽 `scale --replicas=0` 转休眠锚（内存即回 ~700MB）。compose 数据面全程不动。
 
 ### 11.3 回滚
@@ -345,4 +412,4 @@ ECS 上另装了单机 k3s v1.30.14（cgroup v1 主机锁 1.30；严禁升 1.31+
 
 ### 11.4 已知挂起项
 
-metrics-server 0/1（pod 网段打不到宿主 10250，不影响发布链）；overlay 无 SNAT 不修；`v74-baseexport` 单副本待 `docker save` 异备份；compose app 已于 2026-11-24 退役（容器仍在，见 §11.3 关于它不是版本锚的说明）。
+metrics-server 0/1（pod 网段打不到宿主 10250，不影响发布链）；overlay 无 SNAT 不修；~~`v74-baseexport` 单副本待 `docker save` 异备份~~（**2026-11-25 复核：baseexport 已不在实例上，无从备份**，下次要断链得按 §4b 路线三从在任镜像重做基座）；compose app 已于 2026-11-24 退役（容器仍在，见 §11.3 关于它不是版本锚的说明）。

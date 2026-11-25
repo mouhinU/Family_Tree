@@ -45,6 +45,12 @@
             <artifactId>spring-boot-starter-session-data-redis</artifactId>
         </dependency>
 
+        <!-- 限流的本地窗口：Redis 不可用时仍能挡住口令遍历，见 web/ratelimit/RateLimiter -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
         <!-- 数据库：H2 默认 + MySQL 可选 -->
         <dependency>
             <groupId>com.h2database</groupId>

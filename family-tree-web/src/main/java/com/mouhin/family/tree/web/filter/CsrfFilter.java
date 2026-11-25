@@ -2,6 +2,7 @@ package com.mouhin.family.tree.web.filter;
 
 import tools.jackson.databind.json.JsonMapper;
 import com.mouhin.family.tree.common.result.Result;
+import com.mouhin.family.tree.web.util.ClientIpResolver;
 import jakarta.servlet.*;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -84,7 +85,9 @@ public class CsrfFilter implements Filter {
         String headerToken = httpReq.getHeader(CSRF_TOKEN_HEADER);
 
         if (sessionToken == null || !sessionToken.equals(headerToken)) {
-            logger.warn("CSRF token validation failed: path={}, method={}, ip={}", path, method, httpReq.getRemoteAddr());
+            // 走 ClientIpResolver：本机形态下应用只被 nginx 从环回转发，getRemoteAddr() 恒为 127.0.0.1，告警等于没记来源
+            logger.warn("CSRF token validation failed: path={}, method={}, ip={}", path, method,
+                    ClientIpResolver.resolve(httpReq));
             httpResp.setStatus(HttpServletResponse.SC_FORBIDDEN);
             httpResp.setContentType("application/json;charset=UTF-8");
             httpResp.getWriter().write(OBJECT_MAPPER.writeValueAsString(Result.fail(403, "CSRF 校验失败，请刷新页面后重试")));

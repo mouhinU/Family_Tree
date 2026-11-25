@@ -3,6 +3,7 @@ package com.mouhin.family.tree.web.controller;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.constant.PlatformAdminConsts;
 import com.mouhin.family.tree.common.exception.BusinessException;
+import com.mouhin.family.tree.web.util.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 
@@ -58,23 +59,13 @@ public abstract class BaseController {
     }
 
     /**
-     * 获取客户端真实IP（兼容反向代理）
+     * 获取客户端真实IP（兼容反向代理）。口径见 {@link ClientIpResolver}：
+     * 只有直连对端是本机 nginx 时才采信代理头，且取最右一段。
      *
      * @param request HTTP 请求
      * @return 客户端IP地址
      */
     protected String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        // 多级代理时取第一个IP
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip;
+        return ClientIpResolver.resolve(request);
     }
 }

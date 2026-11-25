@@ -14,7 +14,7 @@
 | 数据库      | H2（开发，文件模式）/ MySQL（生产）                     | H2 2.3.x / MySQL 8.x |
 | 数据库迁移    | Flyway（H2 + MySQL 双轨）                      | 10.x（V1–V30）         |
 | 密码加密     | Spring Security Crypto（BCrypt，存量 MD5 透明迁移） | —                    |
-| 缓存       | Caffeine（族谱树缓存、登录限流）                       | 3.1.8                |
+| 缓存       | Caffeine（限流本地窗口）+ Redis（Session、限流账本、登录失败锁定、短信额度） | Caffeine 3.2.4       |
 | 监控       | Micrometer + Actuator                      | —                    |
 | 前端可视化    | D3.js                                      | 7.8.5                |
 | PDF 导出   | jsPDF                                      | 2.5.1                |
@@ -104,10 +104,14 @@ web → application → domain ← infrastructure
 - 多标识登录：用户名 / 手机号 / 邮箱任一均可登录（含 `@` 按邮箱匹配、11 位纯数字按手机号匹配，未命中回落用户名）；手机号与邮箱选填，非空时全局唯一（`uk_user_phone` / `uk_user_email`），邮箱入库统一小写
 - 联系方式仅在本人资料接口返回，成员列表、操作日志等他人视图不暴露
 - Session 固定防护（登录重建 Session）
-- 登录暴力破解锁定（Redis，同一登录标识连续 5 次失败锁定 10 分钟）
+- 登录暴力破解锁定（Redis，同一登录标识连续 5 次失败锁定 10 分钟）：Redis 不可用时该层**降级为不锁定**并记 WARN，不把异常抛到接口上（否则「密码错误」会显示成 500 系统内部错误），按 IP 的额度仍由下面的本地限流守住
+- 声明式限流：`@RateLimit`（可重复标注多条 = 多个窗口，方法级覆盖类级）由 `RateLimitInterceptor` 执行，维度可选 `IP` / `USER` / `GLOBAL`；未标注的接口保留默认「写操作按用户 60 秒 30 次」
+- 限流计数**双写取大**（`RateLimiter`）：本地 Caffeine 固定窗口 + Redis `INCR`，判定取两者较大值。Redis 不可用时降级为纯本地计数（不再放开限制），进程重启或蓝绿双槽并行时由 Redis 账本补回额度；超限返回 429 + 窗口内剩余秒数的 `Retry-After`
+- Redis 显式超时 `timeout` / `connect-timeout` = 500ms：不配时命令超时是默认 60s，Redis 失联会把单个登录请求拖到 >45s（实测）并占满工作线程；配置只覆盖**已建立连接上的命令**，「接受 TCP 但永不回包」的黑洞仍会停在 Lettuce 握手 `DefaultConnectionFuture.get()`（jstack 实测），那种故障要靠 `client-type: pool` + `TimeoutOptions` 才收敛
+- 登录/注册/短信登录三个匿名入口按来源 IP 加严（60 秒 30 次 + 600 秒 120 次）。按**请求次数**而非失败次数计——节点自动账号共用初始口令且用户名在族谱里可见，一次成功的口令遍历不留任何失败计数，仅靠失败锁定挡不住
+- 客户端 IP 统一由 `ClientIpResolver` 解析：只有直连对端是本机 nginx（环回/链路本地）时才采信代理头，优先 `X-Real-IP`、否则取 `X-Forwarded-For` 最右一段。旧口径「XFF 取最左」等于让客户端自选身份，可绕过按 IP 的短信额度与登录限流并把 `operation_log.ip_address` 写成任意值
 - CSRF Token 防护（Synchronizer Token Pattern）
 - 安全响应头（X-Frame-Options、CSP、Referrer-Policy、Cache-Control）
-- 写操作频率限制（Caffeine 滑动窗口，每用户每 60 秒最多 30 次写操作）
 - 短信发码防连点：`login.js` 在点击「发送验证码」时立即禁用按钮（响应回来才禁用挡不住同一秒的连点），下发成功或命中「过于频繁 / 次数已达上限」类拒绝进入 60 秒冷却（与服务端 `SmsConsts.RESEND_INTERVAL_SECONDS` 同口径，这类拒绝说明额度已被本次请求消耗），其余失败立即恢复；服务端按手机号 10 条/日、按 IP 20 条/日限量并在发送失败时回滚额度兜底
 - 前端 XSS 防护（escapeHtml/escapeAttr 全量转义 + data-* 事件委托）
 - 头像上传路径遍历防护
@@ -379,7 +383,9 @@ Family_Tree/
 │   │   ├── config/                     # 全局异常处理、Web MVC 配置
 │   │   ├── controller/                 # 32 个 REST 控制器
 │   │   ├── filter/                     # CSRF 过滤器、安全响应头过滤器
-│   │   ├── interceptor/                # 登录拦截器、限流拦截器、家族状态拦截器（冻结/归档只读）
+│   │   ├── interceptor/                # 登录拦截器、限流拦截器（@RateLimit 驱动）、家族状态拦截器（冻结/归档只读）
+│   │   ├── ratelimit/                  # @RateLimit 注解与 RateLimiter（Caffeine 本地窗口 + Redis 账本双写）
+│   │   ├── util/                       # ClientIpResolver（代理头可信度判定，统一客户端 IP 口径）
 │   │   └── security/                   # 访问控制注解与切面（家族管理员 / 节点访问 / 平台管理员）
 │   └── src/main/resources/
 │       ├── application*.yml            # 多环境配置

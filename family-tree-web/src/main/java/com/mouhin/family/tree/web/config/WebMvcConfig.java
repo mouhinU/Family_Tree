@@ -22,7 +22,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     /**
      * 免登录公开接口路径：口令登录/注册与短信验证码/短信登录，及登录页读取公开开关的配置接口，
-     * 三个拦截器共用同一份排除名单，避免逐处维护漂移
+     * 登录认证与家族治理两个拦截器共用同一份排除名单，避免逐处维护漂移
      */
     private static final String[] PUBLIC_API_PATHS = {
             "/api/auth/login", "/api/auth/register",
@@ -48,15 +48,15 @@ public class WebMvcConfig implements WebMvcConfigurer {
                 .addPathPatterns("/api/**")
                 .excludePathPatterns(PUBLIC_API_PATHS);
 
-        // 家族冻结 / 归档治理（在登录认证之后、限流之前执行）
+        // 家族冻结 / 归档治理（在登录认证之后执行）
         registry.addInterceptor(familyStatusInterceptor)
                 .addPathPatterns("/api/**")
                 .excludePathPatterns(PUBLIC_API_PATHS);
 
-        // 写接口限流（在登录认证之后执行）
+        // 限流要管到匿名请求（登录/注册的 IP 维度规则挂在 Controller 上），所以不排除公开路径：
+        // 没有 @RateLimit 的接口仍只是「已登录用户的写限流」，与旧口径一致
         registry.addInterceptor(rateLimitInterceptor)
-                .addPathPatterns("/api/**")
-                .excludePathPatterns(PUBLIC_API_PATHS);
+                .addPathPatterns("/api/**");
     }
 
     /**

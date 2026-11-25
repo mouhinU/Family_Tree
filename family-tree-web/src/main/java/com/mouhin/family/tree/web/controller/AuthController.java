@@ -6,6 +6,7 @@ import com.mouhin.family.tree.application.service.PlatformAdminApplicationServic
 import com.mouhin.family.tree.application.service.SmsCodeApplicationService;
 import com.mouhin.family.tree.application.service.UserAuthApplicationService;
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
+import com.mouhin.family.tree.common.constant.LoginSecurityConsts;
 import com.mouhin.family.tree.common.dto.*;
 import com.mouhin.family.tree.common.dto.UserProfileDTO;
 import com.mouhin.family.tree.common.enums.SmsSceneEnum;
@@ -13,6 +14,7 @@ import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.common.result.Result;
 import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import com.mouhin.family.tree.web.filter.CsrfFilter;
+import com.mouhin.family.tree.web.ratelimit.RateLimit;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
@@ -70,6 +72,12 @@ public class AuthController extends BaseController {
         return Result.success(data);
     }
 
+    @RateLimit(name = "auth-ip", dimension = RateLimit.Dimension.IP,
+            windowSeconds = LoginSecurityConsts.LOGIN_IP_WINDOW_SECONDS,
+            maxRequests = LoginSecurityConsts.LOGIN_IP_MAX_ATTEMPTS, message = "注册过于频繁，请稍后再试")
+    @RateLimit(name = "auth-ip-slow", dimension = RateLimit.Dimension.IP,
+            windowSeconds = LoginSecurityConsts.LOGIN_IP_LONG_WINDOW_SECONDS,
+            maxRequests = LoginSecurityConsts.LOGIN_IP_MAX_LONG_ATTEMPTS, message = "注册过于频繁，请稍后再试")
     @PostMapping("/register")
     public Result<Map<String, Object>> register(@Valid @RequestBody RegisterDTO dto, HttpServletRequest request) {
         Long userId = userService.register(dto);
@@ -95,6 +103,12 @@ public class AuthController extends BaseController {
         return Result.success(data);
     }
 
+    @RateLimit(name = "auth-ip", dimension = RateLimit.Dimension.IP,
+            windowSeconds = LoginSecurityConsts.LOGIN_IP_WINDOW_SECONDS,
+            maxRequests = LoginSecurityConsts.LOGIN_IP_MAX_ATTEMPTS, message = "登录尝试过于频繁，请稍后再试")
+    @RateLimit(name = "auth-ip-slow", dimension = RateLimit.Dimension.IP,
+            windowSeconds = LoginSecurityConsts.LOGIN_IP_LONG_WINDOW_SECONDS,
+            maxRequests = LoginSecurityConsts.LOGIN_IP_MAX_LONG_ATTEMPTS, message = "登录尝试过于频繁，请稍后再试")
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@Valid @RequestBody LoginDTO dto, HttpServletRequest request) {
         String ip = getClientIp(request);
@@ -116,6 +130,12 @@ public class AuthController extends BaseController {
     /**
      * 短信验证码登录：换取用户ID后与会话口令登录同口径建立会话
      */
+    @RateLimit(name = "auth-ip", dimension = RateLimit.Dimension.IP,
+            windowSeconds = LoginSecurityConsts.LOGIN_IP_WINDOW_SECONDS,
+            maxRequests = LoginSecurityConsts.LOGIN_IP_MAX_ATTEMPTS, message = "短信登录过于频繁，请稍后再试")
+    @RateLimit(name = "auth-ip-slow", dimension = RateLimit.Dimension.IP,
+            windowSeconds = LoginSecurityConsts.LOGIN_IP_LONG_WINDOW_SECONDS,
+            maxRequests = LoginSecurityConsts.LOGIN_IP_MAX_LONG_ATTEMPTS, message = "短信登录过于频繁，请稍后再试")
     @PostMapping("/login-sms")
     public Result<Map<String, Object>> loginBySms(@Valid @RequestBody SmsLoginDTO dto, HttpServletRequest request) {
         String ip = getClientIp(request);
