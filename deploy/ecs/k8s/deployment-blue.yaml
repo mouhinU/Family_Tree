@@ -21,7 +21,7 @@ spec:
       dnsPolicy: Default
       containers:
         - name: family-tree-app
-          image: docker.io/library/family-tree:v85-local
+          image: docker.io/library/family-tree:v87-local
           imagePullPolicy: Never
           ports:
             - containerPort: 8091
