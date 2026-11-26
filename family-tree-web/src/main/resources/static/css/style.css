@@ -5851,3 +5851,8 @@ body.toolbar-hidden .tree-container {
     gap: 10px;
     margin-bottom: 6px;
 }
+
+/* 标题行无边框无内边距，按钮右移量需等于行卡片的 1px 边框 + 12px 内边距，才与 .affinity-row/.spouse-row 内容右缘齐平 */
+.affinity-title .btn-sm {
+    margin-right: 13px;
+}
