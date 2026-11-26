@@ -355,14 +355,28 @@
     }
 
     // ========== GEDCOM 导出/导入 ==========
-    function exportGedcom() {
-        var a = document.createElement('a');
-        a.href = '/api/data/export/gedcom?t=' + Date.now();
-        a.download = 'family-tree.ged';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        FT.toast('已开始导出 GEDCOM', 'success');
+    async function exportGedcom() {
+        try {
+            var resp = await fetch('/api/data/export/gedcom?t=' + Date.now(), {credentials: 'same-origin'});
+            var ct = resp.headers.get('content-type') || '';
+            if (ct.indexOf('application/json') >= 0) {
+                var body = await resp.json();
+                FT.toast(body.message || '导出失败', 'error');
+                return;
+            }
+            var blob = await resp.blob();
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'family-tree.ged';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            FT.toast('GEDCOM 导出完成', 'success');
+        } catch (e) {
+            FT.toast('导出请求失败: ' + e.message, 'error');
+        }
     }
 
     function showGedcomImportModal() {

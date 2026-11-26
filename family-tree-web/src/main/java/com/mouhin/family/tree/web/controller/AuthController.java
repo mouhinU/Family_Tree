@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.FamilyApplicationService;
+import com.mouhin.family.tree.application.service.FamilySettingApplicationService;
 import com.mouhin.family.tree.application.service.FamilyUserNodeApplicationService;
 import com.mouhin.family.tree.application.service.PlatformAdminApplicationService;
 import com.mouhin.family.tree.application.service.SmsCodeApplicationService;
@@ -9,6 +10,7 @@ import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.constant.LoginSecurityConsts;
 import com.mouhin.family.tree.common.dto.*;
 import com.mouhin.family.tree.common.dto.UserProfileDTO;
+import com.mouhin.family.tree.common.enums.FamilySettingKeyEnum;
 import com.mouhin.family.tree.common.enums.SmsSceneEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.common.result.Result;
@@ -41,18 +43,21 @@ public class AuthController extends BaseController {
     private final UserAuthApplicationService userService;
     private final FamilyApplicationService familyService;
     private final FamilyUserNodeApplicationService familyUserNodeService;
+    private final FamilySettingApplicationService familySettingService;
     private final PlatformAdminApplicationService platformAdminService;
     private final SmsCodeApplicationService smsCodeService;
     private final ApplicationEventPublisher eventPublisher;
 
     public AuthController(UserAuthApplicationService userService, FamilyApplicationService familyService,
                           FamilyUserNodeApplicationService familyUserNodeService,
+                          FamilySettingApplicationService familySettingService,
                           PlatformAdminApplicationService platformAdminService,
                           SmsCodeApplicationService smsCodeService,
                           ApplicationEventPublisher eventPublisher) {
         this.userService = userService;
         this.familyService = familyService;
         this.familyUserNodeService = familyUserNodeService;
+        this.familySettingService = familySettingService;
         this.platformAdminService = platformAdminService;
         this.smsCodeService = smsCodeService;
         this.eventPublisher = eventPublisher;
@@ -276,6 +281,8 @@ public class AuthController extends BaseController {
             data.put("familyName", family.getName());
             data.put("familyRole", family.getCurrentRole());
             data.put("inviteCode", family.getInviteCode());
+            data.put("dataExportEnabled", familySettingService.isEnabled(family.getId(), FamilySettingKeyEnum.DATA_EXPORT_ENABLED));
+            data.put("gedcomImportEnabled", familySettingService.isEnabled(family.getId(), FamilySettingKeyEnum.GEDCOM_IMPORT_ENABLED));
         }
         return Result.success(data);
     }

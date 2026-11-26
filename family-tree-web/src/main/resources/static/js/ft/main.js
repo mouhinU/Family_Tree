@@ -106,6 +106,18 @@
                 hideIfPresent('btn-add-root');
                 hideIfPresent('drawer-btn-add-root');
             }
+            // 数据导出开关（家族级配置）：关闭后隐藏 PDF 和 GEDCOM 导出入口
+            if (res.data.dataExportEnabled === false) {
+                hideIfPresent('btn-export');
+                hideIfPresent('drawer-btn-export');
+                hideIfPresent('btn-gedcom-export');
+                hideIfPresent('drawer-btn-gedcom-export');
+            }
+            // GEDCOM 导入开关：关闭后隐藏导入入口
+            if (res.data.gedcomImportEnabled === false) {
+                hideIfPresent('btn-gedcom-import');
+                hideIfPresent('drawer-btn-gedcom-import');
+            }
             // 平台管理员入口与家族角色无关，由配置白名单裁决；隐藏仅为体验优化，服务端另有校验
             if (res.data.isSystemAdmin) {
                 showIfPresent('btn-admin', 'inline-block');
@@ -756,6 +768,17 @@
             if (drawerGedcomExport) drawerGedcomExport.style.display = 'flex';
             var drawerGedcomImport = document.getElementById('drawer-btn-gedcom-import');
             if (drawerGedcomImport) drawerGedcomImport.style.display = 'flex';
+        }
+        // 数据导出开关关闭时隐藏导出入口
+        if (user.dataExportEnabled === false) {
+            var de1 = document.getElementById('drawer-btn-export');
+            if (de1) de1.style.display = 'none';
+            var de2 = document.getElementById('drawer-btn-gedcom-export');
+            if (de2) de2.style.display = 'none';
+        }
+        if (user.gedcomImportEnabled === false) {
+            var di = document.getElementById('drawer-btn-gedcom-import');
+            if (di) di.style.display = 'none';
         }
 
         // 家族名称
