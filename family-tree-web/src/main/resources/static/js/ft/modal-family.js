@@ -210,7 +210,7 @@
             genLinkBtn.addEventListener('click', function() {
                 var code = (FT.state.currentUser.inviteCode || '').toUpperCase();
                 if (!code) { FT.toast('邀请码为空，请先刷新'); return; }
-                var link = location.origin + '/login.html?invite=' + code;
+                var link = location.origin + '/s/' + code;
                 var linkInput = document.getElementById('invite-link-input');
                 linkInput.value = link;
                 document.getElementById('invite-link-box').style.display = 'flex';

@@ -29,6 +29,7 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -270,6 +271,20 @@ public class FamilyApplicationService {
             return null;
         }
         return toDTO(family, null);
+    }
+
+    /**
+     * 根据邀请码获取库内规范邀请码，供公开短链跳转使用。
+     *
+     * @param inviteCode 用户访问的邀请码，允许首尾空白和大小写差异
+     * @return 库内邀请码；为空或不存在时返回 null
+     */
+    public String getCanonicalInviteCode(String inviteCode) {
+        if (inviteCode == null || inviteCode.isBlank()) {
+            return null;
+        }
+        Family family = familyRepository.findByInviteCode(inviteCode.trim().toUpperCase(Locale.ROOT));
+        return family == null ? null : family.getInviteCode();
     }
 
     /**

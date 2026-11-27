@@ -35,9 +35,9 @@ import java.util.regex.Pattern;
 public class InviteController extends BaseController {
 
     /**
-     * 邀请落地页路径，注册表单据此预填邀请码
+     * 邀请短链路径，注册表单在跳转后据此预填邀请码
      */
-    private static final String INVITE_PAGE = "/login.html";
+    private static final String INVITE_SHORT_LINK_PATH = "/s/";
 
     /**
      * 二维码边长（像素）
@@ -122,7 +122,7 @@ public class InviteController extends BaseController {
     }
 
     private String inviteUrl(HttpServletRequest request, String inviteCode) {
-        return originOf(request) + INVITE_PAGE + "?invite=" + inviteCode;
+        return originOf(request) + INVITE_SHORT_LINK_PATH + inviteCode;
     }
 
     /**

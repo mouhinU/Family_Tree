@@ -78,7 +78,7 @@ class InviteControllerTest {
 
         String url = (String) inviteController.getInviteLink(session(), request).getData().get("inviteUrl");
 
-        assertEquals("http://tree.example.com:8090/login.html?invite=" + INVITE_CODE, url);
+        assertEquals("http://tree.example.com:8090/s/" + INVITE_CODE, url);
     }
 
     @Test
@@ -93,7 +93,7 @@ class InviteControllerTest {
 
         String url = (String) inviteController.getInviteLink(session(), request).getData().get("inviteUrl");
 
-        assertEquals("https://tree.example.com/login.html?invite=" + INVITE_CODE, url);
+        assertEquals("https://tree.example.com/s/" + INVITE_CODE, url);
     }
 
     @Test
@@ -104,7 +104,7 @@ class InviteControllerTest {
 
         String url = (String) inviteController.getInviteLink(session(), request).getData().get("inviteUrl");
 
-        assertEquals("/login.html?invite=" + INVITE_CODE, url);
+        assertEquals("/s/" + INVITE_CODE, url);
     }
 
     @Test
@@ -114,7 +114,7 @@ class InviteControllerTest {
         String url = (String) inviteController.getInviteLink(session(), new MockHttpServletRequest())
                 .getData().get("inviteUrl");
 
-        assertEquals("/login.html?invite=" + INVITE_CODE, url);
+        assertEquals("/s/" + INVITE_CODE, url);
     }
 
     @Test
@@ -126,7 +126,7 @@ class InviteControllerTest {
 
         String url = (String) inviteController.getInviteLink(session(), request).getData().get("inviteUrl");
 
-        assertEquals("http://tree.example.com/login.html?invite=" + INVITE_CODE, url);
+        assertEquals("http://tree.example.com/s/" + INVITE_CODE, url);
     }
 
     @Test
