@@ -28,6 +28,7 @@
     const TAB_FAMILY = 'family';
     const TAB_USER = 'user';
     const TAB_INSPECTION = 'inspection';
+    const TAB_GRAPH = 'graph';
     const TAB_SETTING = 'setting';
     const TAB_LOG = 'log';
     /** 日志「对象」列的取值文案：target_type 已由后端白名单产出，未知值原样展示 */
@@ -136,6 +137,9 @@
     }
 
     function bindEvents() {
+        if (FT.AdminGraph) {
+            FT.AdminGraph.init();
+        }
         $('tab-families').addEventListener('click', function () {
             switchTab(TAB_FAMILY);
         });
@@ -144,6 +148,9 @@
         });
         $('tab-inspection').addEventListener('click', function () {
             switchTab(TAB_INSPECTION);
+        });
+        $('tab-graph').addEventListener('click', function () {
+            switchTab(TAB_GRAPH);
         });
         $('tab-settings').addEventListener('click', function () {
             switchTab(TAB_SETTING);
@@ -242,6 +249,7 @@
         var isFamily = tab === TAB_FAMILY;
         var isUser = tab === TAB_USER;
         var isInspection = tab === TAB_INSPECTION;
+        var isGraph = tab === TAB_GRAPH;
         var isSetting = tab === TAB_SETTING;
         var isLog = tab === TAB_LOG;
         if (!isUser) {
@@ -251,15 +259,17 @@
         $('pane-families').style.display = isFamily ? '' : 'none';
         $('pane-users').style.display = isUser ? '' : 'none';
         $('pane-inspection').style.display = isInspection ? '' : 'none';
+        $('pane-graph').style.display = isGraph ? '' : 'none';
         $('pane-settings').style.display = isSetting ? '' : 'none';
         $('pane-logs').style.display = isLog ? '' : 'none';
         $('tab-families').classList.toggle('on', isFamily);
         $('tab-users').classList.toggle('on', isUser);
         $('tab-inspection').classList.toggle('on', isInspection);
+        $('tab-graph').classList.toggle('on', isGraph);
         $('tab-settings').classList.toggle('on', isSetting);
         $('tab-logs').classList.toggle('on', isLog);
         // 巡检报告、平台配置与日志检索按项铺开，不需要右侧详情栏
-        var solo = isInspection || isSetting || isLog;
+        var solo = isInspection || isGraph || isSetting || isLog;
         $('admin-layout').classList.toggle('solo', solo);
         $('detail-pane').style.display = solo ? 'none' : '';
         if (isFamily) {
@@ -279,6 +289,12 @@
         }
         if (isSetting) {
             loadPlatformSettings(true);
+            return;
+        }
+        if (isGraph) {
+            if (FT.AdminGraph) {
+                FT.AdminGraph.onEnter();
+            }
             return;
         }
         loadInspection(false);

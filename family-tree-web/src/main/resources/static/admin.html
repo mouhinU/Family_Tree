@@ -540,8 +540,169 @@
             margin-top: 6px;
         }
 
+        .graph-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .graph-toolbar input[type="search"] {
+            flex: 1 1 220px;
+            padding: 7px 10px;
+            border: 1px solid #cbbfa4;
+            border-radius: 4px;
+            font-size: 13px;
+            background: #fff;
+            font-family: inherit;
+        }
+
+        .graph-toolbar label {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 13px;
+            color: #6b5f4a;
+        }
+
+        .graph-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 430px;
+            gap: 16px;
+            align-items: start;
+        }
+
+        .graph-stage {
+            position: relative;
+            min-height: 560px;
+            border: 1px solid #e6dcc4;
+            border-radius: 6px;
+            background:
+                radial-gradient(circle at 1px 1px, rgba(138, 127, 106, 0.18) 1px, transparent 0) 0 0 / 22px 22px,
+                #fbf8ef;
+            overflow: hidden;
+        }
+
+        .graph-stage svg {
+            display: block;
+            width: 100%;
+            height: 560px;
+            cursor: grab;
+        }
+
+        .graph-stage svg:active {
+            cursor: grabbing;
+        }
+
+        .graph-empty {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            text-align: center;
+            font-size: 13px;
+            color: #8a7f6a;
+            pointer-events: none;
+        }
+
+        .graph-tooltip {
+            position: fixed;
+            z-index: 20;
+            display: none;
+            max-width: 260px;
+            padding: 8px 10px;
+            border: 1px solid #d8cba8;
+            border-radius: 4px;
+            background: rgba(43, 38, 34, 0.94);
+            color: #fffdf7;
+            font-size: 12px;
+            line-height: 1.5;
+            pointer-events: none;
+            box-shadow: 0 4px 16px rgba(43, 38, 34, 0.18);
+        }
+
+        .graph-detail {
+            min-height: 560px;
+            max-height: 720px;
+            overflow: auto;
+            border: 1px solid #e6dcc4;
+            border-radius: 6px;
+            padding: 14px;
+            background: #fffdf7;
+        }
+
+        .graph-detail-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .graph-detail-head h3 {
+            margin: 0;
+            font-size: 15px;
+        }
+
+        .graph-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .graph-table th, .graph-table td {
+            padding: 6px 7px;
+            border-bottom: 1px solid #e6dcc4;
+            text-align: left;
+            vertical-align: top;
+            word-break: break-word;
+        }
+
+        .graph-table th {
+            color: #8a7f6a;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .graph-issue {
+            display: inline-block;
+            margin: 1px 4px 1px 0;
+            padding: 1px 5px;
+            border-radius: 8px;
+            background: #f6dfd8;
+            color: #a63a2b;
+            font-size: 11px;
+        }
+
+        .graph-legend {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin: 10px 0 0;
+            font-size: 12px;
+            color: #8a7f6a;
+        }
+
+        .graph-legend span::before {
+            content: "";
+            display: inline-block;
+            width: 9px;
+            height: 9px;
+            margin-right: 5px;
+            border-radius: 50%;
+            background: var(--legend-color);
+        }
+
         @media (max-width: 1000px) {
             .admin-layout {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .graph-layout {
                 grid-template-columns: minmax(0, 1fr);
             }
         }
@@ -550,7 +711,7 @@
 <body class="admin-body">
 <header class="admin-header">
     <div>
-        <h1>平台管理<span class="admin-sub">家族概况 · 用户账号 · 平台配置</span></h1>
+        <h1>平台管理<span class="admin-sub">家族概况 · 用户账号 · 数据巡检 · 跨族图谱 · 平台配置</span></h1>
     </div>
     <div class="admin-header-right">
         <span id="admin-user"></span>
@@ -572,6 +733,7 @@
             <button class="admin-tab on" id="tab-families" type="button">家族概况</button>
             <button class="admin-tab" id="tab-users" type="button">用户账号</button>
             <button class="admin-tab" id="tab-inspection" type="button">数据巡检</button>
+            <button class="admin-tab" id="tab-graph" type="button">跨族图谱</button>
             <button class="admin-tab" id="tab-settings" type="button">平台配置</button>
             <button class="admin-tab" id="tab-logs" type="button">操作日志</button>
         </section>
@@ -652,6 +814,45 @@
                     </div>
                 </div>
 
+                <div id="pane-graph" style="display:none;">
+                    <h2>跨族图谱</h2>
+                    <div class="graph-toolbar">
+                        <select id="graph-mode" aria-label="图谱模式">
+                            <option value="GOVERNANCE">治理视图 · 家族关系</option>
+                            <option value="NETWORK">展示视图 · 族内人物网络</option>
+                        </select>
+                        <select id="graph-family" aria-label="选择家族" style="display:none;"></select>
+                        <input autocomplete="off" id="graph-search" placeholder="搜索家族名称" type="search">
+                        <select id="graph-link-type">
+                            <option value="ALL">全部链接类型</option>
+                            <option value="BLOOD">仅血缘同人</option>
+                            <option value="MARRIAGE">仅姻亲指认</option>
+                        </select>
+                        <label><input id="graph-issue-only" type="checkbox">仅看异常链接</label>
+                        <button class="ghost-btn" id="graph-refresh" type="button">刷新</button>
+                        <button class="ghost-btn" id="graph-reset-view" type="button">重置视图</button>
+                        <span class="admin-hint" id="graph-summary"></span>
+                    </div>
+                    <div class="mini-stats" id="graph-stats"></div>
+                    <div class="graph-layout">
+                        <div>
+                            <div class="graph-stage" id="graph-stage">
+                                <div class="graph-empty" id="graph-empty">加载中…</div>
+                            </div>
+                            <div class="graph-legend" id="graph-legend">
+                                <span style="--legend-color:#5b6b7c">正常家族</span>
+                                <span style="--legend-color:#a63a2b">存在异常链接</span>
+                                <span style="--legend-color:#a63a2b">血缘同人</span>
+                                <span style="--legend-color:#6b4f8a">姻亲指认</span>
+                            </div>
+                        </div>
+                        <div class="graph-detail" id="graph-detail">
+                            <div class="detail-empty">点击图谱中的家族查看跨族链接明细</div>
+                        </div>
+                    </div>
+                    <div class="graph-tooltip" id="graph-tooltip"></div>
+                </div>
+
                 <div id="pane-settings" style="display:none;">
                     <h2>平台配置</h2>
                     <div class="admin-toolbar">
@@ -712,6 +913,8 @@
 <script src="/js/ft/core.js?v=20261120b"></script>
 <script src="/js/ft/api.js?v=20261119b"></script>
 <script src="/js/ft/modals.js?v=20260828b"></script>
-<script src="/js/ft/admin.js?v=20261119a"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="/js/ft/admin-graph.js?v=20261126c"></script>
+<script src="/js/ft/admin.js?v=20261126a"></script>
 </body>
 </html>

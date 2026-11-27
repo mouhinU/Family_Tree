@@ -53,6 +53,13 @@ public interface FamilyRepository {
     void update(Family family);
 
     /**
+     * 查询全平台家族（按ID升序）
+     *
+     * @return 家族列表
+     */
+    List<Family> listAll();
+
+    /**
      * 平台侧分页查询家族（按创建时间倒序）
      *
      * @param keyword 家族名称或邀请码模糊词，为空表示不过滤

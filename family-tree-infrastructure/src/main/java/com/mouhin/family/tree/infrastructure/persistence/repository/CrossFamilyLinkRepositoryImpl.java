@@ -75,6 +75,13 @@ public class CrossFamilyLinkRepositoryImpl implements CrossFamilyLinkRepository 
     }
 
     @Override
+    public List<CrossFamilyLink> listAll() {
+        LambdaQueryWrapper<FamilyNodeLinkDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.orderByAsc(FamilyNodeLinkDO::getId);
+        return CrossFamilyLinkConverter.toDomainList(mapper.selectList(wrapper));
+    }
+
+    @Override
     public void removeById(Long id) {
         mapper.deleteById(id);
     }

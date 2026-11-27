@@ -63,6 +63,13 @@ public interface CrossFamilyLinkRepository {
     List<CrossFamilyLink> findByFamilyId(Long familyId);
 
     /**
+     * 查询全平台跨族链接（按ID升序）
+     *
+     * @return 链接列表
+     */
+    List<CrossFamilyLink> listAll();
+
+    /**
      * 按ID删除链接
      *
      * @param id 链接ID

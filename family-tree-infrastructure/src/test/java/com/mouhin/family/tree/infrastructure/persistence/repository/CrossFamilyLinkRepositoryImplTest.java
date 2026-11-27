@@ -81,6 +81,21 @@ class CrossFamilyLinkRepositoryImplTest {
     }
 
     @Test
+    void listAll_ordersByIdAndMapsRows() {
+        when(mapper.selectList(any())).thenReturn(List.of(
+                doRow(9L, 100L, 3L, 200L, 7L), doRow(10L, 100L, 4L, 200L, 8L)));
+
+        List<CrossFamilyLink> result = repository.listAll();
+
+        assertEquals(2, result.size());
+        assertEquals(Long.valueOf(9L), result.get(0).getId());
+        ArgumentCaptor<LambdaQueryWrapper<FamilyNodeLinkDO>> captor = wrapperCaptor();
+        verify(mapper).selectList(captor.capture());
+        assertTrue(captor.getValue().getTargetSql().contains("ORDER BY"));
+        assertTrue(captor.getValue().getTargetSql().contains("id"));
+    }
+
+    @Test
     void findById_mapsDomainObject() {
         when(mapper.selectById(9L)).thenReturn(doRow(9L, 100L, 3L, 200L, 7L));
 

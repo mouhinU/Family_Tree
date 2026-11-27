@@ -62,6 +62,13 @@ public class FamilyRepositoryImpl implements FamilyRepository {
     }
 
     @Override
+    public List<Family> listAll() {
+        LambdaQueryWrapper<FamilyDO> wrapper = new LambdaQueryWrapper<>();
+        wrapper.orderByAsc(FamilyDO::getId);
+        return FamilyConverter.toDomainList(mapper.selectList(wrapper));
+    }
+
+    @Override
     public List<Family> listPaged(String keyword, int offset, int size) {
         LambdaQueryWrapper<FamilyDO> wrapper = keywordWrapper(keyword)
                 .orderByDesc(FamilyDO::getCreateTime)
