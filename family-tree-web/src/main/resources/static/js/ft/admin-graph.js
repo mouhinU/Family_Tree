@@ -10,7 +10,8 @@
 
     const FT = window.FT;
     const GRAPH_HEIGHT = 560;
-    const TYPE_LABELS = {BLOOD: '血缘同人', MARRIAGE: '姻亲指认'};
+    const TYPE_CODES = {BLOOD: 1, MARRIAGE: 2};
+    const TYPE_LABELS = {1: '血缘同人', 2: '姻亲指认'};
     const STATUS_LABELS = {NORMAL: '正常', FROZEN: '冻结', ARCHIVED: '已归档'};
 
     const state = {
@@ -325,7 +326,7 @@
             if (!nodeIds.has(link.srcNodeId) || !nodeIds.has(link.dstNodeId)) {
                 return false;
             }
-            if (linkType !== 'ALL' && link.linkTypeLabel !== (linkType === 'BLOOD' ? '血缘同人' : '姻亲指认')) {
+            if (linkType !== 'ALL' && link.linkType !== TYPE_CODES[linkType]) {
                 return false;
             }
             return !issueOnly || (link.issues || []).length > 0;
@@ -399,7 +400,10 @@
             })
             .attr('stroke-opacity', 0.68)
             .attr('stroke-dasharray', function (edge) {
-                return num(edge.issueCount) > 0 ? '5 4' : null;
+                const hasIssue = edge.kind === 'CROSS_LINK'
+                    ? (edge.issues || []).length > 0
+                    : num(edge.issueCount) > 0;
+                return hasIssue ? '5 4' : null;
             });
 
         const node = zoomLayer.append('g')
@@ -563,6 +567,9 @@
     function edgeColor(edge) {
         if (edge.kind === 'RELATION') {
             return '#8a7f6a';
+        }
+        if (edge.kind === 'CROSS_LINK') {
+            return edge.linkType === TYPE_CODES.MARRIAGE ? '#6b4f8a' : '#a63a2b';
         }
         if (num(edge.bloodLinkCount) > 0 && num(edge.marriageLinkCount) > 0) {
             return '#a0522d';
