@@ -14,7 +14,7 @@
 | `nginx-family-tree.conf` | 宿主 nginx 反代（80 = IP 明文 HTTP，443 = 域名 HTTPS 已装待备案，现状见下） |
 | `backup.sh` | 容器内 mysqldump → gzip，保留 7 天 |
 | `RELEASE-SOP.md` | 发版/升级 SOP（预检 → 备份 → 容器网络自检 → 构建导入 → repair 判定 → 切换 → 验收 → 回滚），已有环境换镜像照它跑 |
-| `ops/` | 配套探针与自愈脚本（预检、状态复查、验收哨兵、网桥 trusted 自愈 + systemd timer、**开机自愈 `ft-boot-recover`**、V7 checksum 兜底），实例落位见 SOP 第 10 节、重启处置见 SOP 第 12 节、磁盘与数据落位见 SOP 第 13 节 |
+| `ops/` | 配套探针与自愈脚本（预检、状态复查、验收哨兵、网桥 trusted 自愈 + systemd timer、**开机自愈 `ft-boot-recover`**、V7 checksum 兜底），实例落位见 SOP 第 10 节、重启处置见 SOP 第 12 节、磁盘与业务数据落位见 SOP 第 13 节、docker/k3s 数据根迁盘与重启演练见 SOP 第 14 节 |
 
 应用侧还有一份配套配置：`family-tree-web/src/main/resources/application-ecs.yml`（profile `ecs`，随镜像打包），
 compose 以 `SPRING_PROFILES_ACTIVE=mysql,ecs` 加载它。
@@ -94,12 +94,13 @@ sed -i 's/^FT_IMAGE=.*/FT_IMAGE=family-tree:vNNN-local/' .env
 
 - 数据全在宿主目录（bind 挂载，无命名卷）：`/opt/family-tree/data/mysql`、`data/redis`、`data/photos`、`logs`
   - **2026-11-28 起这些宿主目录本身是数据盘（`/dev/vdb1` → `/data/family-tree/…`）的 bind**，`/opt/family-tree` 下只剩代码与配置；实例侧口径见 [`RELEASE-SOP.md`](RELEASE-SOP.md) 第 13 节
+  - **同日再把 `/var/lib/docker` 与 `/var/lib/rancher/k3s` 也 bind 到 `/data/{docker,k3s}`**（SOP 第 14 节），系统盘只剩 OS 与 `/usr`；这两行 fstab **不带 `nofail`**，配合三个 unit 的 `RequiresMountsFor=/data`，挂不上就挡服务而不是让 mysqld/k3s 对着空目录初始化
   - 好处：`docker compose down -v` 毁不掉生产数据；备份/排查/换机直接对着 `./data` 操作
   - 目录属主必须是 uid 999（mysql/redis 官方镜像都以 uid 999 运行），`data` 阶段会建目录并 `chown 999:999` + `chmod 750`
   - 各自挂子目录而不是整个 `./data`：照片/日志与 InnoDB 文件不共用一套属主权限，一次误 `chmod -R` 不会同时带走
 - **老环境（命名卷版）升上来先跑一次 `./ecs-setup.sh tobind`**：停容器 → `cp -a` 卷内容到 `data/mysql`、`data/redis` → 校验 `auto.cnf` / `appendonlydir` 标记 → 再 `data`/`app`。目标目录非空即中止，不覆盖；确认数据在之后按提示手工 `docker volume rm` 旧卷腾出约 211MB
 - `backup.sh` 的 cron：`0 3 * * *`，产物 `/opt/family-tree/backups/family_tree_*.sql.gz`
-- **备份、数据库、照片同盘（/dev/vda3）**，只靠它不算异地副本：另配 ECS 控制台自动快照，或把 `backups/` 与 `data/photos` 同步到 OSS
+- **备份、数据库、照片同盘（数据迁移后是 `/dev/vdb1`，不再是系统盘）**，只靠它不算异地副本：另配 ECS 控制台自动快照，或把 `backups/` 与 `data/photos` 同步到 OSS
 
 ## 域名 HTTPS：配置已装好，等备案接入生效
 

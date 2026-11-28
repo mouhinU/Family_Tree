@@ -10,7 +10,7 @@
 | 动作 | 状态 | 原因 |
 |---|---|---|
 | `docker compose up/down`、改 `.env` 的 `FT_IMAGE`、`repair` | 本 SOP 内，照做 | 就是发版本身 |
-| `./ecs-setup.sh tobind`（命名卷 → 宿主 bind 目录） | **暂缓，需点名授权** | 实例上 compose 仍是命名卷（`family-tree_mysql-data` / `family-tree_redis-data`）。仓库版 compose 已改 bind 挂载，**直接传上去 = mysql 挂到空目录 = 安静建一套空 schema 并正常启动**（V7 修好后连报错都没有），等于把生产库换成空库还看不出来 |
+| `./ecs-setup.sh tobind`（命名卷 → 宿主 bind 目录） | **已完成，别再照原样跑**（2026-11-28 §13/§14） | 实例 compose 已是 bind（`./data/mysql` / `./data/redis`），两个 named volume 已回收。**这条警告本身仍然有效**：仓库版 compose 的 bind 路径若在数据盘侧不存在，mysql 会对空目录初始化出一套空 schema 并正常启动（V7 修好后连报错都没有），所以任何重建数据面的动作前都要先过 `guard_mysql_datadir`（`ibdata1` 存在性）与备份 |
 | 把 `SPRING_PROFILES_ACTIVE` 从 `mysql` 切到 `mysql,ecs` / `mysql,prod` | **暂缓** | `prod` 在明文 HTTP 下下发 `Secure` Cookie → 登录 200 但下一个请求就 401；`ecs`/`prod` 都打开 `forward-headers-strategy: framework`，改的是 **Tomcat 侧**的 remoteAddr 口径——应用自己的 IP 口径已在 `8395f3b` 之后由 [`ClientIpResolver`](../../family-tree-web/src/main/java/com/mouhin/family/tree/web/util/ClientIpResolver.java) 复核落定（仅本机直连对端采信代理头、取 XFF 最右段），但 framework 策略会按 XFF **最左**段重写 `getRemoteAddr()`（客户端自带 XFF 即可再次自选来源，按 IP 的限流/短信额度又回到可绕过），与 resolver 的「非环回对端不信头部」相反，且 logback 日志里的 IP 也会随之改写 → 切 profile 时仍需单独复核，别顺手带 |
 | 安全组、DNS、备案、宝塔面板 | **不碰** | 由用户在控制台操作 |
 | `git commit` / `push` | **ECS 常规发版按 2026-11-27 用户授权自动执行**；其他场景需点名 | 用户已明确“以后发布还是基于之前的规则处理，不要我再确定”；仍须先过 clean package、备份、旁路验收与切流后复验 |
@@ -497,7 +497,7 @@ MySQL 起来后蓝槽 pod 会自己收敛（探针转 ready），**不需要**�
 
 实例是**一系统盘 + 一数据盘**：`vda` 40G（`vda3` ext4 = `/`，迁移前 24G used / 64%）与 `vdb` 50G（`vdb1` ext4 = `/data`，此前空盘，fstab 里已有 `UUID=8b1a89e4-08ac-4036-9edb-0cf557072ede /data ext4 defaults 0 2`）。两块盘的 `queue/rotational` 都是 1（高效/普通云盘，不是 ESSD）。系统盘上的大户：`/var/lib/docker` 4.6G、`/var/lib/rancher/k3s` 4.0G、`/usr` 5.1G、`/root` 2.3G、`/opt/family-tree` 1.3G。
 
-本轮只把**业务数据**挪到数据盘：日志、照片、备份、MySQL datadir、Redis AOF。`/var/lib/docker` 与 k3s 的 data-root 仍在系统盘（挪它们要停 docker/k3s 并重建 containerd store，属另一个窗口，待点名）。
+本轮先只把**业务数据**挪到数据盘：日志、照片、备份、MySQL datadir、Redis AOF。`/var/lib/docker` 与 k3s 的 data-root 当时仍在系统盘（挪它们要停 docker/k3s 并重建 containerd store，属另一个窗口）——**该窗口已于同日 20:36–20:43 走掉，见 §14**。
 
 ### 13.2 落位方式：bind 挂载，不改任何路径
 
@@ -523,7 +523,7 @@ sed -i 's|^      - redis-data:/data|      - ./data/redis:/data|' docker-compose.
 docker compose --project-directory /opt/family-tree -f /opt/family-tree/docker-compose.yml up -d mysql redis
 ```
 
-实测 InnoDB 191M + AOF 7.0M 复制约 1s。**旧的两个 named volume（`family-tree_mysql-data` / `family-tree_redis-data`）留着不删**，作为「bind 侧出问题就回切卷声明」的对照副本；compose 末尾那份 `volumes:` 声明也原样保留（不被引用即无害，删了反而少一条回退路径）。
+实测 InnoDB 191M + AOF 7.0M 复制约 1s。**迁移当时旧的两个 named volume（`family-tree_mysql-data` / `family-tree_redis-data`）留着不删**，作为「bind 侧出问题就回切卷声明」的对照副本；compose 末尾那份 `volumes:` 声明也原样保留（不被引用即无害）。对照副本的回收条件是「整实例重启演练通过」——**该条件已于 20:5x 满足，两个卷已 `docker volume rm`，见 §14.4**（compose 里的 `volumes:` 声明保留，重建即回到卷形态）。
 
 ⚠️ **compose 网络接管坑**：`family-tree_default` 是 19:2x 重启自愈时 `docker network connect` 建的，**没有 compose 标签**，`compose up` 直接拒绝：
 
@@ -557,7 +557,107 @@ DB 读数迁移前后一致：32 表 / 19 家族 / 205 账号 / 246 节点 / 211
 1. **槽位自适应**：不再写死 `8091` / `family-tree-app-blue`，改为探测 8091 与 8092，卡住时只对 `spec.replicas>0` 的 deployment `rollout restart`（休眠槽是回滚锚，绝不拉起）。
 2. **数据盘守卫**：开机先 `ensure_datadisk_mounts`（`/data` 未挂即报警、四个 bind 缺失即补 `mount --bind`），再 `guard_mysql_datadir`——`/opt/family-tree/data/mysql/ibdata1` 不存在就**中止，拒绝启动数据面**，防止 mysqld 在空 datadir 上安静建出一套新库（README「已知限制」里那个最贵的事故）。
 
-### 13.7 待点名授权的收尾
+### 13.7 收尾（同日已完成，见 §14）
 
-- 回收系统盘：删 `/opt/family-tree/{logs,data,backup,backups}.old-20261128_202100`（合计约 1.25G，其中 `backup.old` 1.2G 是旧镜像 tar 副本）与两个不再引用的 named volume（约 200M）。**在确认数据盘侧备份与整盘快照策略之前不要删**——目前备份、数据库、照片已经同处一块数据盘，只靠 `df /` 变松不算多副本。
-- scope ③：`/var/lib/docker`（4.6G）与 k3s image store（4.0G）的 data-root 迁到 `/data`，可把根盘从 64% 降到约 40%，需停 docker + k3s 的独立窗口。
+- 回收系统盘：`/opt/family-tree/{logs,data,backup,backups}.old-20261128_202100` 与两个不再引用的 named volume —— §14.4。
+- scope ③：`/var/lib/docker`（4.6G）与 k3s image store（4.0G）的 data-root 迁到 `/data` —— §14.1~§14.3。
+- ⚠️ 备份单点风险仍在：备份、数据库、照片如今同处 `vdb1` 一块盘，`df /` 变松不等于多副本；跨盘/异地副本仍是缺口（`release.yml` 的产物在 ghcr，数据没有）。
+
+## 14. scope ③：docker/k3s 数据根迁盘 + 真实重启演练（2026-11-28 20:36–20:56 CST）
+
+### 14.1 动作与时间窗
+
+停机窗口 **20:37:43 → 20:43**（约 5.5min，nginx 侧全程 502，属计划内中断；`/opt/family-tree` 应用面在 k3s，随 k3s 一起停）。
+
+| 时刻（CST） | 动作 |
+|---|---|
+| 20:36:26 | 迁移前全量备份落数据盘：`backups/family_tree_20261128_203626.sql.gz`（74,879B，sha256 `8b6fd98f67f6…`，32 表，GZIP_OK） |
+| 20:37:43 | 停 k3s → 杀孤儿 shim → 停 containerd/docker（见 §14.3 坑 1） |
+| 20:38:27 → 20:40:05 | `cp -a /var/lib/docker/. /data/docker/` + `cp -a /var/lib/rancher/k3s/. /data/k3s/` + `sync`（98s，实测 `/data` 写速 ~141MB/s） |
+| 20:40:39 | apply：原目录 `mv` 成 `.pre-datadisk`、建挂载点、fstab 追加两行、`mount -a` 断言、写三个 systemd drop-in |
+| 20:40:50 | `systemctl start containerd docker` → `docker info` 确认根目录 → `systemctl start k3s` |
+| ~20:43 | 修 libnetwork 与端口发布（坑 2/3） |
+| 20:47 | 绿槽 `rollout restart` → `1/1`、`8092/actuator/health=200`、`root=200`、`ft-sentinel.sh rc=0` |
+| 20:49:38 | 整实例 `reboot`（演练） |
+| 20:52:21 | 自愈 unit 判定完成，rc=0 |
+| 20:54 | 回收旧副本，`df /` 24G/64% → 14G/38% |
+
+### 14.2 落位与加固
+
+延续 §13.2 的 bind 手法（路径字符串零改动，daemon.json / k3s `--data-dir` 一律没碰）：
+
+```
+/data/docker  /var/lib/docker        none bind 0 0
+/data/k3s     /var/lib/rancher/k3s   none bind 0 0
+```
+
+这两行**故意不带 `nofail`**（与四条业务 bind 相反）：数据根挂不上就让服务起不来，好过 mysqld / k3s 对着空目录初始化出一套新库新集群。`/data` 本身同样不带。
+
+配套三份 drop-in（`/etc/systemd/system/{docker,containerd,k3s}.service.d/datadisk.conf`）：
+
+```ini
+[Unit]
+RequiresMountsFor=/data
+```
+
+让这三个 unit 排在 `/data.mount` 之后且要求它已成功。SELinux 为 `Disabled`，无 restorecon/label 顾虑。
+
+一次性脚本留档在本地 `/tmp/scope3-{copy,apply,start}.sh`（sha256 `b09ea29e…` / `9f06d215…` / `186121e2…`，均有前置守卫：目标目录必须为空、`.pre-datadisk` 不得已存在、服务必须已停、`COPY_ALL_DONE` 标记必须在）。
+
+### 14.3 三个坑（都花掉了窗口，别再踩）
+
+1. **`systemctl stop k3s` 不等于应用停了**。k3s 退出后遗留 `containerd-shim-runc-v2` 孤儿进程，容器里的 java 继续以 hostNetwork 占着 8092 —— 站点仍返回 200，看着像"没停"。数据根手术前必须 `pkill -f containerd-shim-runc-v2`，并确认 `8092` 监听消失（此时 nginx 才真的 502），否则是在对活的 overlay store 做 `cp -a`。
+2. **libnetwork 持久化对象加载不完整**。daemon 重启后 `docker network ls` 的 ID 与容器 pin 的 `NetworkSettings.Networks.*.NetworkID` 一致、bridge 设备也在，但起容器仍报 `failed to create endpoint … on network family-tree_default: network <id> does not exist`；`systemctl restart docker` **无效**。处置：`docker network disconnect -f` 摘掉全部容器 → `docker network rm family-tree_default` → `docker compose up -d mysql redis` 让 compose 自建带标签的网络（本次新 ID `4e9267793297`）。
+3. **compose `up -d` 复用旧 sandbox 时端口不出现**。`HostConfig.PortBindings` 有值而 `NetworkSettings.Ports = {}`，`docker port` 空、宿主 `127.0.0.1:3308/6381` 无监听，于是应用连不上库、pod 卡 CrashLoop——**光看 compose 输出 "Starting" 会误判成已恢复**。处置：`docker compose up -d --force-recreate mysql redis`，之后 `ss -ltn` 必须看到两个环回监听。
+
+### 14.4 旧副本回收（20:54）
+
+删除前逐项验过安全性：`.old-*` 四个目录与 live 目录做**文件名级 `comm` 比对，only-in-old = 0**（即无独有内容）；两个 named volume 的 `.Containers` 为空；旧数据根已不是任何挂载点（`findmnt -T` 落在 `/`）。回收清单：
+
+```
+/opt/family-tree/{logs,data,backup,backups}.old-20261128_202100   ~1.3G
+docker volume rm family-tree_mysql-data family-tree_redis-data    ~207M
+/var/lib/docker.pre-datadisk (4.6G)  /var/lib/rancher/k3s.pre-datadisk (4.0G)
+docker rm -f serene_easley                                        （Created 状态残留）
+```
+
+结果：`/dev/vda3` 24G/64% → **14G/38%**，`/dev/vdb1` 9.7G/21%。回收后复验 `docker`/`k3s` 均 `active`、两容器 `Up (healthy)`、`volume ls` 已无 family-tree 卷、哨兵 rc=0、公网 200。
+
+⚠️ **代价**：scope ③ 的回滚副本（`.pre-datadisk`）已随清理消失。今后若要把数据根挪回系统盘，只能反向 `cp -a /data/docker/. /var/lib/docker/`（需再次停服），没有秒级回切开关。
+
+### 14.5 真实重启演练结果（首次，非幂等空跑）
+
+`reboot` 20:49:38 下发 → 实例 20:49:52 完成引导 → `ft-boot-recover.service` 20:50:32 起跑：
+
+```
+20:50:32 === ft-boot-recover 开始 ===
+20:50:38 family-tree-mysql 已在运行 / family-tree-redis 已在运行
+20:50:38 mysql 已 healthy / redis 返回 PONG
+20:52:21 应用槽 8092 health=200
+20:52:21 === ft-boot-recover 结束，返回码 0 ===
+```
+
+即**开机 46s 内数据面就绪、1min43s 内应用槽自愈**，无需人工。§12 那次的 `ZONE_CONFLICT` / 网络 ID 错配没有复现（unit 的剪陈旧绑定 + 四级兜底起作用）。绿槽 pod 期间 `RESTARTS 1`（应用先于数据面就绪失败一次），随后 `1/1`。
+
+**会话仍会全丢**：redis 落数据盘后 `dbsize` 从 3 → 2，AOF 没有捞回旧 key（与 §12 同形态），整实例重启后在线用户需重新登录——这是既定代价，不是回归。
+
+### 14.6 验收证据（迁移后与重启后各一次，读数逐字一致）
+
+```
+findmnt -T：/var/lib/docker /var/lib/rancher/k3s /opt/family-tree/data /opt/family-tree/logs
+            全部 SOURCE=/dev/vdb1[/<子路径>]，dev=64785
+docker info：DockerRootDir=/var/lib/docker（bind 后实为数据盘）；13 个 family-tree 镜像在库
+DB：tables=32 families=19 accounts=205 nodes=246 members=211 links=29 flyway_ok=41（与 §13.5 基线逐字一致）
+照片：data/photos 2 个文件 / 1.2M，与迁移前副本计数一致
+哨兵：mode=k3s base=http://127.0.0.1:8092，四行 OK，rc=0
+槽位：family-tree-app-green 1/1（v95-local，在任）/ family-tree-app-blue 0/0（v95-local，休眠锚）
+公网：/ /home /login.html = 200，前端指纹仍是 style.css?v=20261128d（v95）
+日志：当前 pod `--since` 窗口内 " ERROR " 计数 = 0
+```
+
+### 14.7 残余
+
+- 备份/数据库/照片同盘的单点风险（§13.7）仍是缺口，建议加一条 `aliyun` 快照或对象存储副本。
+- `/root/ft-migrate/` 的镜像 tar、`/opt/family-tree/*.bak.pre-datadisk-*` 文档副本留着未清，属主动保留。
+- 数据根手术只在「整机停机窗口」做过一次；如果将来想不停机迁盘，得改用 `docker daemon` 迁移或 lvm/卷级快照，不要拿 `rsync`（实例上没装）+ 在线 `cp -a` 赌一致性。
+

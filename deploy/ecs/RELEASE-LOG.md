@@ -17,6 +17,47 @@
 
 ---
 
+## 运维变更 — docker/k3s 数据根迁数据盘（scope ③）+ 真实重启演练 + 旧副本回收
+
+| 项目 | 内容 |
+|---|---|
+| 变更时间 | 2026-11-28 20:36–20:54 CST / 12:36–12:54 UTC（停机窗 20:37:43–20:43，约 5.5min） |
+| 变更内容 | `/var/lib/docker`（4.6G）与 `/var/lib/rancher/k3s`（4.0G）经 bind 落到 `/dev/vdb1`；整实例重启演练验证开机自愈；回收系统盘旧副本 |
+| 代码版本 | 无功能代码变更（镜像与 jar 仍是 v95 的 `f0ccb6a` 基线） |
+| 发布镜像 | 不变：`family-tree:v95-local`（蓝绿两侧同镜像） |
+| 数据库备份 | 停机前全量 dump 落数据盘：`/opt/family-tree/backups/family_tree_20261128_203626.sql.gz`（74,879B，sha256 `8b6fd98f67f6…`，32 表，GZIP_OK） |
+| 数据库变更 | 无 Flyway 版本、无表结构变更；仅镜像/容器存储的物理位置迁移（`cp -a` 98s） |
+| 部署槽位 | 未切流：nginx 仍指向绿槽 8092（沿用上一条的在任态） |
+| 在任版本 | `family-tree-app-green` / `family-tree:v95-local` / replicas 1 |
+| 回滚锚 | `family-tree-app-blue` / `family-tree:v95-local` / replicas 0；⚠️ scope ③ 的 `.pre-datadisk` 原数据根**已在 20:54 删除**，回退只能反向 `cp -a`（需再次停服） |
+| 系统配置 | `/etc/fstab` 追加两行 bind（**不带 `nofail`**，挂不上即挡服务）+ `/etc/systemd/system/{docker,containerd,k3s}.service.d/datadisk.conf` = `RequiresMountsFor=/data`；fstab 备份 `/etc/fstab.bak.scope3-<ts>` |
+
+### 变更内容明细
+
+- 落位仍用 bind，不改 `daemon.json`、不改 k3s `--data-dir`，仓库侧每一处路径字符串保持原样；SELinux `Disabled`，无 label 处理
+- 一次性脚本三份（本地 `/tmp/scope3-{copy,apply,start}.sh`，sha256 `b09ea29e…` / `9f06d215…` / `186121e2…`）都带前置守卫：目标目录须为空、`.pre-datadisk` 不得已存在、服务须已停、`COPY_ALL_DONE` 标记须在；启动脚本还先断言两条 bind 已在 `/proc/mounts`，否则拒绝拉起
+- 回收：`.old-20261128_202100` 四目录（删前 `comm` 比对 only-in-old=0）、两个不再引用的 named volume（`.Containers` 为空）、`.pre-datadisk` 两份原数据根、`Created` 状态残留容器 `serene_easley`
+
+### 验收结果
+
+- 三个坑及处置已固化进 SOP §14.3：k3s 停止后 `containerd-shim-runc-v2` 孤儿仍占 8092；libnetwork 报 `network <id> does not exist` 且重启 daemon 无效；compose 复用旧 sandbox 导致 `3308/6381` 无监听，须 `--force-recreate`
+- `df`：`/dev/vda3` 24G/64% → **14G/38%**；`/dev/vdb1` 9.7G/21%
+- `findmnt -T`：`/var/lib/docker`、`/var/lib/rancher/k3s`、`/opt/family-tree/data`、`/opt/family-tree/logs` 的 SOURCE 均为 `/dev/vdb1[/…]`（dev=64785）；`docker info` 镜像 13 个 family-tree tag 全在
+- `ft-sentinel.sh`：`mode=k3s base=http://127.0.0.1:8092` + 四行 OK，`rc=0`（清理后复跑仍 rc=0）
+- 读数对照：**迁移后与重启后两次均为** 32 表 / 19 家族 / 205 账号 / 246 节点 / 211 成员 / 29 跨族链、`success=1` 计 41，与基线逐字一致；照片 2 文件 / 1.2M 与迁移前副本计数一致
+- 真实重启演练：`reboot` 20:49:38 → 实例 20:49:52 回来 → `ft-boot-recover` 20:50:32 起跑，**20:50:38 mysql healthy + redis PONG、20:52:21 应用槽 8092 health=200、rc=0**，全程无人工；§12 的 `ZONE_CONFLICT`/网络 ID 错配未复现
+- 会话连续性：**未保持**——重启后 Redis `dbsize` 3 → 2，AOF 未捞回旧 key，在线用户需重新登录（既定代价）
+- 日志：当前绿槽 pod 重启后窗口内 `" ERROR "` 计数 0
+- 公网：`/`、`/home`、`/login.html` 均 200，前端指纹仍 `style.css?v=20261128d`（v95 未变）
+
+### 遗留事项
+
+- 备份、数据库、照片同处 `vdb1` 一块盘，**无异地副本**；建议补云快照或对象存储副本
+- scope ③ 回滚副本已删，挪回系统盘需再次停机（SOP §14.4）
+- 数据根手术只在整机停机窗口做过一次，实例上无 `rsync`，不要拿在线 `cp -a` 赌一致性
+
+---
+
 ## 运维变更 — 日志/数据/备份落位到数据盘（含一次同版本蓝绿切流）
 
 | 项目 | 内容 |
@@ -29,7 +70,7 @@
 | 数据库变更 | 无 Flyway 版本、无表结构变更；仅数据目录物理位置迁移（InnoDB 191M + AOF 7.0M，复制约 1s） |
 | 部署槽位 | nginx 8091 → 8092（6 处全量）；配置备份 `/etc/nginx/conf.d/family-tree.conf.bak.pre-datadisk-<ts>` |
 | 在任版本 | `family-tree-app-green` / `family-tree:v95-local` / replicas 1 |
-| 回滚锚 | `family-tree-app-blue` / `family-tree:v95-local` / replicas 0；清单备份 `deployment-green.yaml.bak.pre-datadisk-<ts>`；旧 named volume `family-tree_mysql-data`、`family-tree_redis-data` 保留未删 |
+| 回滚锚 | `family-tree-app-blue` / `family-tree:v95-local` / replicas 0；清单备份 `deployment-green.yaml.bak.pre-datadisk-<ts>`；旧 named volume `family-tree_mysql-data`、`family-tree_redis-data` 当时保留未删（20:54 回收，见上一条） |
 | 系统配置 | `/etc/fstab` 追加四条 bind（备份 `/etc/fstab.bak.pre-datadisk-<ts>`）；compose 备份 `docker-compose.yml.bak.pre-datadisk-<ts>` |
 
 ### 变更内容明细
@@ -51,9 +92,9 @@
 
 ### 遗留事项
 
-- `.old-20261128_202100` 四份原目录（约 1.25G）与两个不再引用的 named volume（约 200M）仍在系统盘上，回收需点名授权
-- 备份、数据库、照片现同处一块数据盘，仍无异地副本；`/var/lib/docker`（4.6G）与 k3s image store（4.0G）的 data-root 迁盘属下一窗口
-- 真实重启路径仍未演练（仅幂等空跑），见 SOP §12.5
+- ~~`.old-20261128_202100` 四份原目录（约 1.25G）与两个不再引用的 named volume（约 200M）仍在系统盘上，回收需点名授权~~ —— 20:54 已回收（见上一条）
+- ~~`/var/lib/docker`（4.6G）与 k3s image store（4.0G）的 data-root 迁盘属下一窗口~~ —— 同日 20:36–20:43 已完成（见上一条）；备份/数据库/照片同盘无异地副本这一条**仍然成立**
+- ~~真实重启路径仍未演练（仅幂等空跑），见 SOP §12.5~~ —— 20:49 已完成整实例重启演练并通过（SOP §14.5）
 
 ---
 
