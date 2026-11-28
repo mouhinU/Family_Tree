@@ -17,6 +17,251 @@
 
 ---
 
+## v95 — 登录态 Home 与「首页」导航统一
+
+| 项目 | 内容 |
+|---|---|
+| 发布时间 | 2026-11-28 18:08:37 CST / 2026-11-28 10:08:37 UTC |
+| 发布内容 | 已登录用户可直接访问公开 Home 且不会掉出登录态；新增不轮换 CSRF 令牌的登录状态接口；「产品首页」导航文案统一为「首页」，并在应用「更多」菜单、抽屉导航、过渡页与平台管理页补齐首页入口 |
+| 代码版本 | 未提交工作区；HEAD `853795d`；v95 随 v91/v92/v93/v94 未提交功能基线构建，本批延续用户「不提交、不推送」要求 |
+| 发布镜像 | `family-tree:v95-local`；镜像 ID `sha256:be3ba6fa83e1cda736aefc35ea4a8a96e3e0e4576437f0f980979deeabdde046`；基座 `family-tree:app-base`，层数 2 |
+| jar 校验 | SHA256 `56ec457a39ef1cd12e64eb25ab3c312de7cd3629e9148abfbf4361e8761d9564`；138,012,694 字节；本地 target、实例 `/root/ft-build/app.jar`、镜像内 `/app/app.jar` 三处一致 |
+| containerd 清单 | `sha256:d6eb71ba8037f82fbc2ea6062586732c32c112e3326df3226fedbad31f939449` |
+| 数据库备份 | `/opt/family-tree/backups/family_tree_20261128_180031.sql.gz`；74,848 字节；SHA256 `1bcc54c13de6e4c8df13a50fb0e4548f595ded35a47264eeb40e4ddc35330589`；`gzip -t` 通过、32 张表、中文正常 |
+| 数据库变更 | 无新增迁移；jar 内 MySQL 迁移顶版 V41 == 历史表顶 `41`、`success=1`，故无需 `repair` |
+| 部署槽位 | 蓝槽 `127.0.0.1:8091`；nginx 六处上游由 8092 切换为 8091（旧引用剩余 0、新引用 6） |
+| 在任版本 | `family-tree-app-blue`：`v95-local`，replicas=1；Pod Ready 1/1、0 重启；apply→rollout 86s |
+| 回滚锚 | 绿槽 `family-tree-app-green`：`v94-local`，replicas=0；docker 与 containerd 均保留 |
+| nginx 备份 | `/etc/nginx/conf.d/family-tree.conf.bak.pre-v95-20261128_180837` |
+
+### 发布内容明细
+
+- `HomeController.publicHome()` 新增 `GET /home`：匿名与已登录都可进入公开 Home，内部转发到 `/home.html`，响应带 `Cache-Control: no-store`；已登录用户访问 Home 不读也不写会话属性，因此不会踢出登录。
+- `AuthController.authStatus()` 新增 `GET /api/auth/status`：只回 `loggedIn` 布尔值，`request.getSession(false)` 不新建会话、也不轮换 CSRF 令牌；`/api/auth/config` 与 `/api/auth/status` 一并加入 `WebMvcConfig.PUBLIC_API_PATHS`，登录拦截与家族状态拦截共用同一份公开清单。
+- Home 前端按 `/api/auth/status` 切换 `[data-auth-state]` 与 `[data-registration-entry]`：已登录时隐藏注册/邀请入口并给出进入工作台的入口，拉取失败维持现状。
+- 导航文案统一：`index.html`「更多」下拉与抽屉导航、`portal.html`、`admin.html` 的 `产品首页 / 了解产品首页` 全部改为「首页」，仓库内静态资产已无 `产品首页` 残留。
+- 五页（index/admin/portal/login/home）`style.css` bump 到 `?v=20261128d`，并补齐 `.header-more-item`、`.drawer-nav-item` 的块级/弹性布局与 `text-decoration: none`。
+
+### 验收结果
+
+- 全量测试：`./mvnw -B clean package` 六模块 **752** 个用例（common 19 / domain 121 / infrastructure 39 / application 444 / web 129 + web 汇总 19），0 失败、0 错误、0 跳过；新增 `HomeControllerTest` 5 例与 `AuthStatusTest` 3 例全绿。
+- 产物核验：jar 内 `HomeController.class` 含 `publicHome`、`AuthController.class` 含 `authStatus`（`javap` 复核，防旧 class 复用）；jar 内 `index/admin/portal/login/home` 五个页面 `产品首页` 计数均为 0、`href="/home"` 计数分别为 2/1/1/1/2、`style.css?v=20261128d` 全部到位。
+- 本地浏览器验证：H2 + fakeredis 隔离环境（仅 `127.0.0.1:8097`）完成匿名与登录态两种 `GET /home`、`/` 根路由分流、会话跨 Home 往返存活、`/api/auth/status` 不轮换令牌（`/me` 取令牌→调 `/status`→同令牌 `POST /api/auth/logout` 返回 200）、1280 与 390×844 视口无控制台报错。
+- 旁路验收（蓝槽 8091，切流前）：`/actuator/health` 200；`/api/auth/config` 三开关 `registerEnabled/smsLoginEnabled/registerSmsVerify` 均为 `true`；匿名 `/home` 200 且标题为「族谱 — 让家族的记忆，代代相传」、`style.css?v=20261128d`；匿名 `/api/auth/status` 回 `loggedIn:false`；`/index.html` 200 且 0 处 `产品首页`、2 处 `href="/home"`。
+- 鉴权验收（蓝槽旁路）：匿名 `/api/auth/me`、`/api/node/list`、`/api/admin/graph/overview`、`/api/link-proposals` 均 HTTP 401。
+- 文案下发验收（蓝槽旁路）：`admin.html`、`portal.html`、`login.html` 均 0 处 `产品首页` 且各含 1 处 `href="/home"`。
+- 切流：18:08:37 CST 备份 conf → sed 六处 8092→8091（旧引用 0、新引用 6）→ `nginx -t` OK → reload 零中断。
+- 入口复验（本机 nginx 与公网 IP 双侧）：`/`、`/home`、`/index.html`、`/login.html`、`/admin.html`、`/portal.html` 全 200；`/api/auth/status` 回 `loggedIn:false`；经 nginx 与公网 IP 的 `index.html` 均为 `style.css?v=20261128d`（v94 只能回 `20261128b`，据此判定新流量已落到蓝槽）；公网 `/home` 200。
+- 会话连续性：切流前后 Redis 活跃会话数均为 1，切流后同一会话键仍存在（key 摘要 `5466dff3…`，TTL 由 119s 自然递减至 94s 属空闲未续期）。本次可证明会话数据跨槽存活，但该用户没有向新槽发过请求，故不作为「不掉线」的端到端实证。
+- 哨兵：`mode=k3s base=http://127.0.0.1:8091`，MySQL / Redis / health / 登录冒烟四行 OK，`rc=0`。
+- 数据库读数：切流后 32 表 / family 19 / account 205 / Flyway 顶版 `41` `success=1`、最新家族「周氏家族」UTF-8 正常——与发版前预检逐字一致。
+- 日志：蓝槽启动窗口（UTC 10:05 之后）`" ERROR "` 0 条；切流时刻（UTC 10:08:37）之后 error 日志 `" ERROR "` 0 条；发版窗口最后一条 ERROR 仍是 09:46 UTC 绿槽的扫描器 `Bin/ScreenConnect.ClientSetup.msi` 静态资源噪音（对应门控项 #203）。
+- 资源：内存 avail 2,073MB、磁盘 64%（余 14G）。
+
+### 遗留事项
+
+- 本批按用户要求未 commit、未 push；当前镜像不能由某个 commit 直接复现。
+- 未做生产登录态浏览器复核（需真实生产账号，属生产写入，未授权）；登录态 Home 的行为以本地隔离环境 E2E + 生产匿名 HTTP 双重证据替代。
+- `msjzp.xyz` 仍受既有备案接入限制，本轮验证走公网 IP 80。
+- Service Worker 未改动：导航仍为 network-first、离线兜底仍为 `/index.html`。
+
+---
+
+## v94 — 公开 Home 页面与会话感知根路由
+
+| 项目 | 内容 |
+|---|---|
+| 发布时间 | 2026-11-28 17:33:16 CST / 2026-11-28 09:33:16 UTC |
+| 发布内容 | 新增无需登录即可浏览的 Home 页面；匿名 `/` 进入 Home，已登录 `/` 仍进入族谱工作台；登录页增加“返回首页”；公开页接入注册开关与邀请码入口 |
+| 代码版本 | 未提交工作区；HEAD `853795d`；v94 随 v91/v92/v93 未提交功能基线构建，用户明确要求本批不提交、不推送 |
+| 发布镜像 | `family-tree:v94-local`；镜像 ID `sha256:c050a3f727cda82c7e2621e27bcbf9d580bd2508d23746a4a1fe68417bcd01b9` |
+| jar 校验 | SHA256 `8d0fe2140056037aca048d1a27af29a1c58744a36bfa3e84453b2a9061bb9e3f`；138,011,714 字节；本地、实例、镜像内一致 |
+| containerd 清单 | `sha256:c681e9a8aaf6f013716598b33a4e40e38855c2d300902318c80f72d760577f77` |
+| 数据库备份 | `/opt/family-tree/backups/family_tree_20261128_172114.sql.gz`；74,689 字节；SHA256 `8dfb56ba2f16d9d27cd2b2789b7082c30e3c52e01efd3492068aabc3b1723775`；gzip 完整、32 张表 |
+| 数据库变更 | 无新增迁移；Flyway V41 `success=1`、失败迁移 0 条；32 表 / 19 家族 / 205 账号 / 2 个有手机号账号 |
+| 部署槽位 | 绿槽 `127.0.0.1:8092`；nginx 六处上游由 8091 切换为 8092 |
+| 在任版本 | `family-tree-app-green`：`v94-local`，replicas=1；Pod Ready 1/1、0 重启 |
+| 回滚锚 | 蓝槽 `family-tree-app-blue`：`v93-local`，replicas=0；docker 与 containerd 均保留 |
+| nginx 备份 | `/etc/nginx/conf.d/family-tree.conf.bak.pre-v94-20261128_173316` |
+
+### 发布内容明细
+
+- 新增公开 Home：产品价值、功能预览、三步上手、隐私说明、邀请码入口与常见问题，仅使用通用示意内容，不读取或展示真实家族、人物、关系及照片数据。
+- 根路径按服务端会话状态内部转发：匿名用户到 `/home.html`，已登录用户到 `/index.html`；根响应设置 `Cache-Control: no-store`。
+- 登录页新增“返回首页”；邀请码自动去除首尾空白并转大写，进入登录页后切换注册页并回填；`mode=register` 可直接进入注册入口，注册关闭配置仍优先生效。
+- 修复 URL 驱动注册 Tab 的初始化顺序，确保自动切换发生在 Tab 点击监听器注册之后。
+- Home 使用外链脚本与既有 CSP，响应式导航、键盘焦点、Escape 关闭、减少动态效果偏好与语义化 FAQ 均已接入；未新增匿名业务数据接口。
+- `sw.js` 未改动：导航仍为 network-first，离线兜底仍为 `/index.html`；本次不改变既有离线工作台策略。
+
+### 验收结果
+
+- 全量测试：`./mvnw -B clean package` 共 **747** 个用例，0 失败、0 错误、0 跳过。
+- 本地浏览器验证：H2 + fakeredis 隔离环境完成桌面/移动布局、移动菜单、FAQ、注册关闭与配置失败提示、非法/有效邀请码、注册入口、登录、建族及已登录根路由验证；未访问或写入生产数据。
+- 产物自检：`node --check`、`git diff --check` 通过；发布 jar 内 Home/login 五个关键静态资产与源码逐字一致。
+- 镜像自检：基于 `family-tree:app-base` 构建，镜像层数 2，镜像内 jar SHA256 与发布 jar 一致；containerd 导入成功。
+- 旁路验收：绿槽 health `UP`，平台配置三开关保持 `true`；匿名 `/` 返回 Home，`/home.html`、Home CSS/JS、登录页及登录 JS 均返回 200 且版本正确；根响应带 `no-store`。
+- 接口验收：匿名访问 `/api/auth/me`、`/api/node/list`、`/api/link-proposals`、`/api/admin/link-proposals`、`/api/admin/graph/overview` 均返回 HTTP 401 / code 401。
+- 资产摘要：生产下发的 `home.html`、`home.css`、`home.js`、`login.html`、`login.js` 分别为 `fbf1f6c5…`、`f6a9deeb…`、`0caba208…`、`840a85f3…`、`b2e41285…`，与本地源码一致。
+- 数据库验收：Flyway V41 成功、失败迁移 0 条；32 表 / 19 家族 / 205 账号 / 2 个有手机号账号，与发版前基线一致。
+- 生产检查：nginx 旧 8091 引用剩余 0、新 8092 引用 6；绿槽稳定后连续 5/5 次匿名根请求命中 v94 Home，本机经公网 IP 复核根、Home、登录页均返回 200 且资产版本正确；蓝槽缩容后仍为 200/UP。
+- 会话连续性：切流前后 Redis 活跃会话均为 0，排序会话键 SHA256 均为空集合摘要 `e3b0c442…`；本次没有活跃会话可作“不掉线”结论。
+- 哨兵：MySQL、Redis、健康检查、登录冒烟四项通过，退出码 0；健康基址为 8092。
+- 日志：绿槽启动后仅有 `/favicon.ico` 静态资源 ERROR 1 条，属既有未知路径问题 #203；切流瞬间旧蓝槽 `/home.html` ERROR 1 条，未发现应用异常。
+
+### 遗留事项
+
+- 本次按用户要求未提交、未推送代码；当前镜像不能由某个 commit 直接复现。
+- 生产浏览器视觉验收未完成：Chrome DevTools MCP 访问公网 IP 时返回 `ERR_BLOCKED_BY_CLIENT`，未改用其他方式绕过；本地浏览器验证与生产静态/运行态验收分开记录。
+- Home 离线行为未重新验证；既有 Service Worker 离线兜底仍指向工作台 `/index.html`。
+- `msjzp.xyz` 仍受既有备案接入限制；公网 IP 80 验证通过，未修改 DNS、安全组或网络配置。
+- 未使用生产账号写入回归数据。
+
+---
+
+## v93 — 平台基础族谱牌位卡样式对齐
+
+| 项目 | 内容 |
+|---|---|
+| 发布时间 | 2026-11-28 15:49:12 CST / 2026-11-28 07:49:12 UTC |
+| 发布内容 | 平台管理跨族图谱中，点击家族后展示的基础族谱改用与主族谱一致的竖排牌位卡、双线框、绶带、辈分、生卒年与 deceased/missing 样式 |
+| 代码版本 | 未提交工作区；HEAD `853795d`；v93 随 v91/v92 未提交功能基线构建，用户明确要求本批不提交、不推送 |
+| 发布镜像 | `family-tree:v93-local`；镜像 ID `sha256:8d9959644623ff0c319bffd688c773451055fb110aadefd32aeb5dbaaa78e0ac` |
+| jar 校验 | SHA256 `3d86341b3f4b6bf1c428734fd5e7a1ca58d8a9f11e73eb9b1ee064a4d1a53fe3`；138,000,240 字节；本地、实例、镜像内一致 |
+| containerd 清单 | `sha256:604baf981301ff9f353f34baee9e6cff4943a8bae8f19541ef4debd090980d1e` |
+| 数据库备份 | `/opt/family-tree/backups/family_tree_20261128_154317.sql.gz`；69,733 字节；SHA256 `e2012656f7c8f7b9c6daab74c5e0dbdafb4f6348b31035292c657ba7c3270c33`；gzip 完整、32 张表 |
+| 数据库变更 | 无新增迁移；Flyway V41 `success=1`，失败迁移 0 条；32 表 / 15 家族 / 196 账号 / 17 条正式跨族链接 |
+| 部署槽位 | 蓝槽 `127.0.0.1:8091`；nginx 六处上游由 8092 切换为 8091 |
+| 在任版本 | `family-tree-app-blue`：`v93-local`，replicas=1；Pod Ready 1/1、0 重启 |
+| 回滚锚 | 绿槽 `family-tree-app-green`：`v92-local`，replicas=0；docker 与 containerd 均保留 |
+| nginx 备份 | `/etc/nginx/conf.d/family-tree.conf.bak.pre-v93-20261128_154912` |
+
+### 发布内容明细
+
+- 基础族谱节点由横向信息卡调整为主族谱同款 64×132 竖排牌位卡，保留 14px 夫妻间距。
+- 增加双线内框、左侧绶带、辈分、竖排姓名、底部性别与生卒年；在世与 deceased 使用不同纸色和墨色，缺失信息使用虚线弱化样式。
+- 夫妻并排使用心形分隔，姓名过长时按字符数收缩字号；服务端返回文本继续经过 HTML 转义。
+- `admin-graph.js` 缓存版本更新为 `20261128f`，普通用户主族谱渲染逻辑未改动。
+
+### 验收结果
+
+- 全量测试：`./mvnw -B clean package` 共 **744** 个用例，0 失败、0 错误、0 跳过。
+- 产物自检：jar 内 `admin.html` 与 `admin-graph.js` 分别和仓库源文件逐字一致，SHA256 为 `81420bcd…` 与 `adef4783…`；镜像内 jar 与发布 jar 逐字一致；`node --check` 与 `git diff --check` 通过。
+- 旁路验收：蓝槽 health `UP`，`admin.html` 下发 `admin-graph.js?v=20261128f`；牌位卡尺寸、双线框、绶带、deceased/missing 样式标记均存在；平台配置三开关保持 `true`。
+- 接口验收：匿名访问 `/api/link-proposals`、`/api/admin/link-proposals`、`/api/admin/graph/overview` 均返回 HTTP 401 / code 401。
+- 数据库验收：Flyway V41 成功标记为 1，失败迁移 0 条；32 表 / 15 家族 / 196 账号 / 17 条正式链接，与发版前基线一致。
+- 生产检查：nginx 80 根路径、登录页、Admin 页、图谱脚本、配置端点均通过；公网 IP 80 对应入口与配置端点均通过。
+- 会话连续性：切流前后 Redis 活跃会话均为 2，排序会话键 SHA256 均为 `0335cdf8abfcdaf3b35c8f56ef9eeb08162232510da11bdfcac598114333b582`。
+- 流量切换证据：nginx 旧 8092 引用剩余 0、新 8091 引用 6；从 07:49:30 UTC 起的稳定窗口记录 46 条 `http-nio-8091` 请求、0 条 `http-nio-8092` 请求。
+- 哨兵：MySQL、Redis、健康检查、登录冒烟四项通过，退出码 0；当前健康基址为 8091。
+- 日志：蓝槽 Pod 07:45:39 UTC 启动后 `http-nio-8091` ERROR 新增 0 条；同期绿槽扫描器未知路径 ERROR 不计入蓝槽应用验收。
+
+### 遗留事项
+
+- 本次按用户要求未提交、未推送代码；当前镜像不能由某个 commit 直接复现。
+- 生产平台提案开关保持既有安全默认，未在发布过程中代为开启。
+- `msjzp.xyz` 仍受既有备案接入限制；公网 IP 80 验证通过，未修改 DNS、安全组或网络配置。
+- 浏览器视觉验收未完成：`browser-use` CLI 不可用，未擅自切换其他浏览器自动化工具；本版完成的是静态资产内容、镜像与生产运行态验收，不声称已通过浏览器视觉回归。
+- 未使用生产账号写入回归数据。
+
+---
+
+## v92 — 图谱基础树与节点链接数配色
+
+| 项目 | 内容 |
+|---|---|
+| 发布时间 | 2026-11-28 15:09:13 CST / 2026-11-28 07:09:13 UTC |
+| 发布内容 | 普通端与 Admin 端 Controller 分包、跨族链接提案治理随 v91 未提交批次一并发布；平台跨族图谱支持点击家族查看基础族谱，节点按当前视图跨族链接数量分级着色 |
+| 代码版本 | 未提交工作区；HEAD `853795d`，v91 功能基线 `39d0f34`；用户明确要求本次不提交代码 |
+| 发布镜像 | `family-tree:v92-local`；镜像 ID `sha256:19b8220532c95a7cb8553abb3cc533a9ff982357079765ffc32f9139d113ef72` |
+| jar 校验 | SHA256 `943361b95bca79a4040a5e0a3d7030a457632663e0d2a648d7a04c5905246390`；137,999,567 字节，本地、实例、镜像内一致 |
+| containerd 清单 | `sha256:b2cac8d126a1439b5151692462743ff8680fa7ebf5b925452fb940d9da62adb0` |
+| 数据库备份 | `/opt/family-tree/backups/family_tree_20261128_150313.sql.gz`；69,704 字节；SHA256 `aec1a314f72192207eefe9c99161f2d961c0040c5ea3c14d79665f88e9d324ed`；gzip 完整、UTF-8 可读、32 表 |
+| 数据库变更 | 无新增迁移；Flyway V41 `success=1`，失败迁移 0 条；32 表 / 15 家族 / 196 账号 / 17 条正式跨族链接 |
+| 部署槽位 | 绿槽 `127.0.0.1:8092`；nginx 六处上游由 8091 切换为 8092 |
+| 在任版本 | `family-tree-app-green`：`v92-local`，replicas=1 |
+| 回滚锚 | 蓝槽 `family-tree-app-blue`：`v91-local`，replicas=0；docker 与 containerd 均保留 |
+| nginx 备份 | `/etc/nginx/conf.d/family-tree.conf.bak.pre-v92-20261128_150913` |
+
+### 发布内容明细
+
+- 跨族治理图谱点击家族节点后，在当前详情区通过“基础族谱 / 跨族链接”页签切换；基础树仅展示姓名、性别、生卒年和世代。
+- 基础树复用家族人物网络数据，支持夫妻并排、亲子/收养层级、多根、孤立节点与循环关系兜底，不重复渲染节点。
+- 治理视图家族节点按当前可见跨族链接数量分为 `0`、`1`、`2–3`、`4–6`、`7–11`、`12+` 六档；异常节点保持红色。
+- 链接类型筛选后重新计算节点颜色，图例和悬浮提示同步显示当前视图链接数、总链接数与异常数；人物网络模式保留原配色语义。
+- v91 提案治理批次随本次发布：普通用户与平台管理员 Controller 分包，手工跨族链接改为双端投票提案与平台审核，正式链接撤销使用 POST。
+
+### 验收结果
+
+- 全量测试：`./mvnw -B clean package` 共 **744** 个用例，0 失败、0 错误、0 跳过。
+- 隔离浏览器回归：提案创建、双端投票、撤回、重新同意、评论、通过、驳回和取消流程通过；基础树夫妻层级、循环兜底、文本转义和空树行为通过；六档节点颜色、异常红色、筛选重算与 tooltip 通过。未向生产写入回归数据。
+- 旁路验收：绿槽 health `UP`，平台配置三开关保持 `true`，`admin.html` 下发 `admin-graph.js?v=20261128e`，基础树与链接数配色资产内容断言通过。
+- 接口验收：匿名访问用户端与 Admin 端提案列表均返回 HTTP 401 / code 401。
+- 数据库验收：Flyway V41 `success=1`，失败迁移 0 条，32 表；业务基线为 15 家族、196 账号、17 条正式跨族链接。
+- 镜像自检：镜像层数 2，Entrypoint、User、WorkDir 与 v91 一致，镜像内 jar 摘要与发布 jar 逐字一致。
+- 生产检查：nginx 80 根路径、登录页、Admin 页、图谱脚本、配置端点均通过；公网 IP 80 根路径、登录页、Admin 页、图谱脚本与配置端点均通过。
+- 会话连续性：切流前后 Redis 活跃会话均为 1，会话键排序 SHA256 前后均为 `c47058b07c0ac4695e194e2917cb37d8f9e50e5fecc5aeb4a75e2e9d0aac065b`；TTL 分别为 1,777,264 与 1,797,101。
+- 流量切换证据：nginx 旧端口引用 0、新端口引用 6；切流后窗口记录 28 条 `http-nio-8092`，另有 1 条旧槽在途日志；蓝槽于 15:09:59 CST 缩容后，最终窗口 49 条应用日志全部为 `http-nio-8092`，无 8091 残留。
+- 哨兵：MySQL、Redis、健康检查、登录冒烟四项通过，退出码 0。
+- 日志：按 UTC 切片，绿槽 07:04:55 启动至验收窗口应用 ERROR 日志新增 0 条。
+
+### 遗留事项
+
+- 本次按用户要求未提交、未推送代码；当前镜像不能由某个 commit 直接复现。
+- 生产平台提案开关保持既有安全默认，未在发布过程中代为开启；需管理员在平台配置中显式启用后，用户才能发起提案。
+- `msjzp.xyz` 的域名入口仍受既有备案接入限制；公网 IP 80 验证通过，未修改 DNS、安全组或网络配置。
+- 未使用生产账号写入测试数据；生产验收采用匿名权限、健康、配置、会话键与日志证据。
+
+---
+
+## v91 — 跨族链接提案治理
+
+| 项目 | 内容 |
+|---|---|
+| 发布时间 | 2026-11-28 09:32:17 CST / 2026-11-28 01:32:17 UTC |
+| 发布内容 | 手工跨族关联改为「两端 N 个有效节点投票 + 平台审核」提案制；用户端与平台管理端提案页面、投票/撤回/取消/评论/审核/过期失效流程上线；普通端与 Admin 端 Controller 分包 |
+| 代码版本 | 未提交工作区；基线 `39d0f34`，用户明确要求本次不提交代码 |
+| 发布镜像 | `family-tree:v91-local`；镜像 ID `sha256:08bb7199b1017c726c2c174669f1ad642a419e95317892abe78a8e9e43f74821` |
+| jar 校验 | SHA256 `45847f5292cd04ab1222cf8418b6bd3d4f7e3d726725b079cc30c06051ee4b1f`；137,996,984 字节，本地、实例、镜像内一致 |
+| containerd 清单 | `sha256:45310c9f7617eeca84501e6af41d3b3f2e83ab666a9e1d1f4ab405cf8e5db345` |
+| 数据库备份 | `/opt/family-tree/backups/family_tree_20261128_092856.sql.gz`；SHA256 `c67bb897c239ab69aa9a9df921e9426110e477d6521f4899d2880d59f8f10d03`；gzip 完整、29 表 |
+| 数据库变更 | Flyway V41 成功；新增 `family_node_link_proposal`、`family_node_link_proposal_vote`、`family_node_link_proposal_event` 三表，并为 `family_node_link` 增加 `proposal_id` 列；共 32 表，迁移成功标记为 1 |
+| 部署槽位 | 蓝槽 `127.0.0.1:8091`；nginx 六处上游由 8092 切换为 8091 |
+| 在任版本 | `family-tree-app-blue`：`v91-local`，replicas=1 |
+| 回滚锚 | 绿槽 `family-tree-app-green`：`v90-local`，replicas=0；docker 与 containerd 均保留 |
+| nginx 备份 | `/etc/nginx/conf.d/family-tree.conf.bak.pre-v91-20261128_093217` |
+
+### 发布内容明细
+
+- 家族管理员不能直接创建正式手工跨族链接，必须发起提案；正式链接在平台审核通过后建立。
+- 平台最低同意数与家族要求共同决定有效门槛，取两者较大值；两端分别统计不同节点的有效投票。
+- 投票账号须为对应家族的现有成员并绑定本家族节点；退出家族、解绑/换绑、节点或家族状态失效会使投票或提案失效。
+- 支持提案列表与详情、同意、撤回同意、发起人取消、管理员评论、通过、驳回、到期和自动失效处理。
+- 正式链接撤销改为 POST 接口；既有 `ACCOUNT` 自动链接与存量正式链接保持原状。
+- 普通用户 Controller 与平台管理员 Controller 分别放入 `controller.user` 和 `controller.admin` 包，原 URL 映射保持不变，提案相关接口按新规则调整。
+
+### 验收结果
+
+- 全量测试：`./mvnw -B clean package` 共 **744** 个用例，0 失败、0 错误、0 跳过。
+- 隔离验证：H2 Flyway V1–V41 启动成功；浏览器覆盖发起提案、双端投票、达到待审核、撤回后回退、重新同意、管理员评论与通过、驳回意见必填及驳回落库。
+- 旁路验收：蓝槽 health `UP`，登录页 200，平台配置三开关保持 `true`，`index.html`/`admin.html` 下发 `20261128b` 静态版本。
+- 接口验收：匿名访问用户端与 Admin 端提案列表均返回 401；前端提案资产包含新 API。
+- 数据库验收：V41 `success=1`，三张新表存在且初始为空，`family_node_link.proposal_id` 列存在；业务基线为 10 家族、181 账号、8 条正式链接。
+- 镜像自检：镜像层数 2，Entrypoint、User、WorkDir 与基座一致，镜像内 jar 摘要与发布 jar 逐字一致。
+- 生产检查：nginx 80 根路径与登录页均 200，配置端点正常，静态版本为新版，提案接口受登录保护；公网 IP 80 根路径与登录页均 200。
+- 会话连续性：切流前后 Redis 活跃会话均为 0，无活会话可对照；会话存储仍为 Redis，代码与配置未改。
+- 流量切换证据：nginx 六处上游全部切至 8091，旧端口引用为 0；验收日志同时含切流前绿槽与切流后蓝槽线程，哨兵确认当前健康基址为 8091。
+- 哨兵：MySQL、Redis、健康检查、登录冒烟四项通过，退出码 0。
+- 日志：蓝槽启动至切流验收窗口应用 ERROR 日志新增 0 条。
+
+### 遗留事项
+
+- 本次按用户要求未提交、未推送代码；当前镜像不能由某个 commit 直接复现。
+- 生产平台提案开关保持既有安全默认，未在发布过程中代为开启；需管理员在平台配置中显式启用后，用户才能发起提案。
+- `msjzp.xyz` 的域名入口仍返回 403，属既有备案接入限制；公网 IP 80 验证通过，未修改 DNS、安全组或网络配置。
+- 真实 Redis 登录后操作流已在原隔离浏览器验证中受本机 Redis 缺失限制；本次生产仅做匿名权限、健康与会话键检查，未使用生产账号写入测试数据。
+
+---
+
 ## v90 — 邀请码短链接服务
 
 | 项目 | 内容 |
