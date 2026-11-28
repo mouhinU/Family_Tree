@@ -279,13 +279,8 @@
             state.userAccountType = this.value;
             loadUsers(1);
         });
-        $('btn-admin-logout').addEventListener('click', async function () {
-            try {
-                await FT.api('/api/auth/logout', {method: 'POST'});
-            } catch (e) {
-                // 登出失败仍需离开本页，避免管理员停留在已失效会话上
-            }
-            window.location.href = '/login.html';
+        $('btn-admin-logout').addEventListener('click', function () {
+            FT.logout();
         });
     }
 

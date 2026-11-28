@@ -150,9 +150,8 @@
 
     // ========== 事件绑定 ==========
     function bindEvents() {
-        document.getElementById('btn-logout').addEventListener('click', async function () {
-            await FT.api('/api/auth/logout', {method: 'POST'});
-            window.location.href = '/login.html';
+        document.getElementById('btn-logout').addEventListener('click', function () {
+            FT.logout();
         });
 
         document.getElementById('btn-add-root').addEventListener('click', function () {
@@ -681,9 +680,7 @@
             'drawer-btn-add-root': function () { closeDrawer(); FT.showNodeModal('添加始祖', {}); },
             'drawer-btn-logout': function () {
                 closeDrawer();
-                FT.api('/api/auth/logout', {method: 'POST'}).then(function () {
-                    window.location.href = '/login.html';
-                });
+                FT.logout();
             }
         };
 

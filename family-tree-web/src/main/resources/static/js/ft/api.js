@@ -1,6 +1,6 @@
 /**
  * 族谱前端 - API 模块
- * 统一请求封装（401 跳登录）与族谱/辈分数据加载。
+ * 统一请求封装（401 跳登录）、主动登出跳转与族谱/辈分数据加载。
  *
  * @author Family-Tree
  * @date 2026-08-02
@@ -12,6 +12,12 @@
 
     /** CSRF Token（登录时从服务端获取） */
     var csrfToken = null;
+
+    /** 主动登出的落地页 */
+    var LOGOUT_TARGET = '/home';
+
+    /** 登出请求的最长等待：超过则直接导航，避免 Redis 异常时用户卡在退出按钮上 */
+    var LOGOUT_NAV_TIMEOUT = 1500;
 
     /**
      * 初始化 CSRF Token（登录成功后调用）
@@ -117,6 +123,40 @@
         return body;
     }
 
+    /**
+     * 主动登出并跳到 Home。
+     * 不复用 api()：401/403 分支会把用户送去登录页并弹「登录已过期」，
+     * 与登出这个主动动作竞争同一次导航。
+     * 导航要等登出请求落定：落地页若与 POST /logout 并发，服务端会在响应提交处抛
+     * IllegalStateException("Session was invalidated")（RedisSessionRepository.save），
+     * 整页变成 500；超时兜底保证 Redis 异常时仍能离开当前页。
+     */
+    function logout() {
+        var headers = {};
+        if (csrfToken) {
+            headers['X-CSRF-TOKEN'] = csrfToken;
+        }
+        csrfToken = null;
+        // 服务端会话随 logout 失效，留在 sessionStorage 的旧令牌在下次启动时会被误当作可恢复态
+        sessionStorage.removeItem('csrfToken');
+        var navigated = false;
+        function goHome() {
+            if (navigated) {
+                return;
+            }
+            navigated = true;
+            clearTimeout(timer);
+            window.location.href = LOGOUT_TARGET;
+        }
+        var timer = setTimeout(goHome, LOGOUT_NAV_TIMEOUT);
+        // keepalive 必须带：超时兜底分支会立刻卸载页面，普通 fetch 会被中止而丢不掉服务端会话
+        fetch('/api/auth/logout', {method: 'POST', headers: headers, keepalive: true})
+            .catch(function () {
+                // 会话已失效或断网时不报错，导航照常
+            })
+            .then(goHome);
+    }
+
     async function loadTree() {
         const res = await api('/api/tree/full');
         if (res.code === 200) {
@@ -156,6 +196,7 @@
     }
 
     FT.api = api;
+    FT.logout = logout;
     FT.uploadFile = uploadFile;
     FT.loadTree = loadTree;
     FT.loadDetailScope = loadDetailScope;
