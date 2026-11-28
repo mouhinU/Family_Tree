@@ -17,6 +17,56 @@
 
 ---
 
+## v96 — 退出登录落地页改为公开 Home
+
+| 项目 | 内容 |
+|---|---|
+| 发布时间 | 2026-11-28 22:03:17 CST / 2026-11-28 14:03:17 UTC |
+| 发布内容 | 点击「退出登录」后进入公开 Home 页而不是登录页；工作台顶栏、侧边抽屉、平台管理页三处登出入口统一走同一个 `logout()`；登出请求带 CSRF 头并等待服务端会话真正失效后再导航，修掉「退出后落地页报 500（Whitelabel Error Page）」的竞态 |
+| 代码版本 | 发布时为未提交工作区（HEAD `3c4c509`）；发布后按 §11.2 硬门槛补提交：功能 commit `fd6fd88`（`js/ft/api.js` + `main.js` + `admin.js` + `index.html` + `admin.html`）、登记 commit（本台账与 SOP/manifest），均已 push `origin/main`。v96 镜像自此可由 `fd6fd88` 走 §4c `clean package` + `FROM family-tree:app-base` 复现 |
+| 发布镜像 | `family-tree:v96b-local`；镜像 ID `1ff25d28fcd4`；基座 `family-tree:app-base`，层数 2（基座 import + COPY jar），Config 与基座逐字一致 |
+| jar 校验 | SHA256 `5900f30e136295357c80060c6150faa6cc3e3460dbb43e294b023ba599e63c27`；138,013,355 字节；本地 target、实例 `/root/ft-build-v96b/app.jar`、镜像内 `/app/app.jar` 三处一致 |
+| containerd 清单 | `sha256:de9d2a941d710991b1b9c1188e58360c4be25328f5edea753815222f0f379b79`（316.1 MiB） |
+| 数据库备份 | `/opt/family-tree/backups/family_tree_20261128_212631.sql.gz`；74,987 字节；SHA256 `849a1ce004f6aab02f0a76432a34ae329ba6283528696d65e75b724c179d23cc`；`gzip -t` 通过 |
+| 数据库变更 | 无新增迁移；jar 内 MySQL 迁移顶版 V41 == 历史表顶 `41`（`success=1` 共 41 条），V7 校验和 md5 与 v95 一致 → 无需 `repair` |
+| 部署槽位 | 蓝槽 `127.0.0.1:8091`；nginx 六处上游由 8092 切换为 8091（旧引用剩余 0、新引用 6） |
+| 在任版本 | `family-tree-app-blue`：`v96b-local`，replicas=1；22:00:25 apply → 22:01:56 rollout 完成（~91s） |
+| 回滚锚 | 绿槽 `family-tree-app-green`：`v95-local`，22:04 `scale --replicas=0` 转休眠锚；docker（`be3ba6fa83e1`）与 containerd 均保留 |
+| nginx 备份 | `/root/family-tree.conf.bak.v96.20261128_220314`（切流前原件，含 6 处 `8092`） |
+
+### 发布内容明细
+
+- `js/ft/api.js` 新增 `LOGOUT_TARGET = '/home'`、`LOGOUT_NAV_TIMEOUT = 1500` 两个常量与模块内 `logout()`：清空模块级 `csrfToken` 与 `sessionStorage.csrfToken`，带 `X-CSRF-TOKEN` 头 `POST /api/auth/logout`（`keepalive: true`），请求落定或 1500ms 超时后 `location.href = '/home'`，导航单次触发、失败静默。
+- 三处调用方改为直接 `FT.logout()`：`js/ft/main.js` 的 `#btn-logout` 与抽屉 `#drawer-btn-logout`、`js/ft/admin.js` 的 `#btn-admin-logout`（原先是 `FT.api('/api/auth/logout')` 后跳 `/login.html`）。
+- `keepalive` 与超时兜底是必需的：兜底分支会立刻卸载页面，普通 `fetch` 会被中止而留不下服务端会话失效。
+- 缓存版本号：`index.html` `api.js?v=20261128c` + `main.js?v=20261128a`；`admin.html` `api.js?v=20261128c` + `admin.js?v=20261128c`。
+
+### 验收结果
+
+- 全量测试：`./mvnw -B clean package` 五模块 surefire 汇总 **752** 用例（common 19 / domain 121 / infrastructure 39 / application 444 / web 129），0 失败、0 错误、0 跳过（报告时间与 jar 同批 21:46–21:48）。
+- 产物核验：jar 内静态 `ft/api.js` 含 `LOGOUT_NAV_TIMEOUT`（2 处）、`index.html`/`admin.html` 均下发 `api.js?v=20261128c`。
+- 本地浏览器验证（H2 + fakeredis 隔离环境 `127.0.0.1:8097`，未触碰生产）：登录态点登出 → `POST /api/auth/logout` **200 / 114ms**，随后导航到 `/home` 渲染真实 Home；从 `/home` 回工作台再登出、未登录态登出两条链路同验；localStorage/sessionStorage 与 `sessionStorage.csrfToken` 已清、控制台 0 报错、error 日志 `Session was invalidated` 0 条。
+- 旁路验收（蓝槽 8091，切流前）：`/actuator/health` 200、`/api/auth/config` 三开关均 `true`、`/home` 200、`login.js?v=20261128b` 未变（本版无登录页改动）、蓝槽启动窗口 `Session was invalidated` 0 条。
+- 切流：22:03:17 CST 备份 conf → sed 六处 8092→8091（old=0/new=6）→ `nginx -t` OK（仅既有 `conflicting server name "_"` 警告）→ reload 零中断。
+- 入口复验（实例内 nginx 与公网 IP 双侧）：`/`、`/home`、`/login.html`、`/api/auth/config`、`/api/auth/status` 全 200；两侧经反代取到的 `js/ft/api.js?v=20261128c` 均含 `LOGOUT_NAV_TIMEOUT` 2 处（v95 只能出 `?v=20261128a`，据此判定新流量已落到蓝槽）。
+- 切流强证据：UTC `14:` 时段应用日志线程名 **52/52 = `http-nio-8091`**，8092 零残留。
+- 会话连续性：切流后 Redis 活跃会话 1 个（键 `06acb880-…`，TTL 776s、`maxInactiveInterval` 1800s → 最后访问约在 21:46 CST，早于切流），说明该会话数据跨槽存活；该用户切流后未再发请求，故不作为「端到端不掉线」实证。
+- 哨兵：`mode=k3s base=http://127.0.0.1:8091`，MySQL / Redis / health / 登录冒烟四行 OK，`rc=0`。
+- 数据库读数：32 表 / family 19 / account 205 / Flyway 顶版 `41`（41 条 `success=1`）——与 v95 登记逐字一致。
+- 日志：切流所在 UTC 14 时段 error 日志 **0 条**；13 时段 118 条全部为扫描器 `NoResourceFoundException`（`favicon.ico`/`wp-*`/`.git/config`/`xmlrpc.php`，对应门控项 #203），应用异常 0 条。
+- 资源：`/dev/vda3` 40G 已用 15G（39%，系统盘已在 24G→40G 之外扩容）、内存 avail 2,025MB。
+
+### 遗留事项
+
+- **本轮的「删掉 `FT.api` 透传层」未执行，按实测口径推翻原指令**：`FT.api` 全站有 **137 处调用、分布在 21 个文件**，且每个 `js/ft/*.js` 是独立 IIFE、只靠 `window.FT` 共享状态——就地删层会让 20 个文件全部 `api is not defined`。保留 `FT.api`/`FT.logout` 两个导出，只把登出链路收进 `api.js` 同一模块。
+- **用户原话「不等响应」改为有界等待 1500ms**：立即导航会在落地页复现 500（登出与页面在途请求竞态，`RedisSessionRepository.save` 抛 `Session was invalidated`），等待请求落定再导航既保住会话失效、又不会让用户在 Redis 异常时卡在按钮上。
+- 未做生产登录态浏览器复核（需真实生产账号写操作，未授权）；登出链路以本地隔离环境 E2E + 生产静态资产指纹双重证据替代。
+- 服务端根治（登出与在途请求竞态的会话处理加固，任务 #476）未做，属超本次范围的代码改动，待点名授权。
+- 本机 cloudflared quick tunnel 自 2026-11-23 起未运行（日志末条 `Unauthorized: Tunnel not found`），本轮「公网复验」按 SOP 口径走 ECS 公网 IP `8.153.176.50:80`；`msjzp.xyz` 仍受备案接入限制（#365）。
+- 发版过程另产出两个失效产物：`family-tree:v96-local`（docker `dfda74929476` / containerd `e07b4d5a…`）内嵌的是被 #475 取代的旧 jar，**严禁 apply**，保留未删（清理生产资源需点名授权）。
+
+---
+
 ## 运维变更 — 会话口径复核更正 + AOF 整理 + 数据盘回滚锚
 
 | 项目 | 内容 |
