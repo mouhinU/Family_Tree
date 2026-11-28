@@ -1,6 +1,7 @@
 package com.mouhin.family.tree.web.controller;
 
 import com.mouhin.family.tree.application.service.FamilyApplicationService;
+import com.mouhin.family.tree.web.controller.user.ShortLinkController;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

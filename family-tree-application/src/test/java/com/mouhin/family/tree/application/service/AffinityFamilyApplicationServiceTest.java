@@ -25,7 +25,6 @@ import com.mouhin.family.tree.domain.repository.UserRepository;
 import com.mouhin.family.tree.domain.service.AffinityFamilyDomainService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -42,7 +41,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -183,82 +181,6 @@ class AffinityFamilyApplicationServiceTest {
 
         assertTrue(affinityFamilyApplicationService
                 .listMemberFamilies(FAMILY_ID, NODE_ID, VIEWER_ID).isEmpty());
-    }
-
-    // ========== 人工建链 ==========
-
-    @Test
-    void linkNode_dstNodeMissing_throws() {
-        when(familyNodeRepository.findById(NODE_ID)).thenReturn(node(NODE_ID, FAMILY_ID, "蒙大"));
-        when(familyNodeRepository.findById(DST_NODE_ID)).thenReturn(null);
-
-        assertThrows(BusinessException.class, () -> affinityFamilyApplicationService
-                .linkNode(FAMILY_ID, NODE_ID, DST_NODE_ID, null, VIEWER_ID, "meng", "127.0.0.1"));
-    }
-
-    @Test
-    void linkNode_sameFamily_throws() {
-        when(familyNodeRepository.findById(NODE_ID)).thenReturn(node(NODE_ID, FAMILY_ID, "蒙大"));
-        when(familyNodeRepository.findById(DST_NODE_ID)).thenReturn(node(DST_NODE_ID, FAMILY_ID, "蒙二"));
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> affinityFamilyApplicationService
-                        .linkNode(FAMILY_ID, NODE_ID, DST_NODE_ID, null, VIEWER_ID, "meng", "127.0.0.1"));
-        assertTrue(ex.getMessage().contains("不同家族"));
-    }
-
-    @Test
-    void linkNode_existingPair_throws() {
-        when(familyNodeRepository.findById(NODE_ID)).thenReturn(node(NODE_ID, FAMILY_ID, "蒙大"));
-        when(familyNodeRepository.findById(DST_NODE_ID)).thenReturn(node(DST_NODE_ID, OTHER_FAMILY_ID, "罗大"));
-        when(crossFamilyLinkRepository.findByNodePair(NODE_ID, DST_NODE_ID)).thenReturn(
-                link(8L, FAMILY_ID, NODE_ID, OTHER_FAMILY_ID, DST_NODE_ID, NodeLinkSourceEnum.MANUAL.getCode()));
-
-        assertThrows(BusinessException.class, () -> affinityFamilyApplicationService
-                .linkNode(FAMILY_ID, NODE_ID, DST_NODE_ID, null, VIEWER_ID, "meng", "127.0.0.1"));
-    }
-
-    @Test
-    void linkNode_success_normalizesEndpointsAndPublishesAudit() {
-        // 本族端点ID大于他族端点ID，落库前必须按小ID在前规范化
-        when(familyNodeRepository.findById(DST_NODE_ID)).thenReturn(node(DST_NODE_ID, FAMILY_ID, "蒙大"));
-        when(familyNodeRepository.findById(NODE_ID)).thenReturn(node(NODE_ID, OTHER_FAMILY_ID, "罗大"));
-        when(crossFamilyLinkRepository.findByNodePair(DST_NODE_ID, NODE_ID)).thenReturn(null);
-        doAnswer(invocation -> {
-            CrossFamilyLink saved = invocation.getArgument(0);
-            saved.setId(55L);
-            return saved;
-        }).when(crossFamilyLinkRepository).save(any());
-
-        Long linkId = affinityFamilyApplicationService
-                .linkNode(FAMILY_ID, DST_NODE_ID, NODE_ID, null, VIEWER_ID, "meng", "127.0.0.1");
-
-        assertEquals(Long.valueOf(55L), linkId);
-        ArgumentCaptor<CrossFamilyLink> captor = ArgumentCaptor.forClass(CrossFamilyLink.class);
-        verify(crossFamilyLinkRepository).save(captor.capture());
-        CrossFamilyLink saved = captor.getValue();
-        assertEquals(NODE_ID, saved.getSrcNodeId());
-        assertEquals(OTHER_FAMILY_ID, saved.getSrcFamilyId());
-        assertEquals(DST_NODE_ID, saved.getDstNodeId());
-        assertEquals(FAMILY_ID, saved.getDstFamilyId());
-        assertEquals(NodeLinkTypeEnum.BLOOD.getCode(), saved.getLinkType());
-        assertEquals(NodeLinkSourceEnum.MANUAL.getCode(), saved.getSource());
-        assertEquals(VIEWER_ID, saved.getConfirmedBy());
-        verify(eventPublisher).publishEvent(any(OperationPerformedEvent.class));
-    }
-
-    @Test
-    void linkNode_explicitMarriageType_kept() {
-        when(familyNodeRepository.findById(NODE_ID)).thenReturn(node(NODE_ID, FAMILY_ID, "蒙大"));
-        when(familyNodeRepository.findById(DST_NODE_ID)).thenReturn(node(DST_NODE_ID, OTHER_FAMILY_ID, "罗大"));
-        when(crossFamilyLinkRepository.findByNodePair(NODE_ID, DST_NODE_ID)).thenReturn(null);
-
-        affinityFamilyApplicationService.linkNode(FAMILY_ID, NODE_ID, DST_NODE_ID,
-                NodeLinkTypeEnum.MARRIAGE.getCode(), VIEWER_ID, "meng", "127.0.0.1");
-
-        ArgumentCaptor<CrossFamilyLink> captor = ArgumentCaptor.forClass(CrossFamilyLink.class);
-        verify(crossFamilyLinkRepository).save(captor.capture());
-        assertEquals(NodeLinkTypeEnum.MARRIAGE.getCode(), captor.getValue().getLinkType());
     }
 
     // ========== 解除关联 ==========

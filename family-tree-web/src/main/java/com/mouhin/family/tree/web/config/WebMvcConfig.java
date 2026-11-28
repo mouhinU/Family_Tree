@@ -27,7 +27,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     private static final String[] PUBLIC_API_PATHS = {
             "/api/auth/login", "/api/auth/register",
             "/api/auth/login-sms", "/api/auth/sms/send-code",
-            "/api/auth/config"
+            "/api/auth/config", "/api/auth/status"
     };
 
     private final LoginInterceptor loginInterceptor;

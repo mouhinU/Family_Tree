@@ -32,10 +32,15 @@ public class FamilySettingDomainService {
     public Map<String, String> mergeWithDefaults(Map<String, String> overrides, Map<String, String> platformDefaults) {
         Map<String, String> effective = new LinkedHashMap<>(FamilySettingKeyEnum.listAll().size() * 2);
         for (FamilySettingKeyEnum key : FamilySettingKeyEnum.listAll()) {
-            effective.put(key.getCode(), firstNotBlank(
-                    overrides == null ? null : overrides.get(key.getCode()),
-                    platformDefaults == null ? null : platformDefaults.get(key.getCode()),
-                    key.getDefaultValue()));
+            String familyValue = overrides == null ? null : overrides.get(key.getCode());
+            String platformValue = platformDefaults == null ? null : platformDefaults.get(key.getCode());
+            if (key == FamilySettingKeyEnum.CROSS_FAMILY_LINK_MIN_AGREEMENTS) {
+                int platformFloor = positiveInt(platformValue, Integer.parseInt(key.getDefaultValue()));
+                int familyRequirement = positiveInt(familyValue, platformFloor);
+                effective.put(key.getCode(), String.valueOf(Math.max(platformFloor, familyRequirement)));
+                continue;
+            }
+            effective.put(key.getCode(), firstNotBlank(familyValue, platformValue, key.getDefaultValue()));
         }
         return effective;
     }
@@ -145,6 +150,25 @@ public class FamilySettingDomainService {
     private String normalize(FamilySettingKeyEnum keyEnum, String raw) {
         return SettingValueNormalizer.normalize(keyEnum.getLabel(), keyEnum.getValueType(),
                 keyEnum.getMinValue(), keyEnum.getMaxValue(), keyEnum.getMaxLength(), raw);
+    }
+
+    /**
+     * 解析正整数，非法值回落到指定默认值。
+     *
+     * @param raw         原始取值
+     * @param defaultValue 默认值
+     * @return 正整数
+     */
+    private int positiveInt(String raw, int defaultValue) {
+        if (raw == null || raw.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            int value = Integer.parseInt(raw.trim());
+            return value > 0 ? value : defaultValue;
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 
     /**

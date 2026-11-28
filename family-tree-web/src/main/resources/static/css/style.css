@@ -51,6 +51,26 @@ body {
     padding: 20px;
 }
 
+.login-home-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    margin-bottom: 12px;
+    color: var(--ink-light);
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.login-home-link:hover {
+    color: var(--cinnabar);
+}
+
+.login-home-link:focus-visible {
+    outline: 2px solid var(--cinnabar);
+    outline-offset: 4px;
+    border-radius: 2px;
+}
+
 .login-card {
     background: var(--paper-card);
     border: 1px solid var(--border);
@@ -2800,11 +2820,13 @@ body.toolbar-hidden .tree-container {
 }
 
 .header-more-item {
+    display: block;
     padding: 8px 16px;
     font-size: 13px;
     color: var(--ink, #2b2622);
     cursor: pointer;
     white-space: nowrap;
+    text-decoration: none;
     transition: background 0.15s;
 }
 
@@ -3003,6 +3025,7 @@ body.toolbar-hidden .tree-container {
     font-size: 15px;
     color: var(--ink);
     cursor: pointer;
+    text-decoration: none;
     transition: background 0.15s;
     min-height: 48px;
 }
@@ -5855,4 +5878,172 @@ body.toolbar-hidden .tree-container {
 /* 标题行无边框无内边距，按钮右移量需等于行卡片的 1px 边框 + 12px 内边距，才与 .affinity-row/.spouse-row 内容右缘齐平 */
 .affinity-title .btn-sm {
     margin-right: 13px;
+}
+
+.link-proposal-tip {
+    margin: 4px 0 10px;
+    color: #8a7f6a;
+    font-size: 12px;
+    line-height: 1.6;
+}
+
+.link-proposal-row {
+    flex-wrap: wrap;
+}
+
+.link-proposal-id {
+    color: #8a7f6a;
+    font-size: 12px;
+}
+
+.link-proposal-arrow {
+    color: #a63a2b;
+}
+
+.link-proposal-status {
+    padding: 1px 7px;
+    border-radius: 8px;
+    background: #efe6d2;
+    color: #6b5f4a;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.link-proposal-status.status-READY_FOR_REVIEW,
+.link-proposal-status.status-APPROVED {
+    background: #a63a2b;
+    color: #fff;
+}
+
+.link-proposal-status.status-REJECTED,
+.link-proposal-status.status-CANCELLED,
+.link-proposal-status.status-EXPIRED,
+.link-proposal-status.status-INVALIDATED {
+    background: #77736a;
+    color: #fff;
+}
+
+.link-proposal-detail {
+    padding: 12px;
+    border: 1px solid #e6dcc4;
+    border-radius: 6px;
+    background: #fffdf8;
+}
+
+.link-proposal-endpoints {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+    font-size: 13px;
+}
+
+.link-proposal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 10px 0 14px;
+}
+
+.link-proposal-subtitle {
+    margin: 12px 0 6px;
+    color: #6b5f4a;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.link-proposal-record {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px dashed #eee;
+    font-size: 12px;
+}
+
+.link-proposal-record .affinity-src {
+    margin-left: auto;
+}
+
+.link-proposal-valid {
+    color: #3a6b4f;
+}
+
+.link-proposal-invalid {
+    color: #999;
+}
+
+.link-proposal-event {
+    padding: 6px 0;
+    border-bottom: 1px dashed #eee;
+    font-size: 12px;
+}
+
+.link-proposal-event p {
+    margin: 4px 0 0;
+    color: #666;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.link-proposal-candidate {
+    flex-wrap: wrap;
+}
+
+.link-proposal-reason {
+    flex: 1 1 180px;
+    min-width: 120px;
+    padding: 5px 8px;
+    border: 1px solid #d8cba8;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 12px;
+}
+
+.link-proposal-review-textarea {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 76px;
+    padding: 8px 10px;
+    border: 1px solid #cbbfa4;
+    border-radius: 4px;
+    background: #fff;
+    font-family: inherit;
+    font-size: 13px;
+    resize: vertical;
+}
+
+.link-proposal-review-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.proposal-status-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #efe6d2;
+    color: #6b5f4a;
+    font-size: 11px;
+    white-space: nowrap;
+}
+
+.proposal-status-tag.proposal-ready,
+.proposal-status-tag.proposal-approved {
+    background: #a63a2b;
+    color: #fff;
+}
+
+.proposal-status-tag.proposal-closed {
+    background: #77736a;
+    color: #fff;
+}
+
+.proposal-reject-btn {
+    color: #a63a2b;
+    border-color: #a63a2b;
 }

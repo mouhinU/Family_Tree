@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta name="description" content="族谱是一棵可供家人共同完善的家族树。了解产品功能，创建家族或使用邀请码加入，家族资料仅向授权成员开放。">
+    <meta name="theme-color" content="#f0e8d2">
+    <title>族谱 — 让家族的记忆，代代相传</title>
+    <link href="/css/style.css?v=20261128d" rel="stylesheet">
+    <link href="/css/home.css?v=20261128a" rel="stylesheet">
+</head>
+<body class="home-body">
+<a class="skip-link" href="#main-content">跳到主要内容</a>
+
+<header class="home-header">
+    <div class="home-shell header-inner">
+        <a class="home-brand" href="/home" aria-label="族谱首页">
+            <span class="brand-seal" aria-hidden="true">谱</span>
+            <span class="brand-name">族谱</span>
+        </a>
+        <button class="menu-toggle" id="menu-toggle" type="button"
+                aria-controls="site-nav" aria-expanded="false">菜单</button>
+        <nav class="site-nav" id="site-nav" aria-label="主导航">
+            <a href="#product">产品介绍</a>
+            <a href="#guide">使用指南</a>
+            <a href="#faq">常见问题</a>
+            <div class="nav-actions">
+                <a class="nav-login" href="/login.html" data-auth-state="anonymous">登录</a>
+                <a class="home-button home-button-small" href="/index.html"
+                   data-auth-state="authenticated" hidden>族谱工作台</a>
+                <a class="home-button home-button-small" href="/login.html?mode=register"
+                   data-auth-state="anonymous" data-registration-entry hidden>创建家族</a>
+            </div>
+        </nav>
+    </div>
+</header>
+
+<main id="main-content">
+    <section class="hero" aria-labelledby="hero-title">
+        <div class="home-shell hero-grid">
+            <div class="hero-copy">
+                <p class="eyebrow">家族记忆 · 共同守护</p>
+                <h1 id="hero-title">让家族的记忆，<br><span>代代相传</span></h1>
+                <p class="hero-description">用一棵清晰的家族树，记录亲人、关系与故事。邀请家人一起补充，让散落的记忆成为可以翻阅的家族档案。</p>
+                <div class="hero-actions">
+                    <a class="home-button" href="/login.html" data-auth-state="anonymous">登录并进入族谱</a>
+                    <a class="home-button home-button-secondary" href="/login.html?mode=register"
+                       data-auth-state="anonymous" data-registration-entry hidden>创建家族</a>
+                    <a class="home-button" href="/index.html" data-auth-state="authenticated"
+                       hidden>进入族谱工作台</a>
+                </div>
+                <a class="text-link hero-invite-link" href="#invite">输入邀请码，加入家族 <span aria-hidden="true">→</span></a>
+                <p class="hero-note">无需登录即可了解产品，家族资料仅向授权成员开放。</p>
+                <p class="register-status" id="register-status" role="status" hidden></p>
+            </div>
+
+            <div class="tree-preview" role="img" aria-label="三代族人组成的家族树示意图，不含真实人物资料">
+                <div class="preview-heading">
+                    <span>一页家谱</span>
+                    <span class="preview-mark">家族记忆</span>
+                </div>
+                <div class="mini-tree" aria-hidden="true">
+                    <div class="tree-row couple-row">
+                        <div class="preview-node preview-node-wide">
+                            <span class="node-ribbon">先祖</span>
+                            <span class="node-seal">族</span>
+                            <span class="node-name">家族根源</span>
+                            <span class="node-line">世代相传</span>
+                        </div>
+                        <span class="couple-mark">♥</span>
+                        <div class="preview-node preview-node-wide">
+                            <span class="node-ribbon">先祖</span>
+                            <span class="node-seal">亲</span>
+                            <span class="node-name">家族根源</span>
+                            <span class="node-line">血脉相连</span>
+                        </div>
+                    </div>
+                    <div class="tree-branch branch-first" aria-hidden="true"></div>
+                    <div class="tree-row">
+                        <div class="preview-node">
+                            <span class="node-ribbon">长辈</span>
+                            <span class="node-seal">长</span>
+                            <span class="node-name">家族分支</span>
+                        </div>
+                        <div class="preview-node">
+                            <span class="node-ribbon">长辈</span>
+                            <span class="node-seal">枝</span>
+                            <span class="node-name">家族分支</span>
+                        </div>
+                    </div>
+                    <div class="tree-branch branch-second" aria-hidden="true"></div>
+                    <div class="tree-row couple-row last-row">
+                        <div class="preview-node">
+                            <span class="node-ribbon">我辈</span>
+                            <span class="node-seal">家</span>
+                            <span class="node-name">共同记录</span>
+                        </div>
+                        <span class="couple-mark">♥</span>
+                        <div class="preview-node">
+                            <span class="node-ribbon">伴侣</span>
+                            <span class="node-seal">伴</span>
+                            <span class="node-name">相守一生</span>
+                        </div>
+                    </div>
+                    <div class="tree-branch branch-third" aria-hidden="true"></div>
+                    <div class="preview-node next-generation">
+                        <span class="node-ribbon">晚辈</span>
+                        <span class="node-seal">续</span>
+                        <span class="node-name">新的故事</span>
+                    </div>
+                </div>
+                <p class="preview-caption">示意图 · 不包含真实家族资料</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="product" aria-labelledby="product-title">
+        <div class="home-shell">
+            <div class="section-heading">
+                <p class="eyebrow">为什么选择族谱</p>
+                <h2 id="product-title">把一家人的故事，安放在一棵树下</h2>
+                <p>从长辈的口述到晚辈的成长，让每一次补充都有归属。</p>
+            </div>
+            <div class="value-grid">
+                <article class="value-card">
+                    <span class="feature-glyph" aria-hidden="true">谱</span>
+                    <h3>谱系清晰可见</h3>
+                    <p>夫妻、亲子、世代层层展开，家族关系一眼看清。</p>
+                </article>
+                <article class="value-card">
+                    <span class="feature-glyph" aria-hidden="true">亲</span>
+                    <h3>家人共同完善</h3>
+                    <p>邀请家人加入家族，一起补充人物资料与珍贵记忆。</p>
+                </article>
+                <article class="value-card">
+                    <span class="feature-glyph" aria-hidden="true">档</span>
+                    <h3>重要资料集中管理</h3>
+                    <p>人物信息、家族关系与照片统一保存，随时回来查阅。</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="section section-tinted" aria-labelledby="features-title">
+        <div class="home-shell">
+            <div class="section-heading">
+                <p class="eyebrow">功能一览</p>
+                <h2 id="features-title">不只是家谱，也是家族的共同档案</h2>
+            </div>
+            <div class="feature-grid">
+                <article class="feature-card">
+                    <span class="feature-index">01</span>
+                    <h3>树形族谱</h3>
+                    <p>以世代分层展示家族成员，支持夫妻并排与多分支浏览。</p>
+                </article>
+                <article class="feature-card">
+                    <span class="feature-index">02</span>
+                    <h3>关系记录</h3>
+                    <p>记录婚姻、亲子、收养等关系，让家族脉络有据可查。</p>
+                </article>
+                <article class="feature-card">
+                    <span class="feature-index">03</span>
+                    <h3>跨族亲缘</h3>
+                    <p>将分散在不同家族中的亲人联系起来，看见更完整的亲缘网络。</p>
+                </article>
+                <article class="feature-card">
+                    <span class="feature-index">04</span>
+                    <h3>资料导入导出</h3>
+                    <p>支持族谱数据导入与导出，方便整理、留存和迁移。</p>
+                </article>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="guide" aria-labelledby="guide-title">
+        <div class="home-shell">
+            <div class="section-heading">
+                <p class="eyebrow">使用指南</p>
+                <h2 id="guide-title">三步，开始记录你的家族</h2>
+            </div>
+            <ol class="steps-list">
+                <li class="step-card">
+                    <span class="step-number">壹</span>
+                    <div>
+                        <h3>注册账号</h3>
+                        <p>使用账号和密码完成注册。</p>
+                    </div>
+                </li>
+                <li class="step-card">
+                    <span class="step-number">贰</span>
+                    <div>
+                        <h3>创建或加入家族</h3>
+                        <p>没有家族可以自行创建；收到邀请码则加入已有家族。</p>
+                    </div>
+                </li>
+                <li class="step-card">
+                    <span class="step-number">叁</span>
+                    <div>
+                        <h3>邀请家人共同完善</h3>
+                        <p>由家族管理员邀请成员加入，一起维护家族资料。</p>
+                    </div>
+                </li>
+            </ol>
+            <div class="guide-actions">
+                <a class="home-button" href="/login.html?mode=register"
+                   data-auth-state="anonymous" data-registration-entry hidden>创建我的家族</a>
+                <a class="home-button home-button-secondary" href="#invite"
+                   data-auth-state="anonymous">我有邀请码</a>
+                <a class="home-button" href="/index.html" data-auth-state="authenticated"
+                   hidden>继续维护我的家族</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="privacy-section" aria-labelledby="privacy-title">
+        <div class="home-shell privacy-inner">
+            <div class="privacy-seal" aria-hidden="true">私</div>
+            <div class="privacy-copy">
+                <p class="eyebrow">隐私与权限</p>
+                <h2 id="privacy-title">家族资料，只向家人开放</h2>
+                <p>家族成员、人物关系、照片等资料受权限保护，未授权用户无法查看。本首页不展示任何真实家族数据，也不需要登录即可浏览。</p>
+                <ul class="privacy-tags" aria-label="隐私措施">
+                    <li>权限控制</li>
+                    <li>登录访问</li>
+                    <li>成员协作</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section class="section" id="invite" aria-labelledby="invite-title">
+        <div class="home-shell invite-layout">
+            <div class="invite-copy">
+                <p class="eyebrow">加入已有家族</p>
+                <h2 id="invite-title">一张邀请码，<br>让家人重新相聚</h2>
+                <p>输入家族管理员提供的邀请码，前往登录或注册页面加入家族。</p>
+            </div>
+            <div class="invite-panel">
+                <form id="home-invite-form" novalidate>
+                    <label for="home-invite-code">家族邀请码</label>
+                    <div class="invite-input-row">
+                        <input id="home-invite-code" name="invite" type="text"
+                               maxlength="32" autocomplete="off" autocapitalize="characters"
+                               spellcheck="false" placeholder="请输入邀请码" required
+                               aria-describedby="invite-help invite-message">
+                        <button class="home-button" type="submit">加入家族</button>
+                    </div>
+                    <p class="field-help" id="invite-help">邀请码不区分大小写，提交时会自动整理格式。</p>
+                    <p class="invite-message" id="invite-message" role="alert"></p>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <section class="section section-tinted" id="faq" aria-labelledby="faq-title">
+        <div class="home-shell faq-layout">
+            <div class="section-heading faq-heading">
+                <p class="eyebrow">常见问题</p>
+                <h2 id="faq-title">你可能想知道</h2>
+                <p>关于创建家族、加入家族与资料隐私的常见说明。</p>
+            </div>
+            <div class="faq-list">
+                <details>
+                    <summary>没有家族，可以自己创建吗？</summary>
+                    <p>可以。注册后可创建自己的家族，并邀请家人加入。</p>
+                </details>
+                <details>
+                    <summary>如何加入已有的家族？</summary>
+                    <p>在首页输入家族邀请码，或让家族管理员提供邀请链接。</p>
+                </details>
+                <details>
+                    <summary>必须使用电脑吗？</summary>
+                    <p>页面同时适配电脑和手机，可随时查看与维护家族资料。</p>
+                </details>
+                <details>
+                    <summary>首页会公开我的族谱吗？</summary>
+                    <p>不会。首页仅展示产品介绍，真实家族资料需要登录并具备相应权限后才能查看。</p>
+                </details>
+            </div>
+        </div>
+    </section>
+</main>
+
+<footer class="home-footer">
+    <div class="home-shell footer-main">
+        <div>
+            <a class="home-brand footer-brand" href="/home">
+                <span class="brand-seal" aria-hidden="true">谱</span>
+                <span class="brand-name">族谱</span>
+            </a>
+            <p>记录亲人，传承家族记忆。</p>
+        </div>
+        <nav class="footer-links" aria-label="页脚导航">
+            <a href="/login.html" data-auth-state="anonymous">登录</a>
+            <a href="/index.html" data-auth-state="authenticated" hidden>族谱工作台</a>
+            <a href="/login.html?mode=register" data-auth-state="anonymous"
+               data-registration-entry hidden>创建家族</a>
+            <a href="#guide">使用指南</a>
+        </nav>
+    </div>
+    <div class="home-shell footer-bottom">© 2026 族谱管理系统</div>
+</footer>
+
+<noscript>
+    <div class="home-shell noscript-note">
+        当前浏览器未启用 JavaScript，注册入口暂时隐藏。可直接<a href="/login.html">前往登录页</a>，注册是否开放以登录页提示为准。
+    </div>
+</noscript>
+<script src="/js/ft/home.js?v=20261128b"></script>
+</body>
+</html>

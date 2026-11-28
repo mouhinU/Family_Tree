@@ -37,6 +37,7 @@ public final class CrossFamilyLinkConverter {
         entity.setLinkType(doObj.getLinkType());
         entity.setSource(doObj.getSource());
         entity.setConfirmedBy(doObj.getConfirmedBy());
+        entity.setProposalId(doObj.getProposalId());
         entity.setCreateTime(doObj.getCreateTime());
         entity.setUpdateTime(doObj.getUpdateTime());
         return entity;
@@ -61,6 +62,7 @@ public final class CrossFamilyLinkConverter {
         doObj.setLinkType(entity.getLinkType());
         doObj.setSource(entity.getSource());
         doObj.setConfirmedBy(entity.getConfirmedBy());
+        doObj.setProposalId(entity.getProposalId());
         doObj.setCreateTime(entity.getCreateTime());
         doObj.setUpdateTime(entity.getUpdateTime());
         return doObj;

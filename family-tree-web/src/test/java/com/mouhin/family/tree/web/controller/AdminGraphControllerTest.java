@@ -5,6 +5,7 @@ import com.mouhin.family.tree.common.dto.AdminGraphDetailVO;
 import com.mouhin.family.tree.common.dto.AdminGraphNetworkVO;
 import com.mouhin.family.tree.common.dto.AdminGraphOverviewVO;
 import com.mouhin.family.tree.common.result.Result;
+import com.mouhin.family.tree.web.controller.admin.AdminGraphController;
 import com.mouhin.family.tree.web.security.RequireSystemAdmin;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

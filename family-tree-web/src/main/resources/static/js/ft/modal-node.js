@@ -619,6 +619,7 @@
             spouseHtml +
             // 跨族亲族区块占位：数据来自 /api/node/{id}/affinity-families 等接口，弹窗渲染后异步填充
             '<div id="affinity-sections" data-node-id="' + FT.escapeAttr(node.id) + '"></div>' +
+            '<div id="link-proposal-sections" data-node-id="' + FT.escapeAttr(node.id) + '"></div>' +
             '<div class="detail-action-bar">' +
             markSelfHtml +
             '<button class="btn-sm js-death-btn" data-node-id="' + FT.escapeAttr(node.id) +
@@ -655,8 +656,9 @@
         if (isSenior) {
             FT.loadOfferingPanel(node.id);
         }
-        // 跨族亲族区块（亲族关系 / 归属家族）异步填充
+        // 跨族亲族与当前家族提案分区异步填充，互不阻塞
         loadAffinitySections(node.id);
+        loadLinkProposalSections(node.id);
     }
 
     // ========== 跨族亲族区块（亲族关系 / 归属家族 / 候选确认） ==========
@@ -664,6 +666,223 @@
     var NODE_LINK_SOURCE_LABELS = {1: '账号自动', 2: '人工指认', 3: '候选确认'};
     var CANDIDATE_CONFIDENCE_LABELS = {2: '高置信', 1: '中置信'};
     var MEMBER_ROLE_LABELS = {OWNER: '族长', ADMIN: '管理员', MEMBER: '成员'};
+    var PROPOSAL_STATUS_LABELS = {
+        PENDING_VOTES: '征集中',
+        READY_FOR_REVIEW: '待平台审核',
+        APPROVED: '已通过',
+        REJECTED: '已驳回',
+        CANCELLED: '已取消',
+        EXPIRED: '已到期',
+        INVALIDATED: '已失效'
+    };
+    var PROPOSAL_ACTIVE_STATUSES = {PENDING_VOTES: true, READY_FOR_REVIEW: true};
+    var PROPOSAL_EVENT_LABELS = {
+        CREATED: '创建提案',
+        AGREED: '同意提案',
+        WITHDRAWN: '撤回同意',
+        CANCELLED: '取消提案',
+        READY_FOR_REVIEW: '达到门槛',
+        APPROVED: '审核通过',
+        REJECTED: '审核驳回',
+        EXPIRED: '提案到期',
+        INVALIDATED: '提案失效',
+        COMMENTED: '平台备注'
+    };
+
+    function formatProposalTime(value) {
+        return value ? String(value).replace('T', ' ').substring(0, 19) : '-';
+    }
+
+    function proposalStatusTag(status) {
+        var classStatus = Object.prototype.hasOwnProperty.call(PROPOSAL_STATUS_LABELS, status)
+            ? status : 'INVALIDATED';
+        return '<span class="link-proposal-status status-' + classStatus + '">' +
+            FT.escapeHtml(PROPOSAL_STATUS_LABELS[status] || status || '-') + '</span>';
+    }
+
+    function proposalEndpoints(proposal) {
+        return '<strong>' + FT.escapeHtml((proposal.srcFamilyName || '-') + ' · ' + (proposal.srcNodeName || '-')) +
+            '</strong><span class="link-proposal-arrow">↔</span><strong>' +
+            FT.escapeHtml((proposal.dstFamilyName || '-') + ' · ' + (proposal.dstNodeName || '-')) + '</strong>';
+    }
+
+    async function loadLinkProposalSections(nodeId) {
+        var container = document.getElementById('link-proposal-sections');
+        if (!container || nodeId == null) {
+            return;
+        }
+        var currentFamilyId = FT.state.currentUser ? FT.state.currentUser.familyId : null;
+        if (currentFamilyId == null) {
+            container.innerHTML = '';
+            return;
+        }
+        container.innerHTML = '<div class="detail-section"><div class="detail-section-title">跨族关联提案</div>' +
+            '<p class="affinity-empty">加载中…</p></div>';
+        var res;
+        try {
+            res = await FT.api('/api/link-proposals?page=1&size=20');
+        } catch (e) {
+            container.innerHTML = '';
+            return;
+        }
+        if (!document.body.contains(container) || String(container.dataset.nodeId) !== String(nodeId)) {
+            return;
+        }
+        if (res.code !== 200 || !res.data) {
+            container.innerHTML = '<div class="detail-section"><div class="detail-section-title">跨族关联提案</div>' +
+                '<p class="affinity-empty">提案加载失败，请稍后重试</p></div>';
+            return;
+        }
+        renderLinkProposalList(container, nodeId, res.data.records || [], res.data.total || 0);
+    }
+
+    function renderLinkProposalList(container, nodeId, proposals, total) {
+        var html = '<div class="detail-section"><div class="detail-section-title">跨族关联提案' +
+            '<span class="affinity-src">共 ' + total + ' 条</span></div>' +
+            '<p class="link-proposal-tip">人工关联须经两端家族分别满足同意门槛，再由平台管理员审核。</p>';
+        if (!proposals.length) {
+            html += '<p class="affinity-empty">当前家族暂无跨族关联提案</p></div>';
+            container.innerHTML = html;
+            return;
+        }
+        proposals.forEach(function (proposal) {
+            html += '<div class="affinity-row link-proposal-row">' +
+                '<span class="link-proposal-id">#' + FT.escapeHtml(proposal.id) + '</span>' +
+                proposalEndpoints(proposal) + proposalStatusTag(proposal.status) +
+                '<span class="affinity-actions"><button class="btn-sm js-link-proposal-open" data-proposal-id="' +
+                FT.escapeAttr(proposal.id) + '">详情</button></span></div>';
+        });
+        if (total > proposals.length) {
+            html += '<p class="affinity-empty">仅显示最近 ' + proposals.length + ' 条提案</p>';
+        }
+        container.innerHTML = html + '</div>';
+        container.querySelectorAll('.js-link-proposal-open').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                openLinkProposalDetail(container, nodeId, parseInt(btn.dataset.proposalId, 10));
+            });
+        });
+    }
+
+    async function openLinkProposalDetail(container, nodeId, proposalId) {
+        container.innerHTML = '<div class="detail-section"><div class="detail-section-title">跨族关联提案</div>' +
+            '<p class="affinity-empty">加载中…</p></div>';
+        var res;
+        try {
+            res = await FT.api('/api/link-proposals/' + proposalId);
+        } catch (e) {
+            loadLinkProposalSections(nodeId);
+            return;
+        }
+        if (!document.body.contains(container) || String(container.dataset.nodeId) !== String(nodeId)) {
+            return;
+        }
+        if (res.code !== 200 || !res.data) {
+            loadLinkProposalSections(nodeId);
+            return;
+        }
+        renderLinkProposalDetail(container, nodeId, res.data);
+    }
+
+    function renderLinkProposalDetail(container, nodeId, proposal) {
+        var votes = proposal.votes || [];
+        var events = proposal.events || [];
+        var html = '<div class="detail-section link-proposal-detail">' +
+            '<div class="detail-section-title"><span>提案 #' + FT.escapeHtml(proposal.id) + '</span>' +
+            proposalStatusTag(proposal.status) + '</div>' +
+            '<div class="link-proposal-endpoints">' + proposalEndpoints(proposal) + '</div>' +
+            '<dl class="kv-grid">' +
+            '<dt>链接类型</dt><dd>' + (proposal.linkType === 1 ? '血缘同人' : '姻亲指认') + '</dd>' +
+            '<dt>源端同意</dt><dd>' + FT.escapeHtml((proposal.srcAgreementCount || 0) + ' / ' +
+                (proposal.srcRequirement || 0)) + '</dd>' +
+            '<dt>目标端同意</dt><dd>' + FT.escapeHtml((proposal.dstAgreementCount || 0) + ' / ' +
+                (proposal.dstRequirement || 0)) + '</dd>' +
+            '<dt>发起人</dt><dd>' + FT.escapeHtml(proposal.initiatorName || '-') + '</dd>' +
+            '<dt>发起时间</dt><dd>' + FT.escapeHtml(formatProposalTime(proposal.createTime)) + '</dd>' +
+            '<dt>到期时间</dt><dd>' + FT.escapeHtml(formatProposalTime(proposal.expireAt)) +
+            (proposal.expired ? '（已到期）' : '') + '</dd>' +
+            '<dt>提案说明</dt><dd>' + FT.escapeHtml(proposal.reason || '-') + '</dd>' +
+            '<dt>审核意见</dt><dd>' + FT.escapeHtml(proposal.reviewComment || '-') + '</dd>' +
+            '</dl>';
+        var currentUser = FT.state.currentUser || {};
+        var canCancel = PROPOSAL_ACTIVE_STATUSES[proposal.status] && !proposal.expired &&
+            (proposal.initiatorId === currentUser.id || FT.state.isManager);
+        if (proposal.viewerCanVote || proposal.viewerHasVoted || canCancel) {
+            html += '<div class="link-proposal-actions">';
+            if (proposal.viewerCanVote) {
+                html += '<button class="btn-sm primary js-link-proposal-action" data-action="agree">同意提案</button>';
+            }
+            if (proposal.viewerHasVoted && PROPOSAL_ACTIVE_STATUSES[proposal.status] && !proposal.expired) {
+                html += '<button class="btn-sm js-link-proposal-action" data-action="withdraw">撤回同意</button>';
+            }
+            if (canCancel) {
+                html += '<button class="btn-sm danger js-link-proposal-action" data-action="cancel">取消提案</button>';
+            }
+            html += '</div>';
+        }
+        html += '<div class="link-proposal-subtitle">投票记录（' + votes.length + '）</div>';
+        if (!votes.length) {
+            html += '<p class="affinity-empty">暂无投票</p>';
+        }
+        votes.forEach(function (vote) {
+            html += '<div class="link-proposal-record">' +
+                '<strong>' + FT.escapeHtml(vote.nodeName || '-') + '</strong>' +
+                '<span>' + FT.escapeHtml(vote.username || '-') + '</span>' +
+                '<span class="' + (vote.valid ? 'link-proposal-valid' : 'link-proposal-invalid') + '">' +
+                (vote.valid ? '有效同意' : (vote.status === 'REVOKED' ? '已撤回' : '已失效')) + '</span>' +
+                '<span class="affinity-src">' + FT.escapeHtml(formatProposalTime(vote.updateTime || vote.createTime)) + '</span>' +
+                '</div>';
+        });
+        html += '<div class="link-proposal-subtitle">处理记录（' + events.length + '）</div>';
+        if (!events.length) {
+            html += '<p class="affinity-empty">暂无处理记录</p>';
+        }
+        events.forEach(function (event) {
+            html += '<div class="link-proposal-event">' +
+                '<span class="affinity-src">' + FT.escapeHtml(formatProposalTime(event.createTime)) + '</span>' +
+                '<strong>' + FT.escapeHtml(PROPOSAL_EVENT_LABELS[event.eventType] || event.eventType || '-') + '</strong>' +
+                '<span>' + FT.escapeHtml(event.operatorName || '系统') + '</span>' +
+                (event.comment ? '<p>' + FT.escapeHtml(event.comment) + '</p>' : '') +
+                '</div>';
+        });
+        html += '<button class="btn-sm js-link-proposal-back">返回提案列表</button></div>';
+        container.innerHTML = html;
+        container.querySelector('.js-link-proposal-back').addEventListener('click', function () {
+            loadLinkProposalSections(nodeId);
+        });
+        container.querySelectorAll('.js-link-proposal-action').forEach(function (btn) {
+            btn.addEventListener('click', async function () {
+                var action = btn.dataset.action;
+                if (action === 'cancel') {
+                    FT.confirm('确定取消该提案？取消后需重新发起。', function () {
+                        submitLinkProposalAction(container, nodeId, proposal.id, action);
+                    }, {title: '确认取消提案'});
+                    return;
+                }
+                if (action === 'withdraw') {
+                    FT.confirm('确定撤回您的同意？有效票数不足时提案将重新进入征集阶段。', function () {
+                        submitLinkProposalAction(container, nodeId, proposal.id, action);
+                    }, {title: '确认撤回同意'});
+                    return;
+                }
+                submitLinkProposalAction(container, nodeId, proposal.id, action);
+            });
+        });
+    }
+
+    async function submitLinkProposalAction(container, nodeId, proposalId, action) {
+        var res;
+        try {
+            res = await FT.api('/api/link-proposals/' + proposalId + '/' + action, {method: 'POST'});
+        } catch (e) {
+            return;
+        }
+        if (res.code !== 200 || !res.data) {
+            return;
+        }
+        var message = action === 'agree' ? '已记录同意' : (action === 'withdraw' ? '已撤回同意' : '提案已取消');
+        FT.toast(message, 'success');
+        renderLinkProposalDetail(container, nodeId, res.data);
+    }
 
     async function loadAffinitySections(nodeId) {
         var container = document.getElementById('affinity-sections');
@@ -754,8 +973,8 @@
         container.querySelectorAll('.js-affinity-unlink-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 FT.confirm('确定解除该亲族关联？解除后对应亲族族谱入口将消失。', async function () {
-                    var res = await FT.api('/api/node/' + btn.dataset.nodeId + '/affinity-links/' + btn.dataset.linkId,
-                        {method: 'DELETE'});
+                    var res = await FT.api('/api/node/' + btn.dataset.nodeId + '/affinity-links/' +
+                        btn.dataset.linkId + '/revoke', {method: 'POST'});
                     if (res.code === 200) {
                         FT.toast('已解除关联', 'success');
                         loadAffinitySections(nodeId);
@@ -785,18 +1004,23 @@
                     return;
                 }
                 var res = await FT.api('/api/node/' + nodeId + '/affinity-candidates');
-                var rows = (res.code === 200 && res.data) || [];
-                var html = '';
+                if (res.code !== 200) {
+                    return;
+                }
+                var rows = res.data || [];
+                var html = '<p class="link-proposal-tip">发起后需两端家族分别满足同意门槛，再由平台管理员审核；此处不会立即建立正式关联。</p>';
                 rows.forEach(function (c) {
                     var confLabel = CANDIDATE_CONFIDENCE_LABELS[c.confidence] || '';
-                    html += '<div class="affinity-row">' +
+                    html += '<div class="affinity-row link-proposal-candidate">' +
                         '<strong>' + FT.escapeHtml(c.nodeName || '') + '</strong>' +
                         '<span class="affinity-person">' + FT.escapeHtml(c.familyName || '') + '</span>' +
                         (c.birthDate ? '<span class="affinity-src">' + FT.escapeHtml(c.birthDate) + '</span>' : '') +
                         (confLabel ? '<span class="affinity-src">' + confLabel + '</span>' : '') +
+                        '<input class="link-proposal-reason" type="text" maxlength="500" aria-label="提案说明"' +
+                        ' placeholder="提案说明（选填，最多500字）">' +
                         '<span class="affinity-actions">' +
                         '<button class="btn-sm js-affinity-confirm-btn" data-dst-node-id="' + FT.escapeAttr(c.nodeId) +
-                        '" data-name="' + FT.escapeAttr(c.nodeName || '') + '">确认关联</button></span></div>';
+                        '" data-name="' + FT.escapeAttr(c.nodeName || '') + '">发起提案</button></span></div>';
                 });
                 if (!rows.length) {
                     html = '<p class="affinity-empty">未发现同名跨族候选（仅按姓名精确匹配，需对方家族有同名节点）</p>';
@@ -805,13 +1029,30 @@
                 panel.dataset.open = '1';
                 panel.querySelectorAll('.js-affinity-confirm-btn').forEach(function (cb) {
                     cb.addEventListener('click', async function () {
-                        var linkRes = await FT.api('/api/node/' + nodeId + '/affinity-links', {
-                            method: 'POST',
-                            body: JSON.stringify({dstNodeId: parseInt(cb.dataset.dstNodeId, 10)})
-                        });
-                        if (linkRes.code === 200) {
-                            FT.toast('已关联 ' + cb.dataset.name, 'success');
+                        var reasonInput = cb.closest('.link-proposal-candidate').querySelector('.link-proposal-reason');
+                        cb.disabled = true;
+                        var proposalRes;
+                        try {
+                            proposalRes = await FT.api('/api/node/' + nodeId + '/link-proposals', {
+                                method: 'POST',
+                                body: JSON.stringify({
+                                    dstNodeId: parseInt(cb.dataset.dstNodeId, 10),
+                                    linkType: 1,
+                                    reason: (reasonInput.value || '').trim() || null
+                                })
+                            });
+                        } catch (e) {
+                            cb.disabled = false;
+                            return;
+                        }
+                        if (proposalRes.code === 200) {
+                            FT.toast('提案已发起，等待两端家族投票及平台审核', 'success');
+                            panel.dataset.open = '';
+                            panel.innerHTML = '';
+                            loadLinkProposalSections(nodeId);
                             loadAffinitySections(nodeId);
+                        } else {
+                            cb.disabled = false;
                         }
                     });
                 });

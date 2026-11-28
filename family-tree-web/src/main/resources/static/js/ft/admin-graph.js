@@ -1,6 +1,6 @@
 /**
  * 族谱前端 - 平台跨族治理图谱
- * 家族级只读关系图、异常筛选与单家族链接下钻。
+ * 家族级只读关系图、异常筛选、单家族基础树与链接下钻。
  *
  * @author Family-Tree
  * @date 2026-11-26
@@ -11,8 +11,17 @@
     const FT = window.FT;
     const GRAPH_HEIGHT = 560;
     const TYPE_CODES = {BLOOD: 1, MARRIAGE: 2};
+    const RELATION_CODES = {PARENT_CHILD: 1, SPOUSE: 2, ADOPTION: 3};
     const TYPE_LABELS = {1: '血缘同人', 2: '姻亲指认'};
     const STATUS_LABELS = {NORMAL: '正常', FROZEN: '冻结', ARCHIVED: '已归档'};
+    const LINK_COUNT_BINS = [
+        {max: 0, label: '0', color: '#e1e7eb'},
+        {max: 1, label: '1', color: '#b6c8d2'},
+        {max: 3, label: '2–3', color: '#829fae'},
+        {max: 6, label: '4–6', color: '#4f758b'},
+        {max: 11, label: '7–11', color: '#28556d'},
+        {max: Infinity, label: '12+', color: '#12384f'}
+    ];
 
     const state = {
         initialized: false,
@@ -20,6 +29,7 @@
         mode: 'GOVERNANCE',
         overview: null,
         network: null,
+        detailRequest: 0,
         selectedFamilyId: null,
         filteredNodes: [],
         filteredEdges: [],
@@ -100,6 +110,7 @@
     }
 
     function switchMode(mode) {
+        state.detailRequest++;
         state.mode = mode === 'NETWORK' ? 'NETWORK' : 'GOVERNANCE';
         const networkMode = state.mode === 'NETWORK';
         $('graph-search').style.display = networkMode ? 'none' : '';
@@ -110,8 +121,7 @@
                 + '<span style="--legend-color:#a63a2b">血缘同人</span>'
                 + '<span style="--legend-color:#6b4f8a">姻亲指认</span>'
                 + '<span style="--legend-color:#8a7f6a">族内关系</span>'
-            : '<span style="--legend-color:#5b6b7c">正常家族</span>'
-                + '<span style="--legend-color:#a63a2b">存在异常链接</span>'
+            : governanceLegend()
                 + '<span style="--legend-color:#a63a2b">血缘同人</span>'
                 + '<span style="--legend-color:#6b4f8a">姻亲指认</span>';
         $('graph-detail').innerHTML = '<div class="detail-empty">'
@@ -374,6 +384,17 @@
             }
             return mapped;
         });
+        if (state.mode === 'GOVERNANCE') {
+            const visibleLinkCounts = new Map();
+            links.forEach(function (edge) {
+                const count = num(edge.linkCount);
+                visibleLinkCounts.set(String(edge.source), num(visibleLinkCounts.get(String(edge.source))) + count);
+                visibleLinkCounts.set(String(edge.target), num(visibleLinkCounts.get(String(edge.target))) + count);
+            });
+            nodes.forEach(function (item) {
+                item.visibleLinkCount = num(visibleLinkCounts.get(String(item.id)));
+            });
+        }
         const svg = d3.select(stage).append('svg')
             .attr('viewBox', [0, 0, width, GRAPH_HEIGHT])
             .attr('role', 'img')
@@ -473,8 +494,9 @@
                     return (item.name || ('节点 #' + item.id)) + ' · '
                         + (item.familyName || '未知家族') + (item.missing ? '（节点缺失）' : '');
                 }
-                return (item.name || ('家族 #' + item.id)) + '：' + num(item.linkCount)
-                    + ' 条链接，' + num(item.issueCount) + ' 条异常';
+                return (item.name || ('家族 #' + item.id)) + '：当前视图 '
+                    + num(item.visibleLinkCount) + ' 条链接，总计 ' + num(item.linkCount)
+                    + ' 条，' + num(item.issueCount) + ' 条异常';
             });
 
         node.on('mouseenter', function (event, item) {
@@ -524,9 +546,22 @@
         highlightSelection();
     }
 
+    function governanceLegend() {
+        return '<strong>节点色 · 链接数</strong>' + LINK_COUNT_BINS.map(function (bin) {
+            return '<span style="--legend-color:' + bin.color + '">' + bin.label + '</span>';
+        }).join('') + '<span style="--legend-color:#a63a2b">异常节点</span>';
+    }
+
+    function linkCountColor(count) {
+        const bin = LINK_COUNT_BINS.find(function (item) {
+            return num(count) <= item.max;
+        });
+        return bin.color;
+    }
+
     function nodeColor(item) {
         if (state.mode === 'GOVERNANCE') {
-            return num(item.issueCount) > 0 ? '#a63a2b' : '#5b6b7c';
+            return num(item.issueCount) > 0 ? '#a63a2b' : linkCountColor(item.visibleLinkCount);
         }
         if (item.missing) {
             return '#fffdf7';
@@ -621,29 +656,50 @@
     }
 
     async function loadFamilyDetail(familyId) {
+        const request = ++state.detailRequest;
         state.selectedFamilyId = familyId;
         highlightSelection();
         const box = $('graph-detail');
-        box.innerHTML = '<div class="detail-empty">正在加载家族跨族链接…</div>';
+        box.innerHTML = '<div class="detail-empty">正在加载家族基础树与跨族链接…</div>';
         try {
-            const res = await FT.api('/api/admin/graph/families/' + familyId);
-            if (res.code !== 200 || !res.data) {
+            const [detailRes, networkRes] = await Promise.all([
+                FT.api('/api/admin/graph/families/' + encodeURIComponent(familyId)),
+                FT.api('/api/admin/graph/families/' + encodeURIComponent(familyId) + '/network')
+            ]);
+            if (request !== state.detailRequest || state.mode !== 'GOVERNANCE') {
+                return;
+            }
+            if (detailRes.code !== 200 || !detailRes.data) {
                 box.innerHTML = '<div class="detail-empty">家族详情加载失败，请重新选择</div>';
                 return;
             }
-            renderFamilyDetail(res.data);
+            if (networkRes.code !== 200 || !networkRes.data) {
+                box.innerHTML = '<div class="detail-empty">家族基础树加载失败，请重新选择</div>';
+                return;
+            }
+            renderFamilyDetail(detailRes.data, networkRes.data);
         } catch (e) {
-            box.innerHTML = '<div class="detail-empty">家族详情加载失败，请重新选择</div>';
+            if (request === state.detailRequest && state.mode === 'GOVERNANCE') {
+                box.innerHTML = '<div class="detail-empty">家族基础树加载失败，请重新选择</div>';
+            }
         }
     }
 
-    function renderFamilyDetail(detail) {
+    function renderFamilyDetail(detail, network) {
         const family = detail.family || {};
         let html = '<div class="graph-detail-head"><h3>' + FT.escapeHtml(family.name || ('家族 #' + family.id))
             + '</h3><button class="ghost-btn" id="graph-clear-selection" type="button">返回图谱</button></div>';
         html += '<div class="admin-hint">家族编号 ' + FT.escapeHtml(family.id) + ' · '
             + FT.escapeHtml(STATUS_LABELS[family.status] || family.status || '未知') + '</div>';
-        html += '<div class="mini-stats">'
+        html += '<div class="graph-detail-tabs" role="tablist" aria-label="家族详情">'
+            + '<button class="graph-detail-tab active" id="graph-tab-tree" type="button" role="tab" '
+            + 'aria-selected="true" aria-controls="graph-panel-tree">基础族谱</button>'
+            + '<button class="graph-detail-tab" id="graph-tab-links" type="button" role="tab" '
+            + 'aria-selected="false" aria-controls="graph-panel-links">跨族链接</button></div>';
+        html += '<div id="graph-panel-tree" role="tabpanel" aria-labelledby="graph-tab-tree">'
+            + renderFamilyTree(network) + '</div>';
+        html += '<div id="graph-panel-links" role="tabpanel" aria-labelledby="graph-tab-links" hidden>'
+            + '<div class="mini-stats">'
             + miniStat(family.linkCount, '链接')
             + miniStat(family.bloodLinkCount, '血缘')
             + miniStat(family.marriageLinkCount, '姻亲')
@@ -654,12 +710,183 @@
         }
         html += '<div class="section-title">端点节点</div>' + renderNodes(detail.nodes || []);
         html += '<div class="section-title">链接明细</div>' + renderLinks(detail.links || []);
+        html += '</div>';
         $('graph-detail').innerHTML = html;
-        $('graph-clear-selection').addEventListener('click', function () {
-            state.selectedFamilyId = null;
-            highlightSelection();
-            $('graph-detail').innerHTML = '<div class="detail-empty">点击图谱中的家族查看跨族链接明细</div>';
+        $('graph-clear-selection').addEventListener('click', clearFamilySelection);
+        $('graph-tab-tree').addEventListener('click', function () {
+            selectFamilyDetailTab('tree');
         });
+        $('graph-tab-links').addEventListener('click', function () {
+            selectFamilyDetailTab('links');
+        });
+    }
+
+    function clearFamilySelection() {
+        state.detailRequest++;
+        state.selectedFamilyId = null;
+        highlightSelection();
+        $('graph-detail').innerHTML = '<div class="detail-empty">点击图谱中的家族查看基础族谱与跨族链接</div>';
+    }
+
+    function selectFamilyDetailTab(tab) {
+        const tree = tab === 'tree';
+        $('graph-panel-tree').hidden = !tree;
+        $('graph-panel-links').hidden = tree;
+        $('graph-tab-tree').classList.toggle('active', tree);
+        $('graph-tab-links').classList.toggle('active', !tree);
+        $('graph-tab-tree').setAttribute('aria-selected', String(tree));
+        $('graph-tab-links').setAttribute('aria-selected', String(!tree));
+    }
+
+    function renderFamilyTree(network) {
+        const familyId = network.family && network.family.id;
+        const nodes = (network.nodes || []).filter(function (node) {
+            return node.familyId === familyId;
+        }).sort(function (left, right) {
+            return num(left.generation) - num(right.generation)
+                || String(left.name || '').localeCompare(String(right.name || ''), 'zh-CN')
+                || num(left.id) - num(right.id);
+        });
+        if (!nodes.length) {
+            return '<div class="detail-empty">该家族暂无族谱节点</div>';
+        }
+        const nodeMap = new Map(nodes.map(function (node) {
+            return [node.id, node];
+        }));
+        const spouseMap = new Map();
+        (network.relations || []).forEach(function (relation) {
+            if (relation.relationType !== RELATION_CODES.SPOUSE
+                || !nodeMap.has(relation.fromNodeId) || !nodeMap.has(relation.toNodeId)
+                || relation.fromNodeId === relation.toNodeId) {
+                return;
+            }
+            if (!spouseMap.has(relation.fromNodeId)) {
+                spouseMap.set(relation.fromNodeId, []);
+            }
+            if (!spouseMap.get(relation.fromNodeId).includes(relation.toNodeId)) {
+                spouseMap.get(relation.fromNodeId).push(relation.toNodeId);
+            }
+            if (!spouseMap.has(relation.toNodeId)) {
+                spouseMap.set(relation.toNodeId, []);
+            }
+            if (!spouseMap.get(relation.toNodeId).includes(relation.fromNodeId)) {
+                spouseMap.get(relation.toNodeId).push(relation.fromNodeId);
+            }
+        });
+        const spouseAnchor = new Map();
+        const spousePairs = new Set();
+        spouseMap.forEach(function (spouses, nodeId) {
+            spouses.forEach(function (spouseId) {
+                const pairKey = [nodeId, spouseId].sort(num).join(':');
+                if (spousePairs.has(pairKey)) {
+                    return;
+                }
+                spousePairs.add(pairKey);
+                const anchorId = num(nodeId) <= num(spouseId) ? nodeId : spouseId;
+                spouseAnchor.set(anchorId === nodeId ? spouseId : nodeId, anchorId);
+            });
+        });
+        const parents = new Map();
+        const children = new Map();
+        (network.relations || []).forEach(function (relation) {
+            if ((relation.relationType !== RELATION_CODES.PARENT_CHILD
+                && relation.relationType !== RELATION_CODES.ADOPTION)
+                || !nodeMap.has(relation.fromNodeId) || !nodeMap.has(relation.toNodeId)
+                || relation.fromNodeId === relation.toNodeId || parents.has(relation.toNodeId)) {
+                return;
+            }
+            const parentId = spouseAnchor.get(relation.fromNodeId) || relation.fromNodeId;
+            if (!nodeMap.has(parentId) || parentId === relation.toNodeId) {
+                return;
+            }
+            parents.set(relation.toNodeId, parentId);
+            if (!children.has(parentId)) {
+                children.set(parentId, []);
+            }
+            children.get(parentId).push(relation.toNodeId);
+        });
+        children.forEach(function (childIds) {
+            childIds.sort(function (leftId, rightId) {
+                return compareTreeNodes(nodeMap.get(leftId), nodeMap.get(rightId));
+            });
+        });
+        spouseMap.forEach(function (spouseIds) {
+            spouseIds.sort(function (leftId, rightId) {
+                return compareTreeNodes(nodeMap.get(leftId), nodeMap.get(rightId));
+            });
+        });
+        const rendered = new Set();
+        const roots = nodes.filter(function (node) {
+            return !parents.has(node.id) && !spouseAnchor.has(node.id);
+        }).map(function (node) {
+            return node.id;
+        });
+        let html = '<div class="admin-hint family-tree-hint">按亲子 / 收养关系排列，夫妻并列；仅展示基础信息。</div>'
+            + '<div class="admin-family-tree-scroll"><ul class="admin-family-tree" role="tree">';
+        roots.forEach(function (rootId) {
+            html += renderFamilyTreeNode(rootId, nodeMap, spouseMap, children, rendered);
+        });
+        nodes.forEach(function (node) {
+            if (!rendered.has(node.id)) {
+                html += renderFamilyTreeNode(node.id, nodeMap, spouseMap, children, rendered);
+            }
+        });
+        return html + '</ul></div>';
+    }
+
+    function renderFamilyTreeNode(nodeId, nodeMap, spouseMap, children, rendered) {
+        if (rendered.has(nodeId) || !nodeMap.has(nodeId)) {
+            return '';
+        }
+        rendered.add(nodeId);
+        const node = nodeMap.get(nodeId);
+        const coupleIds = [nodeId].concat((spouseMap.get(nodeId) || []).filter(function (spouseId) {
+            return !rendered.has(spouseId) && nodeMap.has(spouseId);
+        }));
+        coupleIds.forEach(function (id) {
+            rendered.add(id);
+        });
+        let html = '<li role="treeitem" aria-expanded="' + String((children.get(nodeId) || []).length > 0) + '">'
+            + '<div class="admin-family-tree-couple">' + coupleIds.map(function (id) {
+                return renderFamilyTreeCard(nodeMap.get(id));
+            }).join('<span class="admin-family-tree-spouse" role="img" aria-label="配偶">♥</span>') + '</div>';
+        const childIds = (children.get(nodeId) || []).filter(function (childId) {
+            return !rendered.has(childId);
+        });
+        if (childIds.length) {
+            html += '<ul role="group">' + childIds.map(function (childId) {
+                return renderFamilyTreeNode(childId, nodeMap, spouseMap, children, rendered);
+            }).join('') + '</ul>';
+        }
+        return html + '</li>';
+    }
+
+    function renderFamilyTreeCard(node) {
+        const name = node.name || ('节点 #' + node.id);
+        const years = [node.birthYear == null ? '?' : node.birthYear,
+            node.deathYear == null ? '?' : node.deathYear].join('–');
+        const gender = node.gender === 1 ? '♂' : node.gender === 2 ? '♀' : '';
+        const generation = node.generation == null ? '?' : node.generation;
+        const charCount = Math.max(Array.from(name).length, 1);
+        const charHeight = Math.min(26, Math.floor(84 / charCount));
+        const fontSize = Math.max(9, Math.min(21, charHeight - 4));
+        const deceased = node.deathYear != null;
+        const cardClass = 'admin-family-tree-card'
+            + (deceased ? ' deceased' : '') + (node.missing ? ' missing' : '');
+        const label = name + '，' + (node.genderLabel || '未知性别') + '，生卒年 ' + years + '，第 ' + generation + ' 世';
+        return '<div class="' + cardClass + '" title="' + FT.escapeAttr(label) + '">'
+            + '<div class="admin-family-tree-generation">第 ' + FT.escapeHtml(generation) + ' 世</div>'
+            + '<div class="admin-family-tree-name" style="font-size:' + fontSize + 'px">'
+            + FT.escapeHtml(name) + '</div>'
+            + '<div class="admin-family-tree-meta"><span class="admin-family-tree-gender">'
+            + FT.escapeHtml(gender) + '</span><span class="admin-family-tree-years">'
+            + FT.escapeHtml(years) + '</span></div></div>';
+    }
+
+    function compareTreeNodes(left, right) {
+        return num(left.generation) - num(right.generation)
+            || String(left.name || '').localeCompare(String(right.name || ''), 'zh-CN')
+            || num(left.id) - num(right.id);
     }
 
     function renderNetworkDetail() {

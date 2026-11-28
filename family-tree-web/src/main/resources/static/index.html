@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#a63a2b">
     <title>族谱管理系统</title>
     <link rel="manifest" href="/manifest.json">
-    <link href="/css/style.css?v=20261126b" rel="stylesheet">
+    <link href="/css/style.css?v=20261128d" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
@@ -57,6 +57,7 @@
         <div class="header-more-wrap">
             <button class="btn-sm" id="btn-more" title="更多操作">更多 ▾</button>
             <div class="header-more-dropdown" id="header-more-dropdown" style="display:none;">
+                <a class="header-more-item" href="/home" title="查看首页">首页</a>
                 <div class="header-more-item" id="btn-profile" title="维护个人信息">个人信息</div>
                 <div class="header-more-item" id="btn-family-switch" title="切换家族">切换家族</div>
                 <div class="header-more-item" id="btn-family-portal" title="查看归属家族、创建或加入其他家族">我的家族</div>
@@ -107,6 +108,10 @@
         </button>
     </div>
     <nav class="drawer-nav">
+        <a class="drawer-nav-item" href="/home">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            <span>首页</span>
+        </a>
         <div class="drawer-nav-item" id="drawer-btn-generation">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
             <span>辈分管理</span>
@@ -348,7 +353,7 @@
 <script src="/js/lib/lunar.js?v=20261114a"></script>
 <script src="/js/ft/birth-calendar.js?v=20261119a"></script>
 <script src="/js/ft/modal-offering.js?v=20260830a"></script>
-<script src="/js/ft/modal-node.js?v=20261121a"></script>
+<script src="/js/ft/modal-node.js?v=20261128b"></script>
 <script src="/js/ft/modal-family.js?v=20261127a"></script>
 <script src="/js/ft/modal-tools.js?v=20261126a"></script>
 <script src="/js/ft/modal-message.js?v=20260828a"></script>

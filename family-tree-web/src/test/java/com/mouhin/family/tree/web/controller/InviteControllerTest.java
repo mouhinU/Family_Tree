@@ -11,6 +11,7 @@ import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.dto.FamilyDTO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.common.result.Result;
+import com.mouhin.family.tree.web.controller.user.InviteController;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

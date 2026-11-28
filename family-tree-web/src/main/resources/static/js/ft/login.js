@@ -62,13 +62,6 @@
         window.location.href = hasFamily ? '/portal.html' : '/family-setup.html';
     }
 
-    // 检测 URL 中的邀请码参数，自动切换到注册页并填入邀请码
-    var inviteParam = new URLSearchParams(window.location.search).get('invite');
-    if (inviteParam) {
-        tabRegister.click();
-        document.getElementById('reg-invite-code').value = inviteParam.toUpperCase();
-    }
-
     tabLogin.addEventListener('click', function () {
         tabLogin.classList.add('active');
         tabRegister.classList.remove('active');
@@ -86,6 +79,16 @@
         loginModeToggle.style.display = 'none';
         messageEl.textContent = '';
     });
+
+    // 检测 URL 中的注册入口与邀请码参数，自动切换到注册页并填入邀请码
+    var registerParam = new URLSearchParams(window.location.search).get('mode') === 'register';
+    var inviteParam = new URLSearchParams(window.location.search).get('invite');
+    if (registerParam || inviteParam) {
+        tabRegister.click();
+    }
+    if (inviteParam) {
+        document.getElementById('reg-invite-code').value = inviteParam.toUpperCase();
+    }
 
     // ========== 短信验证码通用逻辑 ==========
     // 登录区内密码/短信两种方式互斥切换，切换链接文案随模式更新

@@ -29,6 +29,7 @@
     const TAB_USER = 'user';
     const TAB_INSPECTION = 'inspection';
     const TAB_GRAPH = 'graph';
+    const TAB_PROPOSAL = 'proposal';
     const TAB_SETTING = 'setting';
     const TAB_LOG = 'log';
     /** 日志「对象」列的取值文案：target_type 已由后端白名单产出，未知值原样展示 */
@@ -49,6 +50,30 @@
         ARCHIVED: '归档后该家族对普通成员整体下线，仅平台管理员可查看。',
         NORMAL: '恢复后该家族读写正常。'
     };
+    /** 跨族链接提案状态与事件文案 */
+    const PROPOSAL_STATUS = {
+        PENDING_VOTES: {label: '征集中', tagClass: 'proposal-pending'},
+        READY_FOR_REVIEW: {label: '待平台审核', tagClass: 'proposal-ready'},
+        APPROVED: {label: '已通过', tagClass: 'proposal-approved'},
+        REJECTED: {label: '已驳回', tagClass: 'proposal-closed'},
+        CANCELLED: {label: '已取消', tagClass: 'proposal-closed'},
+        EXPIRED: {label: '已到期', tagClass: 'proposal-closed'},
+        INVALIDATED: {label: '已失效', tagClass: 'proposal-closed'}
+    };
+    const PROPOSAL_EVENT_LABELS = {
+        CREATED: '创建提案',
+        AGREED: '同意提案',
+        WITHDRAWN: '撤回同意',
+        CANCELLED: '取消提案',
+        READY_FOR_REVIEW: '达到门槛',
+        APPROVED: '审核通过',
+        REJECTED: '审核驳回',
+        EXPIRED: '提案到期',
+        INVALIDATED: '提案失效',
+        COMMENTED: '平台备注'
+    };
+    const PROPOSAL_ACTIVE_STATUSES = {PENDING_VOTES: true, READY_FOR_REVIEW: true};
+    const MAX_PROPOSAL_COMMENT_LENGTH = 1000;
     /** 家族名称最大长度，与后端 FamilyTreeConsts.MAX_FAMILY_NAME_LENGTH 一致 */
     const MAX_FAMILY_NAME_LENGTH = 100;
 
@@ -86,7 +111,14 @@
         logFilterLoaded: false,
         // 平台配置为全站生效链的最高默认层，进入页签时拉取，保存后重新拉取
         platformSettings: [],
-        platformOriginalValues: {}
+        platformOriginalValues: {},
+        proposalStatus: '',
+        proposalPage: 1,
+        proposalTotal: 0,
+        proposalTotalPages: 1,
+        proposalSelectedId: null,
+        proposalDetail: null,
+        proposalRequestId: 0
     };
 
     function $(id) {
@@ -151,6 +183,19 @@
         });
         $('tab-graph').addEventListener('click', function () {
             switchTab(TAB_GRAPH);
+        });
+        $('tab-proposals').addEventListener('click', function () {
+            switchTab(TAB_PROPOSAL);
+        });
+        $('proposal-status').addEventListener('change', function () {
+            state.proposalStatus = this.value;
+            state.proposalSelectedId = null;
+            state.proposalDetail = null;
+            renderProposalPlaceholder();
+            loadLinkProposals(1);
+        });
+        $('btn-proposal-reload').addEventListener('click', function () {
+            loadLinkProposals(1);
         });
         $('tab-settings').addEventListener('click', function () {
             switchTab(TAB_SETTING);
@@ -250,6 +295,7 @@
         var isUser = tab === TAB_USER;
         var isInspection = tab === TAB_INSPECTION;
         var isGraph = tab === TAB_GRAPH;
+        var isProposal = tab === TAB_PROPOSAL;
         var isSetting = tab === TAB_SETTING;
         var isLog = tab === TAB_LOG;
         if (!isUser) {
@@ -260,12 +306,14 @@
         $('pane-users').style.display = isUser ? '' : 'none';
         $('pane-inspection').style.display = isInspection ? '' : 'none';
         $('pane-graph').style.display = isGraph ? '' : 'none';
+        $('pane-proposals').style.display = isProposal ? '' : 'none';
         $('pane-settings').style.display = isSetting ? '' : 'none';
         $('pane-logs').style.display = isLog ? '' : 'none';
         $('tab-families').classList.toggle('on', isFamily);
         $('tab-users').classList.toggle('on', isUser);
         $('tab-inspection').classList.toggle('on', isInspection);
         $('tab-graph').classList.toggle('on', isGraph);
+        $('tab-proposals').classList.toggle('on', isProposal);
         $('tab-settings').classList.toggle('on', isSetting);
         $('tab-logs').classList.toggle('on', isLog);
         // 巡检报告、平台配置与日志检索按项铺开，不需要右侧详情栏
@@ -295,6 +343,11 @@
             if (FT.AdminGraph) {
                 FT.AdminGraph.onEnter();
             }
+            return;
+        }
+        if (isProposal) {
+            renderProposalPlaceholder();
+            loadLinkProposals(1);
             return;
         }
         loadInspection(false);
@@ -444,6 +497,14 @@
             var userId = parseInt(userTr.getAttribute('data-user-id'), 10);
             if (!isNaN(userId)) {
                 openUserDetail(userId);
+            }
+            return;
+        }
+        var proposalTr = evt.target.closest ? evt.target.closest('#proposal-tbody tr[data-proposal-id]') : null;
+        if (proposalTr) {
+            var proposalId = parseInt(proposalTr.getAttribute('data-proposal-id'), 10);
+            if (!isNaN(proposalId)) {
+                openProposalDetail(proposalId);
             }
         }
     });
@@ -971,6 +1032,305 @@
 
     function severityTagClass(severity) {
         return SEVERITY_TAG_CLASSES[severity] || 'sev-low';
+    }
+
+    // ========== 跨族链接提案 ==========
+    function renderProposalPlaceholder() {
+        if (state.proposalSelectedId == null || !state.proposalDetail) {
+            $('detail-pane').innerHTML = '<h2>提案详情</h2>'
+                + '<div class="detail-empty">点击左侧任一提案查看投票与处理记录</div>';
+            return;
+        }
+        renderProposalDetail();
+    }
+
+    async function loadLinkProposals(page) {
+        var requestId = ++state.proposalRequestId;
+        var url = '/api/admin/link-proposals?page=' + page + '&size=' + PAGE_SIZE;
+        if (state.proposalStatus) {
+            url += '&status=' + encodeURIComponent(state.proposalStatus);
+        }
+        $('proposal-tbody').innerHTML = '<tr><td colspan="8" style="text-align:center;color:#999;">正在加载…</td></tr>';
+        $('proposal-pager').innerHTML = '';
+        var res;
+        try {
+            res = await FT.api(url);
+        } catch (e) {
+            if (requestId !== state.proposalRequestId) {
+                return;
+            }
+            $('proposal-list-count').textContent = '加载失败';
+            $('proposal-tbody').innerHTML = '<tr><td colspan="8" style="text-align:center;color:#999;">'
+                + '提案加载失败，请点击「刷新」重试</td></tr>';
+            return;
+        }
+        if (requestId !== state.proposalRequestId) {
+            return;
+        }
+        if (res.code !== 200 || !res.data) {
+            $('proposal-list-count').textContent = '加载失败';
+            $('proposal-tbody').innerHTML = '<tr><td colspan="8" style="text-align:center;color:#999;">'
+                + '提案加载失败，请点击「刷新」重试</td></tr>';
+            return;
+        }
+        var data = res.data;
+        state.proposalPage = num(data.page) || page;
+        state.proposalTotal = num(data.total);
+        state.proposalTotalPages = num(data.totalPages) || 1;
+        $('proposal-list-count').textContent = '共 ' + state.proposalTotal + ' 个提案';
+        $('proposal-tbody').innerHTML = renderProposalRows(data.records || []);
+        renderProposalPager();
+    }
+
+    function renderProposalRows(rows) {
+        if (rows.length === 0) {
+            return '<tr><td colspan="8" style="text-align:center;color:#999;">没有匹配的提案</td></tr>';
+        }
+        var html = '';
+        rows.forEach(function (row) {
+            var selected = String(row.id) === String(state.proposalSelectedId);
+            html += '<tr data-proposal-id="' + FT.escapeAttr(row.id) + '"'
+                + (selected ? ' class="active"' : '') + '>'
+                + '<td>' + FT.escapeHtml(row.id) + '</td>'
+                + '<td>' + renderProposalEndpoint(row.srcFamilyName, row.srcNodeName, row.srcFamilyId,
+                    row.srcNodeId) + '</td>'
+                + '<td>' + renderProposalEndpoint(row.dstFamilyName, row.dstNodeName, row.dstFamilyId,
+                    row.dstNodeId) + '</td>'
+                + '<td class="num">' + FT.escapeHtml(num(row.srcAgreementCount) + ' / '
+                    + num(row.srcRequirement)) + '</td>'
+                + '<td class="num">' + FT.escapeHtml(num(row.dstAgreementCount) + ' / '
+                    + num(row.dstRequirement)) + '</td>'
+                + '<td>' + proposalStatusTag(row.status) + '</td>'
+                + '<td>' + FT.escapeHtml(row.initiatorName || '-') + '</td>'
+                + '<td>' + FT.escapeHtml(formatTime(row.expireAt)) + '</td></tr>';
+        });
+        return html;
+    }
+
+    function renderProposalEndpoint(familyName, nodeName, familyId, nodeId) {
+        return '<strong>' + FT.escapeHtml(familyName || ('家族 #' + familyId)) + '</strong>'
+            + '<div class="admin-hint">' + FT.escapeHtml(nodeName || ('节点 #' + nodeId)) + '</div>';
+    }
+
+    function proposalStatusTag(code) {
+        var status = PROPOSAL_STATUS[code] || {label: code || '-', tagClass: 'proposal-closed'};
+        return '<span class="proposal-status-tag ' + status.tagClass + '">'
+            + FT.escapeHtml(status.label) + '</span>';
+    }
+
+    function renderProposalPager() {
+        $('proposal-pager').innerHTML = '<button type="button" id="proposal-pager-prev"'
+            + (state.proposalPage <= 1 ? ' disabled' : '') + '>上一页</button>'
+            + '<span>第 ' + state.proposalPage + ' / ' + state.proposalTotalPages + ' 页</span>'
+            + '<button type="button" id="proposal-pager-next"'
+            + (state.proposalPage >= state.proposalTotalPages ? ' disabled' : '') + '>下一页</button>';
+        $('proposal-pager-prev').addEventListener('click', function () {
+            loadLinkProposals(state.proposalPage - 1);
+        });
+        $('proposal-pager-next').addEventListener('click', function () {
+            loadLinkProposals(state.proposalPage + 1);
+        });
+    }
+
+    async function openProposalDetail(proposalId) {
+        state.proposalSelectedId = proposalId;
+        state.proposalDetail = null;
+        document.querySelectorAll('#proposal-tbody tr[data-proposal-id]').forEach(function (tr) {
+            tr.classList.toggle('active', parseInt(tr.getAttribute('data-proposal-id'), 10) === proposalId);
+        });
+        $('detail-pane').innerHTML = '<h2>提案 #' + FT.escapeHtml(proposalId) + '</h2>'
+            + '<div class="detail-empty">正在加载…</div>';
+        var res;
+        try {
+            res = await FT.api('/api/admin/link-proposals/' + proposalId);
+        } catch (e) {
+            if (state.proposalSelectedId === proposalId) {
+                renderProposalLoadFailure();
+            }
+            return;
+        }
+        if (state.proposalSelectedId !== proposalId) {
+            return;
+        }
+        if (res.code !== 200 || !res.data) {
+            renderProposalLoadFailure();
+            return;
+        }
+        state.proposalDetail = res.data;
+        renderProposalDetail();
+    }
+
+    function renderProposalLoadFailure() {
+        state.proposalSelectedId = null;
+        state.proposalDetail = null;
+        renderProposalPlaceholder();
+        FT.toast('提案详情加载失败，请重试', 'error');
+    }
+
+    function renderProposalDetail() {
+        var proposal = state.proposalDetail;
+        var html = '<h2>提案 #' + FT.escapeHtml(proposal.id) + '</h2>' + proposalStatusTag(proposal.status);
+        html += '<dl class="kv-grid">'
+            + kv('链接类型', proposal.linkType === 1 ? '血缘同人' : '姻亲指认')
+            + kv('源端节点', (proposal.srcFamilyName || '#') + ' / ' + (proposal.srcNodeName || '#'))
+            + kv('源端同意', num(proposal.srcAgreementCount) + ' / ' + num(proposal.srcRequirement))
+            + kv('目标端节点', (proposal.dstFamilyName || '#') + ' / ' + (proposal.dstNodeName || '#'))
+            + kv('目标端同意', num(proposal.dstAgreementCount) + ' / ' + num(proposal.dstRequirement))
+            + kv('发起人', proposal.initiatorName || '-')
+            + kv('发起家族', proposal.initiatorFamilyId == null ? '-' : '#' + proposal.initiatorFamilyId)
+            + kv('发起时间', formatTime(proposal.createTime))
+            + kv('到期时间', formatTime(proposal.expireAt) + (proposal.expired ? '（已到期）' : ''))
+            + kv('提案说明', proposal.reason || '-')
+            + kv('审核意见', proposal.reviewComment || '-')
+            + kv('审核人', proposal.reviewedBy == null ? '-' : '#' + proposal.reviewedBy)
+            + kv('审核时间', formatTime(proposal.reviewedAt))
+            + '</dl>';
+        html += renderProposalReviewForm(proposal);
+        html += '<div class="section-title">投票记录（' + (proposal.votes || []).length + '）</div>'
+            + renderProposalVotes(proposal.votes || []);
+        html += '<div class="section-title">处理记录（' + (proposal.events || []).length + '）</div>'
+            + renderProposalEvents(proposal.events || []);
+        $('detail-pane').innerHTML = html;
+        bindProposalReviewEvents(proposal.id);
+    }
+
+    function renderProposalReviewForm(proposal) {
+        if (!PROPOSAL_ACTIVE_STATUSES[proposal.status] || proposal.expired) {
+            return '';
+        }
+        var reviewable = proposal.status === 'READY_FOR_REVIEW';
+        var html = '<div class="section-title">平台处理</div>'
+            + '<textarea id="proposal-comment" class="link-proposal-review-textarea" maxlength="'
+            + MAX_PROPOSAL_COMMENT_LENGTH + '" placeholder="备注或审核意见（驳回时必填，最多1000字）"></textarea>'
+            + '<div class="link-proposal-review-actions">'
+            + '<button class="ghost-btn js-proposal-action" data-action="comment" type="button">添加备注</button>';
+        if (reviewable) {
+            html += '<button class="primary-btn js-proposal-action" data-action="approve" type="button">'
+                + '通过并建立关联</button>'
+                + '<button class="ghost-btn proposal-reject-btn js-proposal-action" data-action="reject" '
+                + 'type="button">驳回提案</button>';
+        }
+        html += '</div><div class="admin-hint">'
+            + (reviewable ? '通过后将立即创建正式跨族关联；请确认两端有效同意均达到门槛。'
+                : '有效票数达到两端门槛后，提案自动进入待审核状态。') + '</div>';
+        return html;
+    }
+
+    function renderProposalVotes(votes) {
+        if (votes.length === 0) {
+            return '<div class="detail-empty">暂无投票</div>';
+        }
+        var html = '';
+        votes.forEach(function (vote) {
+            var voteLabel = vote.valid ? '有效同意' : (vote.status === 'REVOKED' ? '已撤回' : '已失效');
+            html += '<div class="link-proposal-record">'
+                + '<strong>' + FT.escapeHtml(vote.nodeName || ('节点 #' + vote.nodeId)) + '</strong>'
+                + '<span>家族 #' + FT.escapeHtml(vote.familyId) + '</span>'
+                + '<span>' + FT.escapeHtml(vote.username || '-') + '</span>'
+                + '<span class="' + (vote.valid ? 'link-proposal-valid' : 'link-proposal-invalid') + '">'
+                + voteLabel + '</span>'
+                + '<span class="affinity-src">' + FT.escapeHtml(formatTime(vote.updateTime || vote.createTime))
+                + '</span></div>';
+        });
+        return html;
+    }
+
+    function renderProposalEvents(events) {
+        if (events.length === 0) {
+            return '<div class="detail-empty">暂无处理记录</div>';
+        }
+        var html = '';
+        events.forEach(function (event) {
+            var label = PROPOSAL_EVENT_LABELS[event.eventType] || event.eventType || '-';
+            var transition = event.fromStatus || event.toStatus
+                ? ' · ' + (PROPOSAL_STATUS[event.fromStatus] ? PROPOSAL_STATUS[event.fromStatus].label
+                    : (event.fromStatus || '-')) + ' → '
+                + (PROPOSAL_STATUS[event.toStatus] ? PROPOSAL_STATUS[event.toStatus].label
+                    : (event.toStatus || '-')) : '';
+            html += '<div class="link-proposal-event">'
+                + '<span class="affinity-src">' + FT.escapeHtml(formatTime(event.createTime)) + '</span>'
+                + '<strong>' + FT.escapeHtml(label + transition) + '</strong>'
+                + '<span>' + FT.escapeHtml(event.operatorName || '系统') + '</span>'
+                + (event.comment ? '<p>' + FT.escapeHtml(event.comment) + '</p>' : '') + '</div>';
+        });
+        return html;
+    }
+
+    function bindProposalReviewEvents(proposalId) {
+        document.querySelectorAll('#detail-pane .js-proposal-action').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var action = btn.getAttribute('data-action');
+                if (action === 'approve') {
+                    FT.confirm('确定通过该提案并立即建立正式跨族关联？', function () {
+                        submitProposalAction(proposalId, action);
+                    }, {title: '确认审核通过'});
+                    return;
+                }
+                if (action === 'reject') {
+                    FT.confirm('确定驳回该提案？节点组合将释放，可重新发起。', function () {
+                        submitProposalAction(proposalId, action);
+                    }, {title: '确认驳回提案'});
+                    return;
+                }
+                submitProposalAction(proposalId, action);
+            });
+        });
+    }
+
+    async function submitProposalAction(proposalId, action) {
+        var input = $('proposal-comment');
+        var comment = input ? (input.value || '').trim() : '';
+        if (action === 'reject' && !comment) {
+            FT.toast('驳回提案必须填写审核意见', 'warning');
+            if (input) {
+                input.focus();
+            }
+            return;
+        }
+        if (comment.length > MAX_PROPOSAL_COMMENT_LENGTH) {
+            FT.toast('备注不能超过 ' + MAX_PROPOSAL_COMMENT_LENGTH + ' 个字符', 'warning');
+            return;
+        }
+        var buttons = document.querySelectorAll('#detail-pane .js-proposal-action');
+        buttons.forEach(function (btn) {
+            btn.disabled = true;
+        });
+        if (input) {
+            input.disabled = true;
+        }
+        var res;
+        try {
+            res = await FT.api('/api/admin/link-proposals/' + proposalId + '/' + action, {
+                method: 'POST',
+                body: JSON.stringify({comment: comment || null})
+            });
+        } catch (e) {
+            buttons.forEach(function (btn) {
+                btn.disabled = false;
+            });
+            if (input) {
+                input.disabled = false;
+            }
+            return;
+        }
+        if (state.proposalSelectedId !== proposalId) {
+            return;
+        }
+        if (res.code !== 200 || !res.data) {
+            buttons.forEach(function (btn) {
+                btn.disabled = false;
+            });
+            if (input) {
+                input.disabled = false;
+            }
+            return;
+        }
+        state.proposalDetail = res.data;
+        var message = action === 'approve' ? '提案已通过，正式关联已建立'
+            : (action === 'reject' ? '提案已驳回' : '备注已添加');
+        FT.toast(message, 'success');
+        renderProposalDetail();
+        loadLinkProposals(state.proposalPage);
     }
 
     // ========== 家族详情 ==========

@@ -6,6 +6,7 @@ import com.mouhin.family.tree.common.dto.PhotoVO;
 import com.mouhin.family.tree.common.exception.BusinessException;
 import com.mouhin.family.tree.common.result.Result;
 import com.mouhin.family.tree.domain.entity.FamilyPhoto;
+import com.mouhin.family.tree.web.controller.user.PhotoController;
 import com.mouhin.family.tree.web.storage.PhotoStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

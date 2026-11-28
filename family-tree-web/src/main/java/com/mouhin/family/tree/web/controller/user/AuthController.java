@@ -1,0 +1,378 @@
+package com.mouhin.family.tree.web.controller.user;
+
+import com.mouhin.family.tree.web.controller.BaseController;
+import com.mouhin.family.tree.application.service.FamilyApplicationService;
+import com.mouhin.family.tree.application.service.FamilySettingApplicationService;
+import com.mouhin.family.tree.application.service.FamilyUserNodeApplicationService;
+import com.mouhin.family.tree.application.service.PlatformAdminApplicationService;
+import com.mouhin.family.tree.application.service.SmsCodeApplicationService;
+import com.mouhin.family.tree.application.service.UserAuthApplicationService;
+import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
+import com.mouhin.family.tree.common.constant.LoginSecurityConsts;
+import com.mouhin.family.tree.common.dto.*;
+import com.mouhin.family.tree.common.dto.UserProfileDTO;
+import com.mouhin.family.tree.common.enums.FamilySettingKeyEnum;
+import com.mouhin.family.tree.common.enums.SmsSceneEnum;
+import com.mouhin.family.tree.common.exception.BusinessException;
+import com.mouhin.family.tree.common.result.Result;
+import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
+import com.mouhin.family.tree.web.filter.CsrfFilter;
+import com.mouhin.family.tree.web.ratelimit.RateLimit;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * 认证控制器
+ *
+ * @author Family-Tree
+ * @date 2026-07-30
+ */
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController extends BaseController {
+
+    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
+
+    private final UserAuthApplicationService userService;
+    private final FamilyApplicationService familyService;
+    private final FamilyUserNodeApplicationService familyUserNodeService;
+    private final FamilySettingApplicationService familySettingService;
+    private final PlatformAdminApplicationService platformAdminService;
+    private final SmsCodeApplicationService smsCodeService;
+    private final ApplicationEventPublisher eventPublisher;
+
+    public AuthController(UserAuthApplicationService userService, FamilyApplicationService familyService,
+                          FamilyUserNodeApplicationService familyUserNodeService,
+                          FamilySettingApplicationService familySettingService,
+                          PlatformAdminApplicationService platformAdminService,
+                          SmsCodeApplicationService smsCodeService,
+                          ApplicationEventPublisher eventPublisher) {
+        this.userService = userService;
+        this.familyService = familyService;
+        this.familyUserNodeService = familyUserNodeService;
+        this.familySettingService = familySettingService;
+        this.platformAdminService = platformAdminService;
+        this.smsCodeService = smsCodeService;
+        this.eventPublisher = eventPublisher;
+    }
+
+    /**
+     * 登录/注册页公开配置：注册开关、注册短信验证与短信登录开关，供前端在登录前决定
+     * 注册入口显隐、手机号/验证码是否必填、是否展示"短信验证码登录"入口
+     *
+     * @return 配置项集合
+     */
+    @GetMapping("/config")
+    public Result<Map<String, Object>> config() {
+        Map<String, Object> data = new HashMap<>(4);
+        data.put("registerEnabled", userService.isRegisterEnabled());
+        data.put("registerSmsVerify", smsCodeService.isRegisterVerifyEnabled());
+        data.put("smsLoginEnabled", smsCodeService.isSmsLoginEnabled());
+        return Result.success(data);
+    }
+
+    /**
+     * 公开登录状态：仅返回当前会话是否已认证，不读取或返回账号资料，也不轮换 CSRF Token。
+     *
+     * @param request HTTP 请求
+     * @param response HTTP 响应
+     * @return 登录状态
+     */
+    @GetMapping("/status")
+    public Result<Map<String, Object>> authStatus(HttpServletRequest request, HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-store");
+        HttpSession session = request.getSession(false);
+        boolean loggedIn = session != null
+                && session.getAttribute(FamilyTreeConsts.SESSION_USER_ID) != null;
+        Map<String, Object> data = new HashMap<>(2);
+        data.put("loggedIn", loggedIn);
+        return Result.success(data);
+    }
+
+    @RateLimit(name = "auth-ip", dimension = RateLimit.Dimension.IP,
+            windowSeconds = LoginSecurityConsts.LOGIN_IP_WINDOW_SECONDS,
+            maxRequests = LoginSecurityConsts.LOGIN_IP_MAX_ATTEMPTS, message = "注册过于频繁，请稍后再试")
+    @RateLimit(name = "auth-ip-slow", dimension = RateLimit.Dimension.IP,
+            windowSeconds = LoginSecurityConsts.LOGIN_IP_LONG_WINDOW_SECONDS,
+            maxRequests = LoginSecurityConsts.LOGIN_IP_MAX_LONG_ATTEMPTS, message = "注册过于频繁，请稍后再试")
+    @PostMapping("/register")
+    public Result<Map<String, Object>> register(@Valid @RequestBody RegisterDTO dto, HttpServletRequest request) {
+        Long userId = userService.register(dto);
+        String ip = getClientIp(request);
+
+        // 注册时填写了邀请码 → 自动加入对应家族
+        Long familyId = null;
+        if (dto.getInviteCode() != null && !dto.getInviteCode().isBlank()) {
+            FamilyJoinDTO joinDTO = new FamilyJoinDTO();
+            joinDTO.setInviteCode(dto.getInviteCode().trim());
+            familyService.joinFamily(userId, joinDTO);
+            FamilyDTO family = familyService.getCurrentFamily(userId);
+            if (family != null) {
+                familyId = family.getId();
+            }
+        }
+
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, dto.getUsername().trim(), "REGISTER",
+                "用户注册" + (familyId != null ? "并加入家族" : ""), "user", userId, familyId, ip));
+
+        Map<String, Object> data = new HashMap<>(4);
+        data.put("userId", userId);
+        return Result.success(data);
+    }
+
+    @RateLimit(name = "auth-ip", dimension = RateLimit.Dimension.IP,
+            windowSeconds = LoginSecurityConsts.LOGIN_IP_WINDOW_SECONDS,
+            maxRequests = LoginSecurityConsts.LOGIN_IP_MAX_ATTEMPTS, message = "登录尝试过于频繁，请稍后再试")
+    @RateLimit(name = "auth-ip-slow", dimension = RateLimit.Dimension.IP,
+            windowSeconds = LoginSecurityConsts.LOGIN_IP_LONG_WINDOW_SECONDS,
+            maxRequests = LoginSecurityConsts.LOGIN_IP_MAX_LONG_ATTEMPTS, message = "登录尝试过于频繁，请稍后再试")
+    @PostMapping("/login")
+    public Result<Map<String, Object>> login(@Valid @RequestBody LoginDTO dto, HttpServletRequest request) {
+        String ip = getClientIp(request);
+        String username = dto.getUsername() != null ? dto.getUsername().trim() : "";
+
+        Long userId;
+        try {
+            userId = userService.login(dto);
+        } catch (BusinessException e) {
+            // 登录失败也记录日志
+            eventPublisher.publishEvent(OperationPerformedEvent.of(null, username, "LOGIN_FAIL",
+                    "登录失败: " + e.getMessage(), "user", null, null, ip));
+            throw e;
+        }
+
+        return establishLoginSession(userId, "用户登录", request, ip);
+    }
+
+    /**
+     * 短信验证码登录：换取用户ID后与会话口令登录同口径建立会话
+     */
+    @RateLimit(name = "auth-ip", dimension = RateLimit.Dimension.IP,
+            windowSeconds = LoginSecurityConsts.LOGIN_IP_WINDOW_SECONDS,
+            maxRequests = LoginSecurityConsts.LOGIN_IP_MAX_ATTEMPTS, message = "短信登录过于频繁，请稍后再试")
+    @RateLimit(name = "auth-ip-slow", dimension = RateLimit.Dimension.IP,
+            windowSeconds = LoginSecurityConsts.LOGIN_IP_LONG_WINDOW_SECONDS,
+            maxRequests = LoginSecurityConsts.LOGIN_IP_MAX_LONG_ATTEMPTS, message = "短信登录过于频繁，请稍后再试")
+    @PostMapping("/login-sms")
+    public Result<Map<String, Object>> loginBySms(@Valid @RequestBody SmsLoginDTO dto, HttpServletRequest request) {
+        String ip = getClientIp(request);
+        String phone = dto.getPhone().trim();
+
+        Long userId;
+        try {
+            userId = userService.loginBySms(dto);
+        } catch (BusinessException e) {
+            eventPublisher.publishEvent(OperationPerformedEvent.of(null, phone, "LOGIN_FAIL",
+                    "短信登录失败: " + e.getMessage(), "user", null, null, ip));
+            throw e;
+        }
+
+        return establishLoginSession(userId, "短信验证码登录", request, ip);
+    }
+
+    /**
+     * 发送短信验证码：REGISTER 走注册验证前置检查，LOGIN 走已绑定账号检查
+     */
+    @PostMapping("/sms/send-code")
+    public Result<Void> sendSmsCode(@Valid @RequestBody SendSmsCodeDTO dto, HttpServletRequest request) {
+        SmsSceneEnum scene = SmsSceneEnum.parse(dto.getScene());
+        if (scene == null) {
+            throw new BusinessException("不支持的验证码场景");
+        }
+        String phone = dto.getPhone().trim();
+        String ip = getClientIp(request);
+        if (scene == SmsSceneEnum.REGISTER) {
+            smsCodeService.sendRegisterCode(phone, ip);
+        } else {
+            smsCodeService.sendLoginCode(phone, ip);
+        }
+        return Result.success();
+    }
+
+    /**
+     * 口令登录与短信登录共用的会话建立编排：防会话固定重建 Session、
+     * 写入用户/家族会话属性、记录登录日志、签发 CSRF Token 并组装响应
+     *
+     * @param userId   登录成功的用户ID
+     * @param logDesc  操作日志描述（区分口令登录与短信登录）
+     * @param request  HTTP 请求
+     * @param ip       客户端 IP
+     * @return 登录响应数据
+     */
+    private Result<Map<String, Object>> establishLoginSession(Long userId, String logDesc,
+                                                              HttpServletRequest request, String ip) {
+        String nickname = userService.getNickname(userId);
+
+        // 重建会话，防止会话固定攻击（Session Fixation）
+        HttpSession oldSession = request.getSession(false);
+        if (oldSession != null) {
+            oldSession.invalidate();
+        }
+        HttpSession session = request.getSession(true);
+        session.setAttribute(FamilyTreeConsts.SESSION_USER_ID, userId);
+        session.setAttribute(FamilyTreeConsts.SESSION_USERNAME, nickname);
+
+        // 解析用户所属家族，写入会话
+        FamilyDTO family = familyService.getCurrentFamily(userId);
+        if (family != null) {
+            session.setAttribute(FamilyTreeConsts.SESSION_FAMILY_ID, family.getId());
+        }
+
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, nickname, "LOGIN", logDesc,
+                "user", userId, family != null ? family.getId() : null, ip));
+
+        // 生成 CSRF Token 并写入响应
+        String csrfToken = CsrfFilter.generateToken(session);
+
+        Map<String, Object> data = new HashMap<>(16);
+        data.put("userId", userId);
+        data.put("nickname", nickname);
+        data.put("csrfToken", csrfToken);
+        data.put("hasFamily", family != null);
+        data.put("mustChangePassword", userService.isMustChangePassword(userId));
+        data.put("isSystemAdmin", platformAdminService.isPlatformAdmin(userId));
+        if (family != null) {
+            data.put("familyId", family.getId());
+            data.put("familyName", family.getName());
+            data.put("familyRole", family.getCurrentRole());
+        }
+        return Result.success(data);
+    }
+
+    @PostMapping("/logout")
+    public Result<Void> logout(HttpSession session, HttpServletRequest request) {
+        Long userId = (Long) session.getAttribute(FamilyTreeConsts.SESSION_USER_ID);
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        Long familyId = (Long) session.getAttribute(FamilyTreeConsts.SESSION_FAMILY_ID);
+        String ip = getClientIp(request);
+
+        session.invalidate();
+
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "LOGOUT", "用户登出",
+                "user", userId, familyId, ip));
+        return Result.success();
+    }
+
+    @GetMapping("/me")
+    public Result<Map<String, Object>> me(HttpSession session) {
+        Long userId = (Long) session.getAttribute(FamilyTreeConsts.SESSION_USER_ID);
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
+        // 每次请求刷新 CSRF Token，保持 token 新鲜（防止服务端重启后 token 失效）
+        String csrfToken = CsrfFilter.generateToken(session);
+
+        // 返回家族信息
+        FamilyDTO family = familyService.getCurrentFamily(userId);
+        Long familyId = family != null ? family.getId() : null;
+
+        // 一次查询获取用户所有信息
+        UserProfileDTO profile = userService.getUserProfile(userId);
+
+        Map<String, Object> data = new HashMap<>(16);
+        data.put("userId", userId);
+        data.put("nickname", profile != null ? profile.getNickname() : null);
+        data.put("gender", profile != null ? profile.getGender() : null);
+        data.put("birthDate", profile != null ? profile.getBirthDate() : null);
+        data.put("lunarBirthDate", profile != null ? profile.getLunarBirthDate() : null);
+        data.put("birthCalendar", profile != null ? profile.getBirthCalendar() : null);
+        // 联系方式仅返回给本人会话，用于资料页展示与编辑
+        data.put("email", profile != null ? profile.getEmail() : null);
+        data.put("phone", profile != null ? profile.getPhone() : null);
+        // 节点绑定按家族隔离，取当前家族内的绑定
+        data.put("nodeId", familyUserNodeService.getBoundNodeId(familyId, userId));
+        data.put("csrfToken", csrfToken);
+        data.put("mustChangePassword", userService.isMustChangePassword(userId));
+        // 平台管理员身份独立于家族角色，由配置白名单裁决，前端据此决定是否展示平台管理入口
+        data.put("isSystemAdmin", platformAdminService.isPlatformAdmin(userId));
+
+        data.put("hasFamily", family != null);
+        if (family != null) {
+            data.put("familyId", family.getId());
+            data.put("familyName", family.getName());
+            data.put("familyRole", family.getCurrentRole());
+            data.put("inviteCode", family.getInviteCode());
+            data.put("dataExportEnabled", familySettingService.isEnabled(family.getId(), FamilySettingKeyEnum.DATA_EXPORT_ENABLED));
+            data.put("gedcomImportEnabled", familySettingService.isEnabled(family.getId(), FamilySettingKeyEnum.GEDCOM_IMPORT_ENABLED));
+        }
+        return Result.success(data);
+    }
+
+    /**
+     * 更新当前登录用户的个人信息（昵称、出生日期、邮箱、手机号）
+     */
+    @PutMapping("/profile")
+    public Result<Void> updateProfile(@Valid @RequestBody ProfileUpdateDTO dto, HttpSession session,
+                                      HttpServletRequest request) {
+        Long userId = (Long) session.getAttribute(FamilyTreeConsts.SESSION_USER_ID);
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        Long familyId = (Long) session.getAttribute(FamilyTreeConsts.SESSION_FAMILY_ID);
+
+        userService.updateProfile(userId, dto);
+
+        // 昵称变更时同步更新会话
+        if (dto.getNickname() != null && !dto.getNickname().trim().isEmpty()) {
+            session.setAttribute(FamilyTreeConsts.SESSION_USERNAME, dto.getNickname().trim());
+        }
+
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "PROFILE_UPDATE",
+                "更新个人信息", "user", userId, familyId, getClientIp(request)));
+        return Result.success();
+    }
+
+    /**
+     * 修改当前登录用户的密码（含一次性初始口令的首登强制改密）
+     */
+    @PostMapping("/password")
+    public Result<Void> changePassword(@Valid @RequestBody ChangePasswordDTO dto, HttpSession session,
+                                       HttpServletRequest request) {
+        Long userId = (Long) session.getAttribute(FamilyTreeConsts.SESSION_USER_ID);
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        Long familyId = (Long) session.getAttribute(FamilyTreeConsts.SESSION_FAMILY_ID);
+
+        userService.changePassword(userId, dto);
+
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "CHANGE_PASSWORD",
+                "修改登录密码", "user", userId, familyId, getClientIp(request)));
+        return Result.success();
+    }
+
+    /**
+     * 标记当前用户在族谱中的位置（关联节点ID）
+     */
+    @PutMapping("/my-node")
+    public Result<Void> updateMyNodeId(@RequestBody Map<String, Long> body, HttpSession session,
+                                       HttpServletRequest request) {
+        Long userId = (Long) session.getAttribute(FamilyTreeConsts.SESSION_USER_ID);
+        if (userId == null) {
+            return Result.fail(401, "未登录");
+        }
+        String username = (String) session.getAttribute(FamilyTreeConsts.SESSION_USERNAME);
+        Long familyId = (Long) session.getAttribute(FamilyTreeConsts.SESSION_FAMILY_ID);
+        if (familyId == null) {
+            return Result.fail(400, "请先加入家族");
+        }
+        Long nodeId = body.get("nodeId");
+        familyUserNodeService.bindMyNode(familyId, userId, nodeId);
+
+        eventPublisher.publishEvent(OperationPerformedEvent.of(userId, username, "MARK_SELF",
+                nodeId != null ? "标记自己为节点" + nodeId : "取消节点标记",
+                "node", nodeId, familyId, getClientIp(request)));
+        return Result.success();
+    }
+}

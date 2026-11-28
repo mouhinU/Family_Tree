@@ -460,9 +460,16 @@ public class PlatformAdminApplicationService {
         List<FamilySetting> validated = settingDomainService.toValidatedEntities(
                 familyId, dto == null ? null : dto.getSettings());
         Map<String, String> platformDefaults = platformSettingService.familyScopedDefaults();
+        int platformFloor = Integer.parseInt(platformDefaults.getOrDefault(
+                FamilySettingKeyEnum.CROSS_FAMILY_LINK_MIN_AGREEMENTS.getCode(),
+                FamilySettingKeyEnum.CROSS_FAMILY_LINK_MIN_AGREEMENTS.getDefaultValue()));
         int written = 0;
         int resetToDefault = 0;
         for (FamilySetting setting : validated) {
+            if (FamilySettingKeyEnum.CROSS_FAMILY_LINK_MIN_AGREEMENTS.getCode().equals(setting.getSettingKey())
+                    && Integer.parseInt(setting.getSettingValue()) < platformFloor) {
+                throw new BusinessException("跨族链接同意数不得低于平台下限" + platformFloor);
+            }
             FamilySetting existing = familySettingRepository.findByFamilyIdAndKey(
                     familyId, setting.getSettingKey());
             if (settingDomainService.isDefaultValue(setting, platformDefaults)) {

@@ -5,7 +5,7 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <meta name="theme-color" content="#a63a2b">
     <title>平台管理 - 族谱管理系统</title>
-    <link href="/css/style.css?v=20261126b" rel="stylesheet">
+    <link href="/css/style.css?v=20261128d" rel="stylesheet">
     <style>
         .admin-body {
             margin: 0;
@@ -647,6 +647,231 @@
             font-size: 15px;
         }
 
+        .graph-detail-tabs {
+            display: flex;
+            gap: 4px;
+            margin: 12px 0;
+            padding: 3px;
+            border-radius: 5px;
+            background: #f1e8d5;
+        }
+
+        .graph-detail-tab {
+            flex: 1;
+            padding: 6px 8px;
+            border: 0;
+            border-radius: 3px;
+            background: transparent;
+            color: #6b5f4a;
+            font: inherit;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .graph-detail-tab.active {
+            background: #fffdf7;
+            color: #a63a2b;
+            font-weight: 600;
+            box-shadow: 0 1px 3px rgba(43, 38, 34, 0.12);
+        }
+
+        .family-tree-hint {
+            margin: 0 0 10px;
+        }
+
+        .admin-family-tree-scroll {
+            max-height: 480px;
+            overflow: auto;
+            padding: 8px 4px 12px;
+            border-radius: 4px;
+            background:
+                radial-gradient(circle at 50% 0%, rgba(138, 109, 59, 0.05) 0%, transparent 60%),
+                var(--paper);
+        }
+
+        .admin-family-tree, .admin-family-tree ul {
+            display: flex;
+            margin: 0;
+            padding: 28px 0 0;
+            list-style: none;
+        }
+
+        .admin-family-tree {
+            width: max-content;
+            min-width: 100%;
+            justify-content: center;
+        }
+
+        .admin-family-tree li {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 28px 8px 0;
+        }
+
+        .admin-family-tree li::before, .admin-family-tree li::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            width: 50%;
+            height: 28px;
+            border-top: 1px solid #a89877;
+        }
+
+        .admin-family-tree li::before {
+            left: 50%;
+        }
+
+        .admin-family-tree li::after {
+            right: 50%;
+        }
+
+        .admin-family-tree li:only-child::before, .admin-family-tree li:only-child::after {
+            display: none;
+        }
+
+        .admin-family-tree > li::before, .admin-family-tree > li::after {
+            display: none;
+        }
+
+        .admin-family-tree-couple {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .admin-family-tree-couple::before {
+            content: "";
+            position: absolute;
+            left: 50%;
+            bottom: 100%;
+            width: 1px;
+            height: 28px;
+            background: #a89877;
+        }
+
+        .admin-family-tree-card {
+            --card-accent: #5b6b7c;
+            position: relative;
+            flex: none;
+            width: 64px;
+            height: 132px;
+            box-sizing: border-box;
+            border: 1.6px solid var(--card-accent);
+            border-radius: 3px;
+            background: var(--paper-card);
+            color: var(--ink);
+            text-align: center;
+            font-family: var(--font-kai);
+            transition: filter 0.2s;
+        }
+
+        .admin-family-tree-card::before {
+            content: "";
+            position: absolute;
+            top: 3.5px;
+            right: 3.5px;
+            left: 3.5px;
+            height: 6px;
+            border-radius: 1.5px;
+            background: var(--card-accent);
+        }
+
+        .admin-family-tree-card::after {
+            content: "";
+            position: absolute;
+            inset: 3.5px;
+            border: 0.7px solid var(--card-accent);
+            border-radius: 2px;
+            opacity: 0.55;
+            pointer-events: none;
+        }
+
+        .admin-family-tree-card:hover {
+            filter: brightness(0.96) saturate(1.1);
+        }
+
+        .admin-family-tree-card.deceased {
+            --card-accent: #9a968c;
+            background: #ddd9cd;
+            color: #77736a;
+        }
+
+        .admin-family-tree-card.missing {
+            --card-accent: #b8a88a;
+            border-style: dashed;
+            background: #faf2e8;
+        }
+
+        .admin-family-tree-generation {
+            position: absolute;
+            top: 10px;
+            right: 0;
+            left: 0;
+            color: var(--gold);
+            font-size: 9px;
+            line-height: 10px;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        .admin-family-tree-card.deceased .admin-family-tree-generation {
+            color: #a39d8f;
+        }
+
+        .admin-family-tree-name {
+            position: absolute;
+            top: 24px;
+            right: 0;
+            bottom: 30px;
+            left: 0;
+            display: grid;
+            place-items: center;
+            overflow: hidden;
+            color: inherit;
+            font-size: 21px;
+            font-weight: 600;
+            line-height: 1;
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            pointer-events: none;
+        }
+
+        .admin-family-tree-meta {
+            position: absolute;
+            right: 0;
+            bottom: 7px;
+            left: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            color: var(--ink-faint);
+            line-height: 10px;
+            pointer-events: none;
+        }
+
+        .admin-family-tree-gender {
+            font-size: 10px;
+        }
+
+        .admin-family-tree-years {
+            font-size: 8px;
+            white-space: nowrap;
+        }
+
+        .admin-family-tree-card.deceased .admin-family-tree-meta {
+            color: #948f83;
+        }
+
+        .admin-family-tree-spouse {
+            color: var(--cinnabar);
+            font-size: 16px;
+            line-height: 1;
+        }
+
         .graph-table {
             width: 100%;
             border-collapse: collapse;
@@ -697,6 +922,10 @@
             background: var(--legend-color);
         }
 
+        .graph-legend strong {
+            font-weight: 600;
+        }
+
         @media (max-width: 1000px) {
             .admin-layout {
                 grid-template-columns: minmax(0, 1fr);
@@ -711,10 +940,11 @@
 <body class="admin-body">
 <header class="admin-header">
     <div>
-        <h1>平台管理<span class="admin-sub">家族概况 · 用户账号 · 数据巡检 · 跨族图谱 · 平台配置</span></h1>
+        <h1>平台管理<span class="admin-sub">家族概况 · 用户账号 · 数据巡检 · 跨族图谱 · 链接提案 · 平台配置</span></h1>
     </div>
     <div class="admin-header-right">
         <span id="admin-user"></span>
+        <a class="admin-link" href="/home">首页</a>
         <a class="admin-link" href="/index.html">返回族谱</a>
         <button class="admin-btn" id="btn-admin-logout" type="button">退出</button>
     </div>
@@ -734,6 +964,7 @@
             <button class="admin-tab" id="tab-users" type="button">用户账号</button>
             <button class="admin-tab" id="tab-inspection" type="button">数据巡检</button>
             <button class="admin-tab" id="tab-graph" type="button">跨族图谱</button>
+            <button class="admin-tab" id="tab-proposals" type="button">链接提案</button>
             <button class="admin-tab" id="tab-settings" type="button">平台配置</button>
             <button class="admin-tab" id="tab-logs" type="button">操作日志</button>
         </section>
@@ -840,17 +1071,59 @@
                                 <div class="graph-empty" id="graph-empty">加载中…</div>
                             </div>
                             <div class="graph-legend" id="graph-legend">
-                                <span style="--legend-color:#5b6b7c">正常家族</span>
-                                <span style="--legend-color:#a63a2b">存在异常链接</span>
+                                <strong>节点色 · 链接数</strong>
+                                <span style="--legend-color:#e1e7eb">0</span>
+                                <span style="--legend-color:#b6c8d2">1</span>
+                                <span style="--legend-color:#829fae">2–3</span>
+                                <span style="--legend-color:#4f758b">4–6</span>
+                                <span style="--legend-color:#28556d">7–11</span>
+                                <span style="--legend-color:#12384f">12+</span>
+                                <span style="--legend-color:#a63a2b">异常节点</span>
                                 <span style="--legend-color:#a63a2b">血缘同人</span>
                                 <span style="--legend-color:#6b4f8a">姻亲指认</span>
                             </div>
                         </div>
                         <div class="graph-detail" id="graph-detail">
-                            <div class="detail-empty">点击图谱中的家族查看跨族链接明细</div>
+                            <div class="detail-empty">点击图谱中的家族查看基础族谱与跨族链接</div>
                         </div>
                     </div>
                     <div class="graph-tooltip" id="graph-tooltip"></div>
+                </div>
+
+                <div id="pane-proposals" style="display:none;">
+                    <h2>跨族链接提案</h2>
+                    <div class="admin-toolbar">
+                        <select id="proposal-status" aria-label="提案状态">
+                            <option value="">全部状态</option>
+                            <option value="PENDING_VOTES">征集中</option>
+                            <option value="READY_FOR_REVIEW">待平台审核</option>
+                            <option value="APPROVED">已通过</option>
+                            <option value="REJECTED">已驳回</option>
+                            <option value="CANCELLED">已取消</option>
+                            <option value="EXPIRED">已到期</option>
+                            <option value="INVALIDATED">已失效</option>
+                        </select>
+                        <button class="ghost-btn" id="btn-proposal-reload" type="button">刷新</button>
+                        <span class="admin-hint" id="proposal-list-count"></span>
+                    </div>
+                    <div class="admin-table-scroll">
+                        <table class="admin-table">
+                            <thead>
+                            <tr>
+                                <th>编号</th>
+                                <th>源家族 / 节点</th>
+                                <th>目标家族 / 节点</th>
+                                <th>源端同意</th>
+                                <th>目标端同意</th>
+                                <th>状态</th>
+                                <th>发起人</th>
+                                <th>到期时间</th>
+                            </tr>
+                            </thead>
+                            <tbody id="proposal-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="pager" id="proposal-pager"></div>
                 </div>
 
                 <div id="pane-settings" style="display:none;">
@@ -914,7 +1187,7 @@
 <script src="/js/ft/api.js?v=20261119b"></script>
 <script src="/js/ft/modals.js?v=20260828b"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
-<script src="/js/ft/admin-graph.js?v=20261126d"></script>
-<script src="/js/ft/admin.js?v=20261126a"></script>
+<script src="/js/ft/admin-graph.js?v=20261128f"></script>
+<script src="/js/ft/admin.js?v=20261128b"></script>
 </body>
 </html>

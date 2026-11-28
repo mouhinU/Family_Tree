@@ -5,6 +5,7 @@ import com.mouhin.family.tree.application.service.FamilySettingApplicationServic
 import com.mouhin.family.tree.common.constant.FamilyTreeConsts;
 import com.mouhin.family.tree.common.enums.FamilySettingKeyEnum;
 import com.mouhin.family.tree.common.result.Result;
+import com.mouhin.family.tree.web.controller.user.AiController;
 import jakarta.servlet.http.HttpSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

@@ -327,7 +327,11 @@ class PlatformAdminApplicationServiceTest {
         assertEquals(6, detail.getSnapshotCount().intValue());
         assertEquals(11, detail.getPhotoCount().intValue());
         assertEquals(1, detail.getRecentOperations().size());
-        assertEquals(4, detail.getSettings().size());
+        assertEquals(FamilySettingKeyEnum.listAll().size(), detail.getSettings().size());
+        FamilySettingVO threshold = findSetting(detail.getSettings(),
+                FamilySettingKeyEnum.CROSS_FAMILY_LINK_MIN_AGREEMENTS.getCode());
+        assertEquals(FamilySettingKeyEnum.CROSS_FAMILY_LINK_MIN_AGREEMENTS.getDefaultValue(), threshold.getValue());
+        assertFalse(threshold.getOverridden());
         FamilySettingVO ai = findSetting(detail.getSettings(), FamilySettingKeyEnum.AI_FEATURE_ENABLED.getCode());
         assertEquals("false", ai.getValue());
         assertTrue(ai.getOverridden());

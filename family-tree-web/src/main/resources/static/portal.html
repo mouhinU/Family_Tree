@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>族谱管理系统 - 我的家族</title>
-    <link href="/css/style.css?v=20261126b" rel="stylesheet">
+    <link href="/css/style.css?v=20261128d" rel="stylesheet">
     <style>
         .portal-shell {
             min-height: 100vh;
@@ -36,6 +36,26 @@
             font-size: 14px;
             letter-spacing: 2px;
             color: var(--ink-faint);
+        }
+
+        .portal-home-link {
+            margin-top: 8px;
+            font-size: 13px;
+        }
+
+        .portal-home-link a {
+            color: var(--cinnabar);
+            text-decoration: none;
+        }
+
+        .portal-home-link a:hover {
+            color: var(--cinnabar-dark);
+            text-decoration: underline;
+        }
+
+        .portal-home-link a:focus-visible {
+            outline: 2px solid var(--cinnabar);
+            outline-offset: 3px;
         }
 
         /* 三块区域左右并排：我的家族 / 加入已有家族 / 创建新家族 */
@@ -279,6 +299,7 @@
     <div class="portal-head">
         <h1>族谱管理系统</h1>
         <p class="subtitle">选择要进入的家族，或再创建、加入一个家族</p>
+        <p class="portal-home-link"><a href="/home">首页</a></p>
     </div>
 
     <div id="portal-message"></div>

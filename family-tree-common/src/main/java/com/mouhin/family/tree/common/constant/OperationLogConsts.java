@@ -22,9 +22,39 @@ public final class OperationLogConsts {
     public static final String OP_NODE_UNLINK = "NODE_UNLINK";
 
     /**
+     * 操作类型：创建跨族节点链接提案
+     */
+    public static final String OP_NODE_LINK_PROPOSAL_CREATE = "NODE_LINK_PROPOSAL_CREATE";
+
+    /**
+     * 操作类型：同意跨族节点链接提案
+     */
+    public static final String OP_NODE_LINK_PROPOSAL_AGREE = "NODE_LINK_PROPOSAL_AGREE";
+
+    /**
+     * 操作类型：撤回跨族节点链接提案同意
+     */
+    public static final String OP_NODE_LINK_PROPOSAL_WITHDRAW = "NODE_LINK_PROPOSAL_WITHDRAW";
+
+    /**
+     * 操作类型：取消跨族节点链接提案
+     */
+    public static final String OP_NODE_LINK_PROPOSAL_CANCEL = "NODE_LINK_PROPOSAL_CANCEL";
+
+    /**
+     * 操作类型：审核跨族节点链接提案
+     */
+    public static final String OP_NODE_LINK_PROPOSAL_REVIEW = "NODE_LINK_PROPOSAL_REVIEW";
+
+    /**
      * 操作对象类型：跨族节点链接
      */
     public static final String TARGET_NODE_LINK = "node_link";
+
+    /**
+     * 操作对象类型：跨族节点链接提案
+     */
+    public static final String TARGET_NODE_LINK_PROPOSAL = "node_link_proposal";
 
     private OperationLogConsts() {
     }

@@ -104,7 +104,28 @@ public enum PlatformSettingKeyEnum {
     SMS_LOGIN_ENABLED("SMS_LOGIN_ENABLED", "短信验证码登录", SettingValueTypeEnum.BOOLEAN,
             "false", null, null, null,
             "开启后支持已绑定手机号的账号凭短信验证码登录（仅自动开通且未填手机号的账号不可用），密码登录不受影响；"
-                    + "开启前提是已配置阿里云短信凭据");
+                    + "开启前提是已配置阿里云短信凭据"),
+
+    /**
+     * 跨族链接提案总开关：平台独有配置
+     */
+    CROSS_FAMILY_LINK_PROPOSAL_ENABLED("CROSS_FAMILY_LINK_PROPOSAL_ENABLED", "跨族链接提案", SettingValueTypeEnum.BOOLEAN,
+            "false", null, null, null,
+            "开启后人工跨族建链改为提案投票与平台审核；账号自动成链和已有链接不受影响"),
+
+    /**
+     * 跨族链接单家族最低同意节点数：家族层的强制下限
+     */
+    CROSS_FAMILY_LINK_MIN_AGREEMENTS("CROSS_FAMILY_LINK_MIN_AGREEMENTS", "跨族链接最低同意数",
+            SettingValueTypeEnum.INTEGER, "2", 1, 20, null,
+            "每个端点家族至少需要的有效同意节点数；家族配置只能等于或高于此平台下限"),
+
+    /**
+     * 跨族链接提案有效期：平台独有配置
+     */
+    CROSS_FAMILY_LINK_PROPOSAL_EXPIRE_DAYS("CROSS_FAMILY_LINK_PROPOSAL_EXPIRE_DAYS", "跨族链接提案有效期",
+            SettingValueTypeEnum.INTEGER, "30", 1, 365, null,
+            "人工跨族链接提案从创建起可投票与待审核的天数，到期自动失效");
 
     /**
      * 配置键编码，落库值与接口入参均使用该编码

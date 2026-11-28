@@ -6,15 +6,13 @@ import com.mouhin.family.tree.common.dto.FamilyBriefVO;
 import com.mouhin.family.tree.common.dto.NodeAffinityFamilyVO;
 import com.mouhin.family.tree.common.dto.NodeMemberFamilyVO;
 import com.mouhin.family.tree.common.enums.BirthCalendarEnum;
-import com.mouhin.family.tree.common.enums.NodeLinkSourceEnum;
-import com.mouhin.family.tree.common.enums.NodeLinkTypeEnum;
 import com.mouhin.family.tree.common.exception.BusinessException;
-import com.mouhin.family.tree.domain.entity.CrossFamilyLink;
 import com.mouhin.family.tree.domain.entity.Family;
 import com.mouhin.family.tree.domain.entity.FamilyMember;
 import com.mouhin.family.tree.domain.entity.FamilyNode;
 import com.mouhin.family.tree.domain.entity.FamilyUserNode;
 import com.mouhin.family.tree.domain.entity.User;
+import com.mouhin.family.tree.domain.entity.CrossFamilyLink;
 import com.mouhin.family.tree.domain.event.OperationPerformedEvent;
 import com.mouhin.family.tree.domain.repository.CrossFamilyLinkRepository;
 import com.mouhin.family.tree.domain.repository.FamilyMemberRepository;
@@ -38,7 +36,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * 跨族亲族应用服务：亲族家族展示、归属家族展示、人工建链/解链、候选生成与家族只读摘要
+ * 跨族亲族应用服务：亲族家族展示、归属家族展示、正式链接撤销、候选生成与家族只读摘要
  *
  * <p>边界口径（与跨族方案册一致）：缺链时空着不猜测；除账号绑定证据（「标记为我」事件驱动成链，
  * 自动账号与真人同口径）外禁止自动成链，
@@ -189,61 +187,6 @@ public class AffinityFamilyApplicationService {
     }
 
     /**
-     * 人工指认建链（MANUAL 通道）：当前家族管理者把本族节点关联到他族节点
-     *
-     * <p>A5 采纳方案册允许的降级口径：一方可建、另一方（同链接端点的任一家族管理者）可见可删；
-     * 不新增待确认状态列。</p>
-     *
-     * @param familyId   会话当前家族ID（链接发起端）
-     * @param srcNodeId  本族节点ID
-     * @param dstNodeId  他族目标节点ID
-     * @param linkType   链接类型编码，null 默认血缘同人
-     * @param operatorId 操作者用户ID
-     * @param username   操作者用户名
-     * @param ipAddress  客户端IP
-     * @return 新建链接ID
-     */
-    @Transactional(rollbackFor = Exception.class)
-    public Long linkNode(Long familyId, Long srcNodeId, Long dstNodeId, Integer linkType,
-                         Long operatorId, String username, String ipAddress) {
-        FamilyNode srcNode = requireNodeInFamily(familyId, srcNodeId);
-        FamilyNode dstNode = familyNodeRepository.findById(dstNodeId);
-        if (dstNode == null) {
-            throw new BusinessException("目标节点不存在");
-        }
-        if (Objects.equals(dstNode.getFamilyId(), familyId)) {
-            throw new BusinessException("跨族链接两端必须属于不同家族");
-        }
-        if (crossFamilyLinkRepository.findByNodePair(srcNodeId, dstNodeId) != null) {
-            throw new BusinessException("两节点已存在亲族关联");
-        }
-        LocalDateTime now = LocalDateTime.now();
-        CrossFamilyLink link = new CrossFamilyLink();
-        link.setSrcFamilyId(familyId);
-        link.setSrcNodeId(srcNodeId);
-        link.setDstFamilyId(dstNode.getFamilyId());
-        link.setDstNodeId(dstNodeId);
-        link.setLinkType(linkType != null
-                ? NodeLinkTypeEnum.fromCode(linkType).getCode()
-                : NodeLinkTypeEnum.BLOOD.getCode());
-        link.setSource(NodeLinkSourceEnum.MANUAL.getCode());
-        link.setConfirmedBy(operatorId);
-        link.setCreateTime(now);
-        link.setUpdateTime(now);
-        link.validate();
-        link.orderEndpoints();
-        crossFamilyLinkRepository.save(link);
-
-        eventPublisher.publishEvent(OperationPerformedEvent.of(operatorId, username,
-                OperationLogConsts.OP_NODE_LINK,
-                "建立亲族关联: " + srcNode.getName() + " ↔ " + dstNode.getName(),
-                OperationLogConsts.TARGET_NODE_LINK, link.getId(), familyId, ipAddress));
-        logger.info("Manual cross-family link created: linkId={} {}<->{} by userId={}",
-                link.getId(), srcNodeId, dstNodeId, operatorId);
-        return link.getId();
-    }
-
-    /**
      * 解除亲族关联：链接任一端家族的管理者均可操作（含候选/账号来源链的显式清除）
      *
      * @param familyId   会话当前家族ID（用于确认操作入口节点属于本族）
@@ -278,7 +221,7 @@ public class AffinityFamilyApplicationService {
      * 生成节点的跨族亲族候选清单（证据②：姓名相同 + 生日按录入历法口径吻合）
      *
      * <p>仅管理员可调（控制器 {@code @RequireFamilyManager} 收口）；候选不落库、忽略不留痕，
-     * 确认后经 {@link #linkNode} 以 MANUAL 来源成链；已存在链接的节点对不再出候选。
+     * 确认后创建跨族链接提案，经两端投票和平台审核后以 MANUAL 来源成链；已存在链接的节点对不再出候选。
      * 证据③（同手机/邮箱多账号）与④（GEDCOM XREF）本批未接入，理由见提交说明。</p>
      *
      * @param familyId 会话当前家族ID

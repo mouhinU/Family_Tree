@@ -57,6 +57,11 @@ public class FamilyNodeLinkDO {
      */
     private Long confirmedBy;
 
+    /**
+     * 人工提案ID（账号自动成链为空）
+     */
+    private Long proposalId;
+
     private LocalDateTime createTime;
     private LocalDateTime updateTime;
 }

@@ -46,7 +46,14 @@ public enum FamilySettingKeyEnum {
      */
     MAX_NODE_COUNT("MAX_NODE_COUNT", "节点数量上限", SettingValueTypeEnum.INTEGER,
             "5000", 10, 200000, null,
-            "该家族族谱节点总数的上限，达到上限后新增节点将被拒绝");
+            "该家族族谱节点总数的上限，达到上限后新增节点将被拒绝"),
+
+    /**
+     * 跨族链接提案本家族同意门槛，不得低于平台下限
+     */
+    CROSS_FAMILY_LINK_MIN_AGREEMENTS("CROSS_FAMILY_LINK_MIN_AGREEMENTS", "跨族链接最低同意数",
+            SettingValueTypeEnum.INTEGER, "2", 1, 20, null,
+            "本家族端点至少需要的有效同意节点数；保存时不得低于平台下限");
 
     /**
      * 配置键编码，落库值与接口入参均使用该编码
