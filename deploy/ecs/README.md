@@ -14,7 +14,7 @@
 | `nginx-family-tree.conf` | 宿主 nginx 反代（80 = IP 明文 HTTP，443 = 域名 HTTPS 已装待备案，现状见下） |
 | `backup.sh` | 容器内 mysqldump → gzip，保留 7 天 |
 | `RELEASE-SOP.md` | 发版/升级 SOP（预检 → 备份 → 容器网络自检 → 构建导入 → repair 判定 → 切换 → 验收 → 回滚），已有环境换镜像照它跑 |
-| `ops/` | 配套探针与自愈脚本（预检、状态复查、验收哨兵、网桥 trusted 自愈 + systemd timer、V7 checksum 兜底），实例落位见 SOP 第 10 节 |
+| `ops/` | 配套探针与自愈脚本（预检、状态复查、验收哨兵、网桥 trusted 自愈 + systemd timer、**开机自愈 `ft-boot-recover`**、V7 checksum 兜底），实例落位见 SOP 第 10 节、重启处置见 SOP 第 12 节、磁盘与数据落位见 SOP 第 13 节 |
 
 应用侧还有一份配套配置：`family-tree-web/src/main/resources/application-ecs.yml`（profile `ecs`，随镜像打包），
 compose 以 `SPRING_PROFILES_ACTIVE=mysql,ecs` 加载它。
@@ -93,6 +93,7 @@ sed -i 's/^FT_IMAGE=.*/FT_IMAGE=family-tree:vNNN-local/' .env
 ## 数据与备份
 
 - 数据全在宿主目录（bind 挂载，无命名卷）：`/opt/family-tree/data/mysql`、`data/redis`、`data/photos`、`logs`
+  - **2026-11-28 起这些宿主目录本身是数据盘（`/dev/vdb1` → `/data/family-tree/…`）的 bind**，`/opt/family-tree` 下只剩代码与配置；实例侧口径见 [`RELEASE-SOP.md`](RELEASE-SOP.md) 第 13 节
   - 好处：`docker compose down -v` 毁不掉生产数据；备份/排查/换机直接对着 `./data` 操作
   - 目录属主必须是 uid 999（mysql/redis 官方镜像都以 uid 999 运行），`data` 阶段会建目录并 `chown 999:999` + `chmod 750`
   - 各自挂子目录而不是整个 `./data`：照片/日志与 InnoDB 文件不共用一套属主权限，一次误 `chmod -R` 不会同时带走

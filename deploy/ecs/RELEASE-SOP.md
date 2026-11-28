@@ -377,7 +377,9 @@ v73 一层的实测数（下次发版拿它当对照，别看旧文档里的数�
 | `/opt/family-tree/ft-sentinel.sh` | 第 3/6/7 步的验收脚本 |
 | `/usr/local/sbin/ft-firewall-guard.sh` | 网桥 → trusted 的幂等重绑 |
 | `/etc/systemd/system/ft-firewall-guard.{service,timer}` | 开机 60s + 每 5min 兜底（面板重启 firewalld 会自己长回来） |
-| `/etc/firewalld/zones/trusted.xml` | `--permanent` 落盘的那个网桥名（仅作二次保险） |
+| `/etc/systemd/system/ft-boot-recover.service` | 开机自愈：补数据盘 bind → 清陈旧 trusted 绑定 → 拉起 compose mysql/redis → 确认在任应用槽 health（见 §12、§13） |
+| `/usr/local/sbin/ft-boot-recover.sh` | 上面那个 unit 的执行体，日志 `/opt/family-tree/logs/ft-boot-recover.log`，可手动 `systemctl start` 重跑（幂等） |
+| `/etc/firewalld/zones/trusted.xml` | `--permanent` 落盘的网桥名。**2026-11-28 实测它才是重启不自恢的根因**（陈旧名撞上同名新网桥 → ZONE_CONFLICT），现由 `ft-boot-recover.sh` 每次开机剪掉指向已死网络的条目 |
 | `/opt/family-tree/RELEASE-SOP.md` | 本文件的实例侧副本（systemd unit 的 `Docs:` 指这儿）；仓库改了要重传 |
 | `/opt/family-tree/RELEASE-LOG.md` | 2026-11-27 起的独立发版台账；每次发版追加记录并重传 |
 
@@ -391,10 +393,12 @@ v73 一层的实测数（下次发版拿它当对照，别看旧文档里的数�
 | `ops/ft-firewall-guard.{service,timer}` | `/etc/systemd/system/` | guard 的开机/定时触发 |
 | `ops/ft-sentinel.sh` | `/opt/family-tree/` | 验收哨兵（2026-11-24 重写为形态自适应，入库 `681d974`；实例上旧 compose-only 版留 `/opt/family-tree/ft-sentinel.sh.bak-20261124`，`md5 10d5ab9a…`，重装后实例 md5 = 仓库 `e9d7c6f2…`） |
 | `ops/ft-v7-checksum-fix.sh` | `/tmp/` | 第 5 节的 SQL 兜底（带旧值守卫，只对 V7 这一行） |
+| `ops/ft-boot-recover.sh` | `/usr/local/sbin/`（755） | 开机/手动自愈执行体（见 §12、§13），2026-11-28 20:29 重传（加数据盘 bind 守卫 + 槽位自适应），sha256 前缀 `4a35c8d1744666a3`；上一版 `c841381a19d134c0` 留 `/usr/local/sbin/ft-boot-recover.sh.bak.pre-datadisk` |
+| `ops/ft-boot-recover.service` | `/etc/systemd/system/` + `enable`（进 `multi-user.target.wants`） | 上面脚本的开机触发，`Type=oneshot`+`RemainAfterExit`，`TimeoutStartSec=1800` |
 
 ## 11. ECS 单机 k3s 蓝绿发版（2026-11-24 起新增部署面）
 
-ECS 上另装了单机 k3s v1.30.14（cgroup v1 主机锁 1.30；严禁升 1.31+）。compose 栈继续承担 MySQL(:3308)/Redis(:6381) 数据面；应用层在 k3s 蓝绿双槽（蓝 :8091 / 绿 :8092）间零停机互切。当前在任=**蓝槽 8091（`v95-local`，2026-11-28 10:08:37 UTC 切流；登录态 Home 与「首页」导航统一）**，绿槽 `v94-local` replicas=0 休眠锚兼回滚镜像（docker 与 containerd 两侧都在）。v91~v95 的功能基线已于 2026-11-28 发布后统一入库：功能 commit `f0ccb6a`、登记 commit `e07b1d6`，均在 `origin/main`。**compose app 已于 2026-11-24 退役**（容器 Exited 保留、其父镜像 `v81-local` 暂保留）。
+ECS 上另装了单机 k3s v1.30.14（cgroup v1 主机锁 1.30；严禁升 1.31+）。compose 栈继续承担 MySQL(:3308)/Redis(:6381) 数据面（2026-11-28 起两者的数据目录已落数据盘，见 §13）；应用层在 k3s 蓝绿双槽（蓝 :8091 / 绿 :8092）间零停机互切。当前在任=**绿槽 8092（`v95-local`，2026-11-28 20:2x CST 为让 hostPath 指向数据盘而蓝绿切流；登录态 Home 与「首页」导航统一）**，蓝槽 `v95-local` replicas=0 休眠锚（docker 与 containerd 两侧镜像都在）。v91~v95 的功能基线已于 2026-11-28 发布后统一入库：功能 commit `f0ccb6a`、登记 commit `e07b1d6`，均在 `origin/main`。**compose app 已于 2026-11-24 退役**（容器 Exited 保留、其父镜像 `v81-local` 暂保留）。
 
 > ⚠️ 退役后的 compose app **不是版本回滚锚**：它的镜像已经是 `family-tree:v81-local`，`docker start family-tree-app` + nginx 切回 8090 只是把「应用跑在哪个面」换回去（拓扑回滚），代码版本仍是当前版。要回旧版本得按 §9 的镜像/jar 记录重建（v79/v80 镜像已 prune，只有归档 jar）。
 
@@ -428,3 +432,132 @@ ECS 上另装了单机 k3s v1.30.14（cgroup v1 主机锁 1.30；严禁升 1.31+
 ### 11.4 已知挂起项
 
 metrics-server 0/1（pod 网段打不到宿主 10250，不影响发布链）；overlay 无 SNAT 不修；~~`v74-baseexport` 单副本待 `docker save` 异备份~~（baseexport 已断链作废，**2026-11-25 由 `family-tree:app-base` 接替**，其实例本地 gzip 备份已落 `/opt/family-tree/backup/family-tree-app-base-20261125.tar.gz`——⚠仍与镜像库同盘同机，误删实例/整盘故障时无异地副本，异机落点待点名）；compose app 已于 2026-11-24 退役（容器仍在，见 §11.3 关于它不是版本锚的说明）。
+
+## 12. 实例重启后的自愈（2026-11-28 实测）
+
+### 12.1 现象与根因
+
+2026-11-28 19:04 CST 左右实例重启后，公网入口全量 502，`k3s kubectl -n prod get pods` 蓝槽 `CrashLoopBackOff`，而 nginx / k3s 本身都正常起来、镜像与数据卷完好。**不自恢的是 compose 数据面**：`family-tree-mysql` / `family-tree-redis` 停在 Exited，`restart=unless-stopped` 白写了——docker 起容器时报网络不存在：
+
+```
+ZONE_CONFLICT: 'br-98737a40d76d' already bound to a zone
+failed to create endpoint family-tree-mysql on network family-tree_default: network ... does not exist
+```
+
+链路：docker 按重启前的记录用**旧网络 ID** 重建网桥 `br-<12位ID>` → firewalld 的 **permanent** 配置里还留着同名网桥绑到 `trusted` 区 → 创建网络被 `ZONE_CONFLICT` 打断 → `family-tree_default` 没建出来 → 两个数据面容器被跳过 → app 连不上 3308/6381 → 崩溃重启 → nginx 502。这也正是 §10 里 `ft-firewall-guard.sh` 头部注释坚持「不做 `--permanent`」的原因：**落盘的网桥名下次重启不一定是它**，陈旧绑定反而是毒。后来由 `compose up` 重建的网络会拿到**新 ID**，而 redis 容器还钉在死掉的旧 ID 上，`docker start` 直接 `Error response from daemon: network 98737a40d76d… not found`。
+
+### 12.2 手工恢复三拍（应急用，日常已由 §12.3 的 unit 接管）
+
+```sh
+firewall-cmd --permanent --zone=trusted --remove-interface=br-<陈旧ID> && firewall-cmd --reload
+docker compose --project-directory /opt/family-tree -f /opt/family-tree/docker-compose.yml up -d mysql
+docker network disconnect -f family-tree_default family-tree-redis   # 容器还钉在死网络上，必须先摘再接
+docker network connect family-tree_default family-tree-redis
+docker start family-tree-redis
+```
+
+MySQL 起来后蓝槽 pod 会自己收敛（探针转 ready），**不需要**动 nginx、不需要切槽、不需要 `rollout restart`；只在 pod 卡住时才 `k3s kubectl -n prod rollout restart deployment/family-tree-app-blue`。恢复完复跑 §7 的哨兵与读数（`/opt/family-tree/ft-sentinel.sh` 期望 `mode=k3s` + 四行 OK、`rc=0`）。
+
+### 12.3 固化：`ft-boot-recover.service`
+
+`ops/ft-boot-recover.sh` + `ops/ft-boot-recover.service` 已上传实例并 `systemctl enable`（见 §10 落位表），每次开机 `multi-user.target` 后跑一遍，幂等可手摇重跑（`systemctl start ft-boot-recover.service`，日志 `/opt/family-tree/logs/ft-boot-recover.log`）。四步：
+
+1. **剪根因**：遍历 `firewall-cmd --permanent --zone=trusted --list-interfaces`，只挑 `br-*` 且对应 docker 网络已不存在的条目删掉（runtime 绑定同删），若网桥已无成员口则 `ip link delete` 收孤儿网桥；
+2. **四级兜底拉起** mysql / redis：`compose up -d <svc>` → `docker start` → `network disconnect -f` + `connect` + `start` → `compose up -d --force-recreate`（正是 12.2 那套 ladder 的代码化）；
+3. **等就绪**：mysql healthy（≤300s）、redis `PONG`（≤60s）；
+4. **确认应用槽**：遍历 `8091 / 8092` 任一端口出 200（≤300s），仍不通才**只对 `spec.replicas>0` 的那个 deployment** `rollout restart`（在任方随蓝绿切流换位，2026-11-28 起是绿槽——脚本里不写死蓝槽）。
+
+作用范围严格限定在这一套：不启动已退役的 compose app、不碰绿槽 `replicas=0`、不改 nginx 与防火墙端口/服务策略（只动指向已死网络的 trusted 区网桥条目）。
+
+2026-11-28 19:34 在**当前健康状态**下手跑一次，全绿且零副作用：
+
+```
+19:34:37 已清除陈旧 permanent 绑定 br-98737a40d76d（对应 docker 网络已不存在）
+19:34:38 已删除孤儿网桥 br-98737a40d76d
+19:34:38 family-tree-mysql 已在运行 / family-tree-redis 已在运行
+19:34:38 mysql 已 healthy / redis 返回 PONG / 应用槽 8091 health=200
+19:34:38 === ft-boot-recover 结束，返回码 0 ===
+```
+
+跑完 `firewall-cmd --permanent --zone=trusted --list-interfaces` 为空，即下次重启不再有陈旧名可撞。
+
+### 12.4 重启的固有副作用（不是 bug，别当故障查）
+
+- **会话全丢**：会话在 Redis，容器重启 = `dbsize` 归零，所有在线用户需重新登录（数据不受影响）。这也是 §11.2 第 5 步「线程名判流量」在重启窗口失效的原因。
+- **活动表天然清空**：登录态相关的临时数据随 redis 走，属预期。
+- **备份与照片不受影响**：`/opt/family-tree/backup`（`0 3 * * * backup.sh`）与 hostPath `data/photos`、`logs` 都在宿主盘上。
+
+### 12.5 尚未做的验证
+
+启动路径本身**没做过真实重启演练**（只有 daemon 级推断 + 一次幂等空跑）；要拿硬证据得选一种：`systemctl restart docker`（约 30–60s 中断，能复现网络重建换 ID 与 permanent 冲突）或整实例 `reboot`（约 3–5min，会话再丢一次）。两者都会打断线上，需点名授权。另：宝塔面板仍可能自己往 trusted 区加 permanent 绑定，但每次开机都会被本 unit 剪掉。残留容器 `serene_easley`（Created）待清理授权。
+
+## 13. 磁盘与数据落位（数据盘 bind，2026-11-28）
+
+### 13.1 磁盘现状
+
+实例是**一系统盘 + 一数据盘**：`vda` 40G（`vda3` ext4 = `/`，迁移前 24G used / 64%）与 `vdb` 50G（`vdb1` ext4 = `/data`，此前空盘，fstab 里已有 `UUID=8b1a89e4-08ac-4036-9edb-0cf557072ede /data ext4 defaults 0 2`）。两块盘的 `queue/rotational` 都是 1（高效/普通云盘，不是 ESSD）。系统盘上的大户：`/var/lib/docker` 4.6G、`/var/lib/rancher/k3s` 4.0G、`/usr` 5.1G、`/root` 2.3G、`/opt/family-tree` 1.3G。
+
+本轮只把**业务数据**挪到数据盘：日志、照片、备份、MySQL datadir、Redis AOF。`/var/lib/docker` 与 k3s 的 data-root 仍在系统盘（挪它们要停 docker/k3s 并重建 containerd store，属另一个窗口，待点名）。
+
+### 13.2 落位方式：bind 挂载，不改任何路径
+
+```
+/data/family-tree/{logs,data,backup,backups}   →（bind）   /opt/family-tree/{logs,data,backup,backups}
+```
+
+fstab 追加四行 `/data/family-tree/<d> /opt/family-tree/<d> none bind,nofail 0 0`，systemd-fstab-generator 生成四个 `opt-family\x2dtree-*.mount`。**用 bind 而不是改 compose / k8s 清单里的路径**，是为了让仓库侧每一处路径字符串保持原样（`./logs`、`./data/photos`、清单里的 hostPath、`backup.sh`、`ft-boot-recover.sh`），diff 面只有一个 fstab + compose 的两行卷声明。
+
+`nofail` 的取舍是分层的：`/data` 本身**不带** `nofail`（数据盘挂不上就让开机失败，好过 mysqld 对着空目录初始化出一套新库），四条 bind 带 `nofail`（避免个别 bind 异常把整个开机卡进 emergency mode，由 `ft-boot-recover.sh` 开机补挂并判定）。
+
+### 13.3 数据面从 named volume 切到 bind
+
+实例上那版 compose 是老变体（`mysql-data:/var/lib/mysql`、`redis-data:/data`），仓库版早已是 bind。迁移动作：
+
+```sh
+docker stop -t 120 family-tree-mysql family-tree-redis          # 优雅停，InnoDB 要干净落盘
+cp -a /var/lib/docker/volumes/family-tree_mysql-data/_data/. /opt/family-tree/data/mysql/
+cp -a /var/lib/docker/volumes/family-tree_redis-data/_data/. /opt/family-tree/data/redis/
+chown -R 999:999 /opt/family-tree/data                          # mysql/redis 官方镜像都以 uid 999 跑
+sed -i 's|^      - mysql-data:/var/lib/mysql|      - ./data/mysql:/var/lib/mysql|' docker-compose.yml
+sed -i 's|^      - redis-data:/data|      - ./data/redis:/data|' docker-compose.yml
+docker compose --project-directory /opt/family-tree -f /opt/family-tree/docker-compose.yml up -d mysql redis
+```
+
+实测 InnoDB 191M + AOF 7.0M 复制约 1s。**旧的两个 named volume（`family-tree_mysql-data` / `family-tree_redis-data`）留着不删**，作为「bind 侧出问题就回切卷声明」的对照副本；compose 末尾那份 `volumes:` 声明也原样保留（不被引用即无害，删了反而少一条回退路径）。
+
+⚠️ **compose 网络接管坑**：`family-tree_default` 是 19:2x 重启自愈时 `docker network connect` 建的，**没有 compose 标签**，`compose up` 直接拒绝：
+
+```
+network family-tree_default was found but has incorrect label com.docker.compose.network set to ''
+```
+
+处置：把挂在这个网络上的容器（`family-tree-app` / `-mysql` / `-redis`）全部 `docker network disconnect -f` → `docker network rm family-tree_default` → 让 compose 自己重建（文件里已声明 `networks: default.name: family-tree_default`）→ 再把退役的 `family-tree-app` 重新 `docker network connect` 回去，保持回滚容器可用。
+
+### 13.4 为什么顺带做了一次蓝绿切流
+
+k3s pod 的 hostPath 是**建容器时解析到 inode** 的，事后在底下挂 bind 不会改写已运行 pod 的指向——蓝槽当时仍把日志写进原 inode（落在 `logs.old-20261128_202100`）。要让应用侧真正写到数据盘，必须重启一个槽，于是按 §11.2 走绿槽：改 `deployment-green.yaml` 的 tag 到 `v95-local`（清单备份 `deployment-green.yaml.bak.pre-datadisk-<ts>`）→ 绿槽 8092 旁路验收 → nginx 六处 8091→8092 → reload → 蓝槽 `scale 0`。整窗零 502，**代价是数据面重启那 ~40s 里 redis 会话清空（`dbsize=0`），在线用户需重新登录**。
+
+### 13.5 验收证据
+
+```
+findmnt：四个 /opt/family-tree/{logs,data,backup,backups} 全部 SOURCE=/dev/vdb1[/family-tree/...]
+df：/dev/vda3 40G 24G 64% /        /dev/vdb1 49G 1.5G 4% /data
+/data/family-tree：backup 1.2G / data 212M / logs 48M / backups 1.5M
+ft-sentinel.sh：mode=k3s base=http://127.0.0.1:8092 + 四行 OK，rc=0
+DB 读数迁移前后一致：32 表 / 19 家族 / 205 账号 / 246 节点 / 211 成员 / 29 跨族链；flyway success=1 计 41
+公网 / /home /login.html = 200，前端指纹仍是 style.css?v=20261128d（v95）
+```
+
+`backup.sh` 的 cron 写的是 `/opt/family-tree/backups`（复数），与历史遗留的 `/opt/family-tree/backup`（单数，存镜像 tar）是两个目录——所以 bind 是**四条**而不是三条，漏一条 nightly dump 就还在系统盘上。
+
+### 13.6 `ft-boot-recover.sh` 随之加固的两点
+
+数据落位让原脚本的两条假设失效，已修（sha256 `4a35c8d1744666a3…`，20:29 重传并 `systemctl restart ft-boot-recover.service` 空跑 `ExecMainStatus=0`，日志末行 `应用槽 8092 health=200`）：
+
+1. **槽位自适应**：不再写死 `8091` / `family-tree-app-blue`，改为探测 8091 与 8092，卡住时只对 `spec.replicas>0` 的 deployment `rollout restart`（休眠槽是回滚锚，绝不拉起）。
+2. **数据盘守卫**：开机先 `ensure_datadisk_mounts`（`/data` 未挂即报警、四个 bind 缺失即补 `mount --bind`），再 `guard_mysql_datadir`——`/opt/family-tree/data/mysql/ibdata1` 不存在就**中止，拒绝启动数据面**，防止 mysqld 在空 datadir 上安静建出一套新库（README「已知限制」里那个最贵的事故）。
+
+### 13.7 待点名授权的收尾
+
+- 回收系统盘：删 `/opt/family-tree/{logs,data,backup,backups}.old-20261128_202100`（合计约 1.25G，其中 `backup.old` 1.2G 是旧镜像 tar 副本）与两个不再引用的 named volume（约 200M）。**在确认数据盘侧备份与整盘快照策略之前不要删**——目前备份、数据库、照片已经同处一块数据盘，只靠 `df /` 变松不算多副本。
+- scope ③：`/var/lib/docker`（4.6G）与 k3s image store（4.0G）的 data-root 迁到 `/data`，可把根盘从 64% 降到约 40%，需停 docker + k3s 的独立窗口。

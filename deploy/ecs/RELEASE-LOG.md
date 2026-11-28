@@ -17,6 +17,46 @@
 
 ---
 
+## 运维变更 — 日志/数据/备份落位到数据盘（含一次同版本蓝绿切流）
+
+| 项目 | 内容 |
+|---|---|
+| 变更时间 | 2026-11-28 20:21–20:29 CST / 12:21–12:29 UTC |
+| 变更内容 | 新增数据盘 bind 挂载（logs、data、backup、backups 四目录迁到 `/dev/vdb1`）；compose 的 mysql/redis 从 named volume 切到 `./data/mysql`、`./data/redis`；为让 pod 的 hostPath 真正指向数据盘，把流量从蓝槽 8091 切到绿槽 8092（同镜像 `v95-local`，非版本发布）；`ft-boot-recover` 增加数据盘守卫与槽位自适应 |
+| 代码版本 | 无功能代码变更（镜像与 jar 仍是 v95 的 `f0ccb6a` 基线） |
+| 发布镜像 | 不变：`family-tree:v95-local`（蓝绿两侧同镜像） |
+| 数据库备份 | 切数据面前在数据盘另出一份 mysqldump（`/data/family-tree/backup/`），与当日 03:00 cron 产物并存 |
+| 数据库变更 | 无 Flyway 版本、无表结构变更；仅数据目录物理位置迁移（InnoDB 191M + AOF 7.0M，复制约 1s） |
+| 部署槽位 | nginx 8091 → 8092（6 处全量）；配置备份 `/etc/nginx/conf.d/family-tree.conf.bak.pre-datadisk-<ts>` |
+| 在任版本 | `family-tree-app-green` / `family-tree:v95-local` / replicas 1 |
+| 回滚锚 | `family-tree-app-blue` / `family-tree:v95-local` / replicas 0；清单备份 `deployment-green.yaml.bak.pre-datadisk-<ts>`；旧 named volume `family-tree_mysql-data`、`family-tree_redis-data` 保留未删 |
+| 系统配置 | `/etc/fstab` 追加四条 bind（备份 `/etc/fstab.bak.pre-datadisk-<ts>`）；compose 备份 `docker-compose.yml.bak.pre-datadisk-<ts>` |
+
+### 变更内容明细
+
+- `/data/family-tree/{logs,data,backup,backups}` bind 到 `/opt/family-tree/` 同名目录，选项 `bind,nofail`；`/data` 本身不带 `nofail`，数据盘挂不上则挡开机而不是让 mysqld 对着空目录初始化
+- 数据面迁移期间 compose 拒绝接管无标签的 `family-tree_default`，处置为「摘容器 → `docker network rm` → 由 compose 重建 → 把退役的 `family-tree-app` 重新接回」
+- `ops/ft-boot-recover.sh`（sha256 `4a35c8d1744666a3…`）：`ensure_datadisk_mounts` + `guard_mysql_datadir`（`ibdata1` 缺失即中止）+ 应用槽改为探测 8091/8092 并只对 `replicas>0` 的 deployment `rollout restart`
+
+### 验收结果
+
+- `findmnt`：四个 `/opt/family-tree/{logs,data,backup,backups}` 的 SOURCE 均为 `/dev/vdb1[/family-tree/…]`
+- `df`：`/dev/vda3` 40G/24G/64%（未回收 `.old` 副本与旧卷，仍待授权清理）；`/dev/vdb1` 49G/1.5G/4%
+- `ft-sentinel.sh`：`mode=k3s base=http://127.0.0.1:8092` + 四行 OK，`rc=0`
+- 生产检查：公网 `/`、`/home`、`/login.html` 均 200，前端指纹仍 `style.css?v=20261128d`（v95 未变）
+- 读数对照：32 表 / 19 家族 / 205 账号 / 246 节点 / 211 成员 / 29 跨族链，迁移前后一致；`flyway_schema_history` 中 `success=1` 计 41，未重跑
+- 会话连续性：**未保持**——数据面重启使 Redis `dbsize=0`，在线用户需重新登录（本轮唯一用户可见影响）
+- 流量切换证据：切流后绿槽 pod `1/1 Running`、`8092/actuator/health=200`，蓝槽缩容后 `8091` 不再出现在哨兵链路
+- 自愈演练：`systemctl restart ft-boot-recover.service` 空跑 `ExecMainStatus=0`，日志末行 `应用槽 8092 health=200`，零副作用
+
+### 遗留事项
+
+- `.old-20261128_202100` 四份原目录（约 1.25G）与两个不再引用的 named volume（约 200M）仍在系统盘上，回收需点名授权
+- 备份、数据库、照片现同处一块数据盘，仍无异地副本；`/var/lib/docker`（4.6G）与 k3s image store（4.0G）的 data-root 迁盘属下一窗口
+- 真实重启路径仍未演练（仅幂等空跑），见 SOP §12.5
+
+---
+
 ## v95 — 登录态 Home 与「首页」导航统一
 
 | 项目 | 内容 |

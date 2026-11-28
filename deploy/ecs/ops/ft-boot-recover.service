@@ -1,0 +1,15 @@
+[Unit]
+Description=family-tree: 开机自愈（拉起 compose 数据面 mysql/redis 并确认 k3s 应用槽就绪）
+Documentation=file:/opt/family-tree/RELEASE-SOP.md
+After=network-online.target docker.service firewalld.service k3s.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/ft-boot-recover.sh
+TimeoutStartSec=1800
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
