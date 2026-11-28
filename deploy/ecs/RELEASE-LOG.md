@@ -23,7 +23,7 @@
 |---|---|
 | 发布时间 | 2026-11-28 18:08:37 CST / 2026-11-28 10:08:37 UTC |
 | 发布内容 | 已登录用户可直接访问公开 Home 且不会掉出登录态；新增不轮换 CSRF 令牌的登录状态接口；「产品首页」导航文案统一为「首页」，并在应用「更多」菜单、抽屉导航、过渡页与平台管理页补齐首页入口 |
-| 代码版本 | 未提交工作区；HEAD `853795d`；v95 随 v91/v92/v93/v94 未提交功能基线构建，本批延续用户「不提交、不推送」要求 |
+| 代码版本 | 发布时为未提交工作区（HEAD `853795d`）；**2026-11-28 发布后经用户口令「push」补提交：功能 commit `f0ccb6a`、登记 commit `e07b1d6`，均已 push `origin/main`**。v95 含 v91/v92/v93/v94 未提交功能基线，自此并入 `f0ccb6a` |
 | 发布镜像 | `family-tree:v95-local`；镜像 ID `sha256:be3ba6fa83e1cda736aefc35ea4a8a96e3e0e4576437f0f980979deeabdde046`；基座 `family-tree:app-base`，层数 2 |
 | jar 校验 | SHA256 `56ec457a39ef1cd12e64eb25ab3c312de7cd3629e9148abfbf4361e8761d9564`；138,012,694 字节；本地 target、实例 `/root/ft-build/app.jar`、镜像内 `/app/app.jar` 三处一致 |
 | containerd 清单 | `sha256:d6eb71ba8037f82fbc2ea6062586732c32c112e3326df3226fedbad31f939449` |
@@ -60,7 +60,7 @@
 
 ### 遗留事项
 
-- 本批按用户要求未 commit、未 push；当前镜像不能由某个 commit 直接复现。
+- 发布当时按用户要求未 commit；发布后用户口令「push」，本批已提交并推送（功能 `f0ccb6a`、登记 `e07b1d6`）。v95 镜像可由 `f0ccb6a` 走 §4c `clean package` + `FROM family-tree:app-base` 复现；v91/v92/v93/v94 的历史镜像仍无法由各自时点的 commit 复现（代码内容已统一并入 `f0ccb6a`）。
 - 未做生产登录态浏览器复核（需真实生产账号，属生产写入，未授权）；登录态 Home 的行为以本地隔离环境 E2E + 生产匿名 HTTP 双重证据替代。
 - `msjzp.xyz` 仍受既有备案接入限制，本轮验证走公网 IP 80。
 - Service Worker 未改动：导航仍为 network-first、离线兜底仍为 `/index.html`。
