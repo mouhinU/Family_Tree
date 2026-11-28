@@ -100,7 +100,8 @@ sed -i 's/^FT_IMAGE=.*/FT_IMAGE=family-tree:vNNN-local/' .env
   - 各自挂子目录而不是整个 `./data`：照片/日志与 InnoDB 文件不共用一套属主权限，一次误 `chmod -R` 不会同时带走
 - **老环境（命名卷版）升上来先跑一次 `./ecs-setup.sh tobind`**：停容器 → `cp -a` 卷内容到 `data/mysql`、`data/redis` → 校验 `auto.cnf` / `appendonlydir` 标记 → 再 `data`/`app`。目标目录非空即中止，不覆盖；确认数据在之后按提示手工 `docker volume rm` 旧卷腾出约 211MB
 - `backup.sh` 的 cron：`0 3 * * *`，产物 `/opt/family-tree/backups/family_tree_*.sql.gz`
-- **备份、数据库、照片同盘（数据迁移后是 `/dev/vdb1`，不再是系统盘）**，只靠它不算异地副本：另配 ECS 控制台自动快照，或把 `backups/` 与 `data/photos` 同步到 OSS
+- **备份、数据库、照片同盘（数据迁移后是 `/dev/vdb1`，不再是系统盘）**，只靠它不算异地副本：另配 ECS 控制台自动快照，或把 `backups/` 与 `data/photos` 同步到 OSS。**这两项 2026-11-28 由用户明确决定暂不做，按知情接受的现状保留**（见 [`RELEASE-SOP.md`](RELEASE-SOP.md) §14.7）
+- 同盘另有一份**镜像/配置回滚锚**：`/opt/family-tree/backups/rollback-20261128/`（在任镜像 tar + jar + 配置快照 + `RESTORE.md`，448M，`SHA256SUMS` 可校验）。它只防误删误改，**不含业务数据、也不防整盘故障**，口径见 SOP §14.4
 
 ## 域名 HTTPS：配置已装好，等备案接入生效
 

@@ -483,13 +483,13 @@ MySQL 起来后蓝槽 pod 会自己收敛（探针转 ready），**不需要**�
 
 ### 12.4 重启的固有副作用（不是 bug，别当故障查）
 
-- **会话全丢**：会话在 Redis，容器重启 = `dbsize` 归零，所有在线用户需重新登录（数据不受影响）。这也是 §11.2 第 5 步「线程名判流量」在重启窗口失效的原因。
-- **活动表天然清空**：登录态相关的临时数据随 redis 走，属预期。
+- **会话会不会丢，先查 TTL 再下结论**（2026-11-28 21:0x 复核，推翻本条原判「容器重启 = `dbsize` 归零，所有在线用户需重新登录」）：redis 以 `--appendonly yes` + `appendfsync everysec` 运行，AOF 重载**实测有效**——把 `appendonlydir` 副本挂进一次性 `redis:8.8.0` 容器，`DBSIZE` 与键名同线上一致；受控 `docker restart family-tree-redis`（1.022s）后，带 TTL 的探针键（`rate:limit:*` 剩 578/600s）与用户真实会话键（`spring:session:sessions:*` 剩 1792s）都原样存活。所以判断「重启是否踢掉在线用户」的正确动作是：先查重启时刻往前 **30m** 内有没有成功 `LOGIN`（`operation_log.operation_type LIKE '%LOGIN%'`，⚠️ 库时钟是 UTC，`@@system_time_zone=UTC`，要换算）。会话是 30m 滑动 TTL（`application-prod.yml`），窗口内无登录 = `dbsize` 掉的全是自然过期的限流探针键，**当时根本没有活会话可丢**，不是 AOF 失效。真正会丢的只有 `everysec` 之后那 ≤1s 的写。同一套「先数活会话再断言」的口径见 §11.2 第 5 步。
+- **活动表天然清空**：带 TTL 的临时键（限流、验证码）会自然过期，重启前后看到的数量差异多半来自这里，不必当成故障。
 - **备份与照片不受影响**：`/opt/family-tree/backup`（`0 3 * * * backup.sh`）与 hostPath `data/photos`、`logs` 都在宿主盘上。
 
-### 12.5 尚未做的验证
+### 12.5 演练状态（原「尚未做的验证」）
 
-启动路径本身**没做过真实重启演练**（只有 daemon 级推断 + 一次幂等空跑）；要拿硬证据得选一种：`systemctl restart docker`（约 30–60s 中断，能复现网络重建换 ID 与 permanent 冲突）或整实例 `reboot`（约 3–5min，会话再丢一次）。两者都会打断线上，需点名授权。另：宝塔面板仍可能自己往 trusted 区加 permanent 绑定，但每次开机都会被本 unit 剪掉。残留容器 `serene_easley`（Created）待清理授权。
+**真实重启演练已完成**：2026-11-28 20:49:38 整实例 `reboot`，开机 46s 数据面就绪、1min43s 应用槽 200、`ExecMainStatus=0`、`ZONE_CONFLICT` 未复现，见 §14.5。残留容器 `serene_easley`（Created）已于同日 20:54 `docker rm -f` 清理，见 §14.4。另：宝塔面板仍可能自己往 trusted 区加 permanent 绑定，但每次开机都会被本 unit 剪掉。
 
 ## 13. 磁盘与数据落位（数据盘 bind，2026-11-28）
 
@@ -535,7 +535,7 @@ network family-tree_default was found but has incorrect label com.docker.compose
 
 ### 13.4 为什么顺带做了一次蓝绿切流
 
-k3s pod 的 hostPath 是**建容器时解析到 inode** 的，事后在底下挂 bind 不会改写已运行 pod 的指向——蓝槽当时仍把日志写进原 inode（落在 `logs.old-20261128_202100`）。要让应用侧真正写到数据盘，必须重启一个槽，于是按 §11.2 走绿槽：改 `deployment-green.yaml` 的 tag 到 `v95-local`（清单备份 `deployment-green.yaml.bak.pre-datadisk-<ts>`）→ 绿槽 8092 旁路验收 → nginx 六处 8091→8092 → reload → 蓝槽 `scale 0`。整窗零 502，**代价是数据面重启那 ~40s 里 redis 会话清空（`dbsize=0`），在线用户需重新登录**。
+k3s pod 的 hostPath 是**建容器时解析到 inode** 的，事后在底下挂 bind 不会改写已运行 pod 的指向——蓝槽当时仍把日志写进原 inode（落在 `logs.old-20261128_202100`）。要让应用侧真正写到数据盘，必须重启一个槽，于是按 §11.2 走绿槽：改 `deployment-green.yaml` 的 tag 到 `v95-local`（清单备份 `deployment-green.yaml.bak.pre-datadisk-<ts>`）→ 绿槽 8092 旁路验收 → nginx 六处 8091→8092 → reload → 蓝槽 `scale 0`。整窗零 502，**代价是数据面重启那 ~40s 内 redis 不可用**（读写请求会失败，会话本身靠 AOF 不丢，见 §12.4 的复核结论；该窗口最后一次真实 `LOGIN` 在 17:40:37 CST，距切流已超 30m TTL，所以当时并没有在线用户被踢）。
 
 ### 13.5 验收证据
 
@@ -561,7 +561,7 @@ DB 读数迁移前后一致：32 表 / 19 家族 / 205 账号 / 246 节点 / 211
 
 - 回收系统盘：`/opt/family-tree/{logs,data,backup,backups}.old-20261128_202100` 与两个不再引用的 named volume —— §14.4。
 - scope ③：`/var/lib/docker`（4.6G）与 k3s image store（4.0G）的 data-root 迁到 `/data` —— §14.1~§14.3。
-- ⚠️ 备份单点风险仍在：备份、数据库、照片如今同处 `vdb1` 一块盘，`df /` 变松不等于多副本；跨盘/异地副本仍是缺口（`release.yml` 的产物在 ghcr，数据没有）。
+- ⚠️ 备份单点风险仍在：备份、数据库、照片如今同处 `vdb1` 一块盘，`df /` 变松不等于多副本；跨盘/异地副本仍是缺口（`release.yml` 的产物在 ghcr，数据没有）。**此项已由用户知情决定保持现状，见 §14.7**。同日在数据盘重建的镜像/配置回滚锚见 §14.4（只防误删误改，不防整盘故障）。
 
 ## 14. scope ③：docker/k3s 数据根迁盘 + 真实重启演练（2026-11-28 20:36–20:56 CST）
 
@@ -625,6 +625,18 @@ docker rm -f serene_easley                                        （Created 状
 
 ⚠️ **代价**：scope ③ 的回滚副本（`.pre-datadisk`）已随清理消失。今后若要把数据根挪回系统盘，只能反向 `cp -a /data/docker/. /var/lib/docker/`（需再次停服），没有秒级回切开关。
 
+**回滚锚已在数据盘重建**（同日 21:03，补上删掉 `.pre-datadisk` 后缺的「镜像 / 配置可复原」这一环）：`/opt/family-tree/backups/rollback-20261128/`，448M，目录 700 / 文件 600，内容 `SHA256SUMS` 校验全 OK。
+
+```
+family-tree-v95-local.tar     331,418,112B  k3s ctr -n k8s.io images export 出来的在任镜像（docker 库里只剩 app-base + v81，v85~v95 只在 containerd）
+app-v95.jar                   138,000,240B  = /root/ft-build/family-tree-web-1.0.0-SNAPSHOT.jar
+config-snapshot-20261128.tar.gz    82,765B  fstab / ft-boot-recover.{sh,service} / {docker,containerd,k3s}.service.d/datadisk.conf / nginx conf / /opt/family-tree 全套配置与清单
+RESTORE.md                        4,184B  A 镜像丢失 / B 配置改坏 / C 退回系统盘 三套动作 + 现状基线
+ft-make-base.sh                   基座重建脚本
+```
+
+⚠️ 这套锚**只覆盖镜像与配置，不含业务数据**（库、照片、备份在 `backups/` 同级，恢复动作绝不能覆盖它们）；且与数据同盘，只防误删/误改，不防 `vdb1` 整盘故障。
+
 ### 14.5 真实重启演练结果（首次，非幂等空跑）
 
 `reboot` 20:49:38 下发 → 实例 20:49:52 完成引导 → `ft-boot-recover.service` 20:50:32 起跑：
@@ -639,7 +651,7 @@ docker rm -f serene_easley                                        （Created 状
 
 即**开机 46s 内数据面就绪、1min43s 内应用槽自愈**，无需人工。§12 那次的 `ZONE_CONFLICT` / 网络 ID 错配没有复现（unit 的剪陈旧绑定 + 四级兜底起作用）。绿槽 pod 期间 `RESTARTS 1`（应用先于数据面就绪失败一次），随后 `1/1`。
 
-**会话仍会全丢**：redis 落数据盘后 `dbsize` 从 3 → 2，AOF 没有捞回旧 key（与 §12 同形态），整实例重启后在线用户需重新登录——这是既定代价，不是回归。
+**会话并非「必丢」**（本段原写「`dbsize` 从 3 → 2，AOF 没有捞回旧 key…这是既定代价」，2026-11-28 21:0x 复核已推翻）：重启时刻 20:49:52，而窗口内最后一次成功 `LOGIN` 是 17:40:37 CST（`operation_log`，库内 UTC 09:40:37），距重启 3h09m，远超 30m 滑动 TTL——掉的那 1 个键是 10m 窗口的探针 `rate:limit:*`，**当时没有活会话可丢**。AOF 重载与跨重启存活已在 §12.4 用两组实测（副本容器 + 受控 `docker restart family-tree-redis`）证明。整实例重启真正的风险只有 `appendfsync everysec` 之后 ≤1s 的写未落盘。
 
 ### 14.6 验收证据（迁移后与重启后各一次，读数逐字一致）
 
@@ -657,7 +669,8 @@ DB：tables=32 families=19 accounts=205 nodes=246 members=211 links=29 flyway_ok
 
 ### 14.7 残余
 
-- 备份/数据库/照片同盘的单点风险（§13.7）仍是缺口，建议加一条 `aliyun` 快照或对象存储副本。
+- 备份/数据库/照片同盘的单点风险（§13.7）**已由用户明确决定保持现状**（2026-11-28 指令「3 保持原状」）：不配云盘快照、不加 OSS 异地副本。今后再提这条时按「知情接受的风险」处理，别当成待办漏项；真要改，最小动作是 `backup.sh` 之后把 dump 传一份到桶里。
+- AOF 已做一次性整理（同日 21:0x）：`BGREWRITEAOF` 把 7.2MB 的历史 incr 流压成 base 971B + incr 0B，`aof_last_bgrewrite_status:ok`、`dbsize` 不变、在线会话未被踢。原因是 `appendfsync everysec` 下 rewrite 由 `auto-aof-rewrite-min-size`（64MB）门控，会话键量级永远够不到阈值，**不主动 rewrite 就会一直让冷启动重放上万条历史写**。重启前若在意加载耗时，可人工 `redis-cli BGREWRITEAOF`。
 - `/root/ft-migrate/` 的镜像 tar、`/opt/family-tree/*.bak.pre-datadisk-*` 文档副本留着未清，属主动保留。
 - 数据根手术只在「整机停机窗口」做过一次；如果将来想不停机迁盘，得改用 `docker daemon` 迁移或 lvm/卷级快照，不要拿 `rsync`（实例上没装）+ 在线 `cp -a` 赌一致性。
 

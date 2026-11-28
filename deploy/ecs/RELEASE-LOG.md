@@ -17,6 +17,53 @@
 
 ---
 
+## 运维变更 — 会话口径复核更正 + AOF 整理 + 数据盘回滚锚
+
+| 项目 | 内容 |
+|---|---|
+| 变更时间 | 2026-11-28 21:00–21:06 CST / 13:00–13:06 UTC（无停机，应用与数据面全程在跑） |
+| 变更内容 | 复核推翻「重启导致 redis 会话全丢」的既有结论并改写台账；`BGREWRITEAOF` 整理 AOF；在数据盘重建 scope ③ 的回滚锚 |
+| 代码版本 | 无功能代码变更（仍为 v95 的 `f0ccb6a` 基线）；改动只在 `deploy/ecs/{RELEASE-SOP,RELEASE-LOG,README}.md` |
+| 发布镜像 | 不变：`family-tree:v95-local`（绿槽在任，蓝槽休眠锚） |
+| 数据库备份 | 不新增 dump，沿用 20:36:26 那份；本次仅只读查询 `operation_log` 的 `LOGIN` 时间线（⚠️ 列名是 `operation_type`/`create_time`，库时钟为 UTC） |
+| 数据库变更 | 无 |
+| 部署槽位 | 未切流：nginx 仍指向绿槽 8092 |
+| 在任版本 | `family-tree-app-green` / `family-tree:v95-local` / replicas 1 |
+| 回滚锚 | 新增数据盘锚 `/opt/family-tree/backups/rollback-20261128/`（448M，目录 700 / 文件 600，`sha256sum -c SHA256SUMS` 五行全 OK）；蓝槽休眠锚不变 |
+
+### 复核结论（原判断错在哪）
+
+- 三条台账曾写「容器重启 = `dbsize` 归零 / AOF 没捞回旧 key → 在线用户需重新登录」，实测**不成立**：
+  - AOF 重载有效——把 `appendonlydir` 副本挂进一次性 `redis:8.8.0` 容器，`DBSIZE` 与键名同线上一致；
+  - 重启窗口**本就没有活会话**——最后一次成功 `LOGIN` 是 17:40:37 CST（库内 UTC 09:40:37），距 20:49:52 的 `reboot` 已 3h09m，远超 `application-prod.yml` 的 30m 滑动脉搏 TTL；`dbsize` 3 → 2 掉的是 10m 窗口的探针 `rate:limit:*` 键；
+  - 判定法已写进 SOP §12.4：先查「重启时刻往前 30m 内有无成功 LOGIN」再断言会话是否丢，别拿 `dbsize` 差值当证据。
+- 真正会丢的只有 `appendfsync everysec` 之后 ≤1s 的写，以及 k3s pod 侧的内存态（v71 起会话已在 redis，不受影响）。
+
+### AOF 整理与受控重启实证
+
+- `BGREWRITEAOF`：7.2MB 历史 incr 流压成 `aof_base_size:971` + incr 空（当前 `aof_current_size:86019` 是重写后新写入，正常累积），`aof_last_bgrewrite_status:ok`、`DBSIZE` 不变、**在线会话未被踢**。背景：会话键量级永远够不到 `auto-aof-rewrite-min-size`（64MB），不主动 rewrite 就会让冷启动重放上万条历史写。
+- 受控 `docker restart family-tree-redis`（1.022s）：探针键 TTL 578/600、用户真实会话键（`spring:session:sessions:dd49cd63-…`）TTL 1792 全部存活 → 会话可跨 redis 重启端到端成立。
+- 复验：`ft-sentinel.sh rc=0`（`mode=k3s base=http://127.0.0.1:8092` 四行 OK）、`8092/actuator/health=200`、公网 `/home` 200。
+
+### 回滚锚内容
+
+| 文件 | 字节 | sha256（前 12） |
+|---|---|---|
+| `family-tree-v95-local.tar` | 331,418,112 | `1c165b929537`（`k3s ctr -n k8s.io images export`，docker 库里已无 v95） |
+| `app-v95.jar` | 138,000,240 | `3d86341b3f4b`（= `/root/ft-build/family-tree-web-1.0.0-SNAPSHOT.jar`） |
+| `config-snapshot-20261128.tar.gz` | 82,765 | `e768ddec53fa`（fstab、`ft-boot-recover.{sh,service}`、`{docker,containerd,k3s}.service.d/datadisk.conf`、nginx conf、`/opt/family-tree` 配置与清单） |
+| `RESTORE.md` | 4,184 | `079300109e40`（A 镜像丢失 / B 配置改坏 / C 退回系统盘 三套动作） |
+| `ft-make-base.sh` | 942 | `03f1604ce6d8` |
+
+⚠️ 只覆盖镜像与配置，**不含业务数据**；与数据同盘，只防误删误改，不防 `vdb1` 整盘故障。
+
+### 遗留事项
+
+- 备份/数据库/照片同盘、无异地副本：**用户 2026-11-28 明确决定保持现状**（指令「3 保持原状」），不配云快照/OSS；已作为知情接受的风险登记在 SOP §14.7，不再列作待办。
+- 三份文档需重传实例并核对与仓库 sha256 一致；本批文档改动待 push。
+
+---
+
 ## 运维变更 — docker/k3s 数据根迁数据盘（scope ③）+ 真实重启演练 + 旧副本回收
 
 | 项目 | 内容 |
@@ -29,7 +76,7 @@
 | 数据库变更 | 无 Flyway 版本、无表结构变更；仅镜像/容器存储的物理位置迁移（`cp -a` 98s） |
 | 部署槽位 | 未切流：nginx 仍指向绿槽 8092（沿用上一条的在任态） |
 | 在任版本 | `family-tree-app-green` / `family-tree:v95-local` / replicas 1 |
-| 回滚锚 | `family-tree-app-blue` / `family-tree:v95-local` / replicas 0；⚠️ scope ③ 的 `.pre-datadisk` 原数据根**已在 20:54 删除**，回退只能反向 `cp -a`（需再次停服） |
+| 回滚锚 | `family-tree-app-blue` / `family-tree:v95-local` / replicas 0；⚠️ scope ③ 的 `.pre-datadisk` 原数据根**已在 20:54 删除**，回退只能反向 `cp -a`（需再次停服）；镜像与配置的可复原性由同日 21:03 重建的数据盘锚补齐（见上一条） |
 | 系统配置 | `/etc/fstab` 追加两行 bind（**不带 `nofail`**，挂不上即挡服务）+ `/etc/systemd/system/{docker,containerd,k3s}.service.d/datadisk.conf` = `RequiresMountsFor=/data`；fstab 备份 `/etc/fstab.bak.scope3-<ts>` |
 
 ### 变更内容明细
@@ -46,7 +93,8 @@
 - `ft-sentinel.sh`：`mode=k3s base=http://127.0.0.1:8092` + 四行 OK，`rc=0`（清理后复跑仍 rc=0）
 - 读数对照：**迁移后与重启后两次均为** 32 表 / 19 家族 / 205 账号 / 246 节点 / 211 成员 / 29 跨族链、`success=1` 计 41，与基线逐字一致；照片 2 文件 / 1.2M 与迁移前副本计数一致
 - 真实重启演练：`reboot` 20:49:38 → 实例 20:49:52 回来 → `ft-boot-recover` 20:50:32 起跑，**20:50:38 mysql healthy + redis PONG、20:52:21 应用槽 8092 health=200、rc=0**，全程无人工；§12 的 `ZONE_CONFLICT`/网络 ID 错配未复现
-- 会话连续性：**未保持**——重启后 Redis `dbsize` 3 → 2，AOF 未捞回旧 key，在线用户需重新登录（既定代价）
+- 会话连续性：**当时无活会话可保持**（21:0x 复核修正原「AOF 未捞回旧 key」的判断）——重启时刻 20:49:52，而重启前最后一次成功 `LOGIN` 是 17:40:37 CST（`operation_log`，库内 UTC 09:40:37；MySQL 时钟为 UTC，与 `date -u` 对齐实测），早已超过 30m 滑动会话 TTL；`dbsize` 3 → 2 掉的是 10m 窗口的探针 `rate:limit:*` 键。AOF 重载已单独实测：把 `appendonlydir` 副本挂进一次性 `redis:8.8.0` 容器，`DBSIZE`/键名与线上一致
+- 会话持久化端到端实证（21:05，见下条运维复核）：带 TTL 的探针键与用户真实会话键均跨 `docker restart family-tree-redis` 存活
 - 日志：当前绿槽 pod 重启后窗口内 `" ERROR "` 计数 0
 - 公网：`/`、`/home`、`/login.html` 均 200，前端指纹仍 `style.css?v=20261128d`（v95 未变）
 
@@ -86,7 +134,7 @@
 - `ft-sentinel.sh`：`mode=k3s base=http://127.0.0.1:8092` + 四行 OK，`rc=0`
 - 生产检查：公网 `/`、`/home`、`/login.html` 均 200，前端指纹仍 `style.css?v=20261128d`（v95 未变）
 - 读数对照：32 表 / 19 家族 / 205 账号 / 246 节点 / 211 成员 / 29 跨族链，迁移前后一致；`flyway_schema_history` 中 `success=1` 计 41，未重跑
-- 会话连续性：**未保持**——数据面重启使 Redis `dbsize=0`，在线用户需重新登录（本轮唯一用户可见影响）
+- 会话连续性：**当时无活会话可保持**（21:0x 复核修正原「数据面重启使 `dbsize=0`，在线用户需重登」的判断）——该窗口最后一次成功 `LOGIN` 是 17:40:37 CST，距 20:2x 已超过 30m 会话 TTL，键早已自然过期；随后 21:05 的受控重启实测证明带 TTL 的会话键能跨 redis 重启存活
 - 流量切换证据：切流后绿槽 pod `1/1 Running`、`8092/actuator/health=200`，蓝槽缩容后 `8091` 不再出现在哨兵链路
 - 自愈演练：`systemctl restart ft-boot-recover.service` 空跑 `ExecMainStatus=0`，日志末行 `应用槽 8092 health=200`，零副作用
 
